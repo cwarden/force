@@ -663,6 +663,30 @@ func (f *Force) Query(query string) (result ForceQueryResult, err error) {
 	return
 }
 
+func (f *Force) QueryTooling(query string) (result ForceQueryResult, err error) {
+	url := fmt.Sprintf("%s/services/data/%s/tooling/query?q=%s", f.Credentials.InstanceUrl, apiVersion, url.QueryEscape(query))
+	body, err := f.httpGet(url)
+	if err != nil {
+		return
+	}
+	json.Unmarshal(body, &result)
+	if result.Done == false {
+		var nextResult ForceQueryResult
+		nextResult.NextRecordsUrl = result.NextRecordsUrl
+		for nextResult.Done == false {
+			nextUrl := fmt.Sprintf("%s%s", f.Credentials.InstanceUrl, nextResult.NextRecordsUrl)
+			nextBody, nextErr := f.httpGet(nextUrl)
+			if nextErr != nil {
+				return
+			}
+			json.Unmarshal(nextBody, &nextResult)
+
+			result.Records = append(result.Records, nextResult.Records...)
+		}
+	}
+	return
+}
+
 func (f *Force) Get(url string) (object ForceRecord, err error) {
 	body, err := f.httpGet(url)
 	if err != nil {

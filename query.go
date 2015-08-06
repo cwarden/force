@@ -34,9 +34,22 @@ func runQuery(cmd *Command, args []string) {
 			args = args[:len(args)-1]
 			format = strings.SplitN(formatArg, ":", 2)[1]
 		}
+		toolingArg := args[len(args)-1]
+		useTooling := false
+		fmt.Printf("toolingArg %s", toolingArg);
+		if strings.Contains(toolingArg, "useTooling") {
+			useTooling = true
+			args = args[:len(args)-1]
+		}
 
 		soql := strings.Join(args, " ")
-		records, err := force.Query(fmt.Sprintf("%s", soql))
+		var records ForceQueryResult
+		var err error
+		if (useTooling) {
+			records, err = force.QueryTooling(fmt.Sprintf("%s", soql))
+		} else {
+			records, err = force.Query(fmt.Sprintf("%s", soql))
+		}
 		if err != nil {
 			ErrorAndExit(err.Error())
 		} else {
