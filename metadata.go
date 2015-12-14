@@ -314,6 +314,29 @@ type MetadataDescribeResult struct {
 	MetadataObjects    []DescribeMetadataObject `xml:"metadataObjects"`
 }
 
+type EnhancedFolderShare struct {
+	AccessLevel  string `xml:"accessLevel"`
+	SharedTo     string `xml:"sharedTo"`
+	SharedToType string `xml:"sharedToType"`
+}
+
+type FolderShare struct {
+	Group               []string `xml:"group,omitempty"`
+	Role                []string `xml:"role,omitempty"`
+	RoleAndSubOrdinates []string `xml:"roleAndSubordinates,omitempty"`
+}
+
+type FolderMetadata struct {
+	FullName           string                `xml:"fullName"`
+	Name               string                `xml:"name"`
+	AccessType         string                `xml:"accessType"`
+	PublicFolderAccess string                `xml:"publicFolderAccess"`
+	FolderShares       []EnhancedFolderShare `xml:"folderShares"`
+	SharedTo           []FolderShare         `xml:"sharedTo"`
+	Type               string                `xml:"http://www.w3.org/2001/XMLSchema-instance type,attr"`
+	NotFound           bool                  `xml:"http://www.w3.org/2001/XMLSchema-instance nil,attr"`
+}
+
 type MetadataDescribeValueTypeResult struct {
 	ValueTypeFields []MetadataValueTypeField `xml:"result"`
 }
@@ -1208,6 +1231,84 @@ func (fm *ForceMetadata) RetrievePackage(packageName string) (files ForceMetadat
 		name := strings.Replace(raw_name, fmt.Sprintf("unpackaged%s", string(os.PathSeparator)), "", -1)
 		files[name] = data
 	}
+	return
+}
+
+func folderMetadataFiles(records []FolderMetadata) (files ForceMetadataFiles, err error) {
+	files = make(ForceMetadataFiles)
+	type metadataFolder struct {
+		XMLName            xml.Name
+		AccessType         string                `xml:"accessType,omitempty"`
+		Name               string                `xml:"name"`
+		PublicFolderAccess string                `xml:"publicFolderAccess,omitempty"`
+		FolderShares       []EnhancedFolderShare `xml:"folderShares,omitempty"`
+		SharedTo           []FolderShare         `xml:"sharedTo,omitempty"`
+	}
+	for _, record := range records {
+		data := &metadataFolder{
+			XMLName: xml.Name{
+				Local: record.Type,
+				Space: "http://soap.sforce.com/2006/04/metadata"},
+			AccessType:         record.AccessType,
+			Name:               record.Name,
+			SharedTo:           record.SharedTo,
+			FolderShares:       record.FolderShares,
+			PublicFolderAccess: record.PublicFolderAccess}
+		name := "unpackaged/" + getPathForMeta(record.Type) + "/" + record.FullName + "-meta.xml"
+		var folderMetadata []byte
+		folderMetadata, err = xml.MarshalIndent(data, "", "    ")
+		if err != nil {
+			return
+		}
+		var folderXML []byte
+		folderXML = append(folderXML, xml.Header...)
+		folderXML = append(folderXML, folderMetadata...)
+		files[name] = append(folderXML, "\n"...)
+	}
+	return
+}
+
+func (fm *ForceMetadata) ReadMetadata(metadataType string, fullNames []string) (res []byte, err error) {
+	var fullNameString string
+	for _, fullName := range fullNames {
+		fullNameString += fmt.Sprintf("<fullNames>%s</fullNames>", fullName)
+	}
+	return fm.soapExecute("readMetadata", fmt.Sprintf("<metadataType>%s</metadataType>%s", metadataType, fullNameString))
+}
+
+func ReadMetadataResponseToFolderMetadata(body []byte) (records []FolderMetadata, err error) {
+	var result struct {
+		Records []FolderMetadata `xml:"Body>readMetadataResponse>result>records"`
+	}
+
+	err = xml.Unmarshal(body, &result)
+	if err != nil {
+		return
+	}
+	records = result.Records
+	for _, record := range records {
+		if record.NotFound {
+			err = errors.New("Invalid Folder")
+			return
+		}
+	}
+
+	return
+}
+
+func (fm *ForceMetadata) RetrieveFolders(metadataType string, fullNames []string) (files ForceMetadataFiles, err error) {
+	body, err := fm.ReadMetadata(metadataType, fullNames)
+	fmt.Println(string(body))
+	if err != nil {
+		return
+	}
+
+	records, err := ReadMetadataResponseToFolderMetadata(body)
+	if err != nil {
+		return
+	}
+
+	files, err = folderMetadataFiles(records)
 	return
 }
 

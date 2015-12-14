@@ -54,6 +54,33 @@ var _ = Describe("Packagebuilder", func() {
 			})
 		})
 
+		Context("when adding a folder", func() {
+			var reportFolderPath string
+
+			BeforeEach(func() {
+				reportFolderPath = tempDir + "/src/reports/Test"
+				os.MkdirAll(reportFolderPath, 0755)
+				reportFolderMetaPath := reportFolderPath + "-meta.xml"
+				reportFolderMetaContents := `
+<?xml version="1.0" encoding="UTF-8"?>
+<ReportFolder xmlns="http://soap.sforce.com/2006/04/metadata">
+	<name>Test</name>
+</ReportFolder>`
+				ioutil.WriteFile(reportFolderMetaPath, []byte(reportFolderMetaContents), 0644)
+			})
+
+			It("should add the folder metadata to package", func() {
+				_, err := pb.AddFile(reportFolderPath)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(pb.Files).To(HaveKey("reports/Test-meta.xml"))
+			})
+			It("should add the folder to the package.xml", func() {
+				pb.AddFile(reportFolderPath)
+				Expect(pb.Metadata).To(HaveKey("Report"))
+				Expect(pb.Metadata["Report"].Members[0]).To(Equal("Test"))
+			})
+		})
+
 		Context("when adding a non-existent file", func() {
 			It("should not add the file to package", func() {
 				_, err := pb.AddFile(tempDir + "/no/such/file")
@@ -89,6 +116,49 @@ var _ = Describe("Packagebuilder", func() {
 			It("should not add the file to the package.xml", func() {
 				pb.AddFile(destructiveChangesPath)
 				Expect(pb.Metadata).To(BeEmpty())
+			})
+		})
+	})
+
+	Describe("GetMetaForPath", func() {
+		Context("when passed an Apex class", func() {
+			It("should return the ApexClass metadata type", func() {
+				metaName, _ := GetMetaForPath("/path/to/src/classes/Test.cls")
+				Expect(metaName).To(Equal("ApexClass"))
+			})
+			It("should return the class name with extension", func() {
+				_, objectName := GetMetaForPath("/path/to/src/classes/Test.cls")
+				Expect(objectName).To(Equal("Test.cls"))
+			})
+		})
+		Context("when passed an aura component", func() {
+			It("should return the AuraDefinitionBundle metadata type", func() {
+				metaName, _ := GetMetaForPath("/path/to/src/aura/Test/file.js")
+				Expect(metaName).To(Equal("AuraDefinitionBundle"))
+			})
+			It("should return the aura folder name", func() {
+				_, objectName := GetMetaForPath("/path/to/src/aura/Test/file.js")
+				Expect(objectName).To(Equal("Test"))
+			})
+		})
+		Context("when passed a folder", func() {
+			It("should return the related metadata type", func() {
+				metaName, _ := GetMetaForPath("/path/to/src/reports/Test")
+				Expect(metaName).To(Equal("Report"))
+			})
+			It("should return the folder name", func() {
+				_, objectName := GetMetaForPath("/path/to/src/reports/Test")
+				Expect(objectName).To(Equal("Test"))
+			})
+		})
+		Context("when passed a report", func() {
+			It("should return the Report metadata type", func() {
+				metaName, _ := GetMetaForPath("/path/to/src/reports/Test/My_Report.report")
+				Expect(metaName).To(Equal("Report"))
+			})
+			It("should return the report name with folder", func() {
+				_, objectName := GetMetaForPath("/path/to/src/reports/Test/My_Report.report")
+				Expect(objectName).To(Equal("Test/My_Report.report"))
 			})
 		})
 	})
