@@ -178,6 +178,14 @@ type ForceMetadataQuery []ForceMetadataQueryElement
 
 type ForceMetadataFiles map[string][]byte
 
+type SoapExecuter interface {
+	SoapExecute(action, query string) (response []byte, err error)
+}
+
+type MetadataFetcher interface {
+	ReadMetadata(metadataType string, fullNames []string) (res []byte, err error)
+}
+
 type ForceMetadata struct {
 	ApiVersion string
 	Force      *Force
@@ -666,7 +674,7 @@ func NewForceMetadata(force *Force) (fm *ForceMetadata) {
 }
 
 func (fm *ForceMetadata) CheckStatus(id string) (err error) {
-	body, err := fm.soapExecute("checkStatus", fmt.Sprintf("<id>%s</id>", id))
+	body, err := fm.SoapExecute("checkStatus", fmt.Sprintf("<id>%s</id>", id))
 	if err != nil {
 		return
 	}
@@ -690,7 +698,7 @@ func (fm *ForceMetadata) CheckStatus(id string) (err error) {
 }
 
 func (fm *ForceMetadata) CheckDeployStatus(id string) (results ForceCheckDeploymentStatusResult, err error) {
-	body, err := fm.soapExecute("checkDeployStatus", fmt.Sprintf("<id>%s</id><includeDetails>true</includeDetails>", id))
+	body, err := fm.SoapExecute("checkDeployStatus", fmt.Sprintf("<id>%s</id><includeDetails>true</includeDetails>", id))
 	if err != nil {
 		return
 	}
@@ -708,7 +716,7 @@ func (fm *ForceMetadata) CheckDeployStatus(id string) (results ForceCheckDeploym
 }
 
 func (fm *ForceMetadata) CheckRetrieveStatus(id string) (files ForceMetadataFiles, err error) {
-	body, err := fm.soapExecute("checkRetrieveStatus", fmt.Sprintf("<id>%s</id>", id))
+	body, err := fm.SoapExecute("checkRetrieveStatus", fmt.Sprintf("<id>%s</id>", id))
 	if err != nil {
 		fmt.Printf("Hrm... will probably try again\n")
 		return
@@ -742,7 +750,7 @@ func (fm *ForceMetadata) CheckRetrieveStatus(id string) (files ForceMetadataFile
 }
 
 func (fm *ForceMetadata) DescribeMetadata() (describe MetadataDescribeResult, err error) {
-	body, err := fm.soapExecute("describeMetadata", fmt.Sprintf("<apiVersion>%s</apiVersion>", apiVersionNumber))
+	body, err := fm.SoapExecute("describeMetadata", fmt.Sprintf("<apiVersion>%s</apiVersion>", apiVersionNumber))
 	if err != nil {
 		return
 	}
@@ -762,7 +770,7 @@ func (fm *ForceMetadata) DescribeMetadata() (describe MetadataDescribeResult, er
 }
 
 //func (fm *ForceMetadata) DescribeMetadataValue(entitytype string) (describe MetadataDescribeValueTypeResult, err error) {
-//	body, err := fm.soapExecute("describeValueType", fmt.Sprintf("<type>%s</type>", entitytype))
+//	body, err := fm.SoapExecute("describeValueType", fmt.Sprintf("<type>%s</type>", entitytype))
 //	if err != nil {
 //		return
 //	}
@@ -800,7 +808,7 @@ func (fm *ForceMetadata) CreateConnectedApp(name, callback string) (err error) {
 		return err
 	}
 	email := me["Email"]
-	body, err := fm.soapExecute("create", fmt.Sprintf(soap, name, apiVersionNumber, name, email, callback))
+	body, err := fm.SoapExecute("create", fmt.Sprintf(soap, name, apiVersionNumber, name, email, callback))
 	if err != nil {
 		return err
 	}
@@ -976,7 +984,7 @@ func (fm *ForceMetadata) CreateCustomField(object, field, typ string, options ma
 	}
 
 	//fmt.Println(fmt.Sprintf(soap, object, field, label, soapField))
-	body, err := fm.soapExecute("create", fmt.Sprintf(soap, object, field, label, soapField))
+	body, err := fm.SoapExecute("create", fmt.Sprintf(soap, object, field, label, soapField))
 	if err != nil {
 		return err
 	}
@@ -998,7 +1006,7 @@ func (fm *ForceMetadata) DeleteCustomField(object, field string) (err error) {
 			<fullName>%s.%s</fullName>
 		</metadata>
 	`
-	body, err := fm.soapExecute("delete", fmt.Sprintf(soap, object, field))
+	body, err := fm.SoapExecute("delete", fmt.Sprintf(soap, object, field))
 	if err != nil {
 		return err
 	}
@@ -1048,7 +1056,7 @@ func (fm *ForceMetadata) CreateCustomObject(object string) (err error) {
 			</nameField>
 		</metadata>
 	`
-	body, err := fm.soapExecute("create", fmt.Sprintf(soap, object, object, inflect.Pluralize(object), object, fld))
+	body, err := fm.SoapExecute("create", fmt.Sprintf(soap, object, object, inflect.Pluralize(object), object, fld))
 	if err != nil {
 		return err
 	}
@@ -1070,7 +1078,7 @@ func (fm *ForceMetadata) DeleteCustomObject(object string) (err error) {
 			<fullName>%s</fullName>
 		</metadata>
 	`
-	body, err := fm.soapExecute("delete", fmt.Sprintf(soap, object))
+	body, err := fm.SoapExecute("delete", fmt.Sprintf(soap, object))
 	if err != nil {
 		return err
 	}
@@ -1130,7 +1138,7 @@ func (fm *ForceMetadata) Deploy(files ForceMetadataFiles, options ForceDeployOpt
 func (fm *ForceMetadata) DeployZipFile(soap string, zipfile []byte) (results ForceCheckDeploymentStatusResult, err error) {
 	//ioutil.WriteFile("package.zip", zipfile, 0644)
 	encoded := base64.StdEncoding.EncodeToString(zipfile)
-	body, err := fm.soapExecute("deploy", fmt.Sprintf(soap, encoded))
+	body, err := fm.SoapExecute("deploy", fmt.Sprintf(soap, encoded))
 	if err != nil {
 		fmt.Println(err.Error())
 		return
@@ -1175,7 +1183,7 @@ func (fm *ForceMetadata) Retrieve(query ForceMetadataQuery) (files ForceMetadata
 		}
 		types += fmt.Sprintf(soapType, element.Name, members)
 	}
-	body, err := fm.soapExecute("retrieve", fmt.Sprintf(soap, apiVersionNumber, types))
+	body, err := fm.SoapExecute("retrieve", fmt.Sprintf(soap, apiVersionNumber, types))
 	if err != nil {
 		return
 	}
@@ -1209,7 +1217,7 @@ func (fm *ForceMetadata) RetrievePackage(packageName string) (files ForceMetadat
 		</retrieveRequest>
 	`
 	soap = fmt.Sprintf(soap, apiVersionNumber, packageName)
-	body, err := fm.soapExecute("retrieve", soap)
+	body, err := fm.SoapExecute("retrieve", soap)
 	if err != nil {
 		return
 	}
@@ -1268,12 +1276,16 @@ func folderMetadataFiles(records []FolderMetadata) (files ForceMetadataFiles, er
 	return
 }
 
-func (fm *ForceMetadata) ReadMetadata(metadataType string, fullNames []string) (res []byte, err error) {
+func ReadMetadata(soap SoapExecuter, metadataType string, fullNames []string) (res []byte, err error) {
 	var fullNameString string
 	for _, fullName := range fullNames {
 		fullNameString += fmt.Sprintf("<fullNames>%s</fullNames>", fullName)
 	}
-	return fm.soapExecute("readMetadata", fmt.Sprintf("<metadataType>%s</metadataType>%s", metadataType, fullNameString))
+	return soap.SoapExecute("readMetadata", fmt.Sprintf("<metadataType>%s</metadataType>%s", metadataType, fullNameString))
+}
+
+func (fm *ForceMetadata) ReadMetadata(metadataType string, fullNames []string) (res []byte, err error) {
+	return ReadMetadata(fm, metadataType, fullNames)
 }
 
 func ReadMetadataResponseToFolderMetadata(body []byte) (records []FolderMetadata, err error) {
@@ -1296,8 +1308,8 @@ func ReadMetadataResponseToFolderMetadata(body []byte) (records []FolderMetadata
 	return
 }
 
-func (fm *ForceMetadata) RetrieveFolders(metadataType string, fullNames []string) (files ForceMetadataFiles, err error) {
-	body, err := fm.ReadMetadata(metadataType, fullNames)
+func RetrieveFolders(fetcher MetadataFetcher, metadataType string, fullNames []string) (files ForceMetadataFiles, err error) {
+	body, err := fetcher.ReadMetadata(metadataType, fullNames)
 	fmt.Println(string(body))
 	if err != nil {
 		return
@@ -1312,12 +1324,16 @@ func (fm *ForceMetadata) RetrieveFolders(metadataType string, fullNames []string
 	return
 }
 
+func (fm *ForceMetadata) RetrieveFolders(metadataType string, fullNames []string) (files ForceMetadataFiles, err error) {
+	return RetrieveFolders(fm, metadataType, fullNames)
+}
+
 func (fm *ForceMetadata) ListMetadata(query string) (res []byte, err error) {
 	if strings.Contains(query, ":") {
 		newquery := strings.Split(query, ":")
-		return fm.soapExecute("listMetadata", fmt.Sprintf("<queries><type>%s</type><folder>%s</folder></queries>", newquery[0], newquery[1]))
+		return fm.SoapExecute("listMetadata", fmt.Sprintf("<queries><type>%s</type><folder>%s</folder></queries>", newquery[0], newquery[1]))
 	} else {
-		return fm.soapExecute("listMetadata", fmt.Sprintf("<queries><type>%s</type></queries>", query))
+		return fm.SoapExecute("listMetadata", fmt.Sprintf("<queries><type>%s</type></queries>", query))
 	}
 }
 
@@ -1344,7 +1360,7 @@ func (fm *ForceMetadata) ListConnectedApps() (apps ForceConnectedApps, err error
 	return
 }
 
-func (fm *ForceMetadata) soapExecute(action, query string) (response []byte, err error) {
+func (fm *ForceMetadata) SoapExecute(action, query string) (response []byte, err error) {
 	login, err := fm.Force.Get(fm.Force.Credentials.Id)
 	if err != nil {
 		return
