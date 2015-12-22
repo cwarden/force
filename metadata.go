@@ -334,6 +334,7 @@ type FolderShare struct {
 	RoleAndSubOrdinates []string `xml:"roleAndSubordinates,omitempty"`
 }
 
+// Metadata returned when requesting a folder from readMetadata
 type FolderMetadata struct {
 	FullName           string                `xml:"fullName"`
 	Name               string                `xml:"name"`
@@ -1242,7 +1243,7 @@ func (fm *ForceMetadata) RetrievePackage(packageName string) (files ForceMetadat
 	return
 }
 
-func folderMetadataFiles(records []FolderMetadata) (files ForceMetadataFiles, err error) {
+func FolderMetadataFiles(records []FolderMetadata) (files ForceMetadataFiles, err error) {
 	files = make(ForceMetadataFiles)
 	type metadataFolder struct {
 		XMLName            xml.Name
@@ -1320,7 +1321,7 @@ func RetrieveFolders(fetcher MetadataFetcher, metadataType string, fullNames []s
 		return
 	}
 
-	files, err = folderMetadataFiles(records)
+	files, err = FolderMetadataFiles(records)
 	return
 }
 
