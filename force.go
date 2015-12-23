@@ -26,6 +26,7 @@ const (
 )
 
 var CustomEndpoint = ``
+var Client *http.Client
 
 const (
 	EndpointProduction = iota
@@ -1191,6 +1192,9 @@ func (f *Force) httpDelete(url string) (body []byte, err error) {
 }
 
 func httpClient() (client *http.Client) {
+	if Client != nil {
+		return Client
+	}
 	if CustomEndpoint == "" {
 		chain := rootCertificate()
 		config := tls.Config{InsecureSkipVerify: true}
@@ -1208,6 +1212,7 @@ func httpClient() (client *http.Client) {
 	} else {
 		client = &http.Client{}
 	}
+	Client = client
 	return
 }
 
