@@ -16,14 +16,14 @@ import (
 )
 
 const (
-	ProductionClientId = "3MVG9JZ_r.QzrS7gAjO9uCs2VkO.hLOCrAG2XC8vlkhr652yEh8Y5VMiNsDzmCik.eryhf1C902FFULbk1m.i"
+	ProductionClientId = "3MVG9ytVT1SanXDnX_hOa9Ys5NxVp5C26JlyQjwr.xTJtUqoKonXY.M8CcjoEknMrV4YUvPvXLiMyzI.Aw23C"
 	PrereleaseClientId = "3MVG9lKcPoNINVBIRgC7lsz5tIhlg0mtoEqkA9ZjDAwEMbBy43gsnfkzzdTdhFLeNnWS8M4bnRnVv1Qj0k9MD"
 	Mobile1ClientId    = "3MVG9Iu66FKeHhIPqCB9VWfYPxjfcb5Ube.v5L81BLhnJtDYVP2nkA.mDPwfm5FTLbvL6aMftfi8w0rL7Dv7f"
-	RedirectUri        = "https://force-cli.herokuapp.com/auth/callback"
-	RedirectUriStaging = "https://force-clistaging.herokuapp.com/auth/callback"
+	RedirectUri        = "http://localhost:3835/oauth/callback"
 )
 
 var CustomEndpoint = ``
+var SessionExpiredError = errors.New("Session expired")
 
 const (
 	EndpointProduction = iota
@@ -45,14 +45,15 @@ type Force struct {
 }
 
 type ForceCredentials struct {
-	AccessToken   string
-	Id            string
+	AccessToken   string `json:"access_token"`
+	Id            string `json:"id"`
 	UserId        string
-	InstanceUrl   string
-	IssuedAt      string
-	Scope         string
+	InstanceUrl   string `json:"instance_url"`
+	IssuedAt      string `json:"issued_at"`
+	Scope         string `json:"scope"`
 	IsCustomEP    bool
 	Namespace     string
+	RefreshToken  string
 	ForceEndpoint ForceEndpoint
 }
 
@@ -258,22 +259,94 @@ func ForceSoapLogin(endpoint ForceEndpoint, username string, password string) (c
 	}
 	instanceUrl := u.Scheme + "://" + u.Host
 	identity := u.Scheme + "://" + u.Host + "/id/" + orgid + "/" + result.Id
-	creds = ForceCredentials{result.SessionId, identity, result.Id, instanceUrl, "", "", endpoint == EndpointCustom, "", endpoint}
+	creds = ForceCredentials{AccessToken: result.SessionId, Id: identity, UserId: result.Id, InstanceUrl: instanceUrl, IsCustomEP: endpoint == EndpointCustom, ForceEndpoint: endpoint}
+	LogAuth()
 
-	f := NewForce(creds)
-	url := "https://force-cli"
-	if version == "dev" {
-		url = fmt.Sprintf("%sstaging.herokuapp.com/auth/soaplogin/?id=%s&access_token=%s&instance_url=%s", url, creds.Id, creds.AccessToken, creds.InstanceUrl)
-	} else {
-		url = fmt.Sprintf("https://force-cli.herokuapp.com/auth/soaplogin/?id=%s&access_token=%s&instance_url=%s", creds.Id, creds.AccessToken, creds.InstanceUrl)
+	return
+}
+
+// Log authentication for Salesforce usage tracking
+func LogAuth() {
+	http.Get("https://force-cli.herokuapp.com/auth/complete")
+}
+
+func (f *Force) UpdateCredentials(creds ForceCredentials) {
+	f.Credentials.AccessToken = creds.AccessToken
+	f.Credentials.IssuedAt = creds.IssuedAt
+	f.Credentials.InstanceUrl = creds.InstanceUrl
+	f.Credentials.Scope = creds.Scope
+	f.Credentials.Id = creds.Id
+	ForceSaveLogin(f.Credentials)
+}
+
+func (f *Force) refreshTokenURL() string {
+	var refreshURL string
+	endpoint := f.Credentials.ForceEndpoint
+	switch endpoint {
+	case EndpointProduction:
+		refreshURL = fmt.Sprintf("https://login.salesforce.com/services/oauth2/token")
+	case EndpointTest:
+		refreshURL = fmt.Sprintf("https://test.salesforce.com/services/oauth2/token")
+	case EndpointPrerelease:
+		refreshURL = fmt.Sprintf("https://prerellogin.pre.salesforce.com/services/oauth2/token")
+	case EndpointMobile1:
+		refreshURL = fmt.Sprintf("https://EndpointMobile1.t.salesforce.com/services/oauth2/token")
+	default:
+		ErrorAndExit("no such endpoint type")
 	}
+	return refreshURL
+}
 
-	body, err := f.httpGet(url)
+func (f *Force) clientId() string {
+	var clientId string
+	endpoint := f.Credentials.ForceEndpoint
+	switch endpoint {
+	case EndpointProduction:
+		clientId = ProductionClientId
+	case EndpointTest:
+		clientId = ProductionClientId
+	case EndpointPrerelease:
+		clientId = PrereleaseClientId
+	case EndpointMobile1:
+		clientId = Mobile1ClientId
+	default:
+		ErrorAndExit("no such endpoint type")
+	}
+	return clientId
+}
+
+func (f *Force) RefreshSession() (err error, emessages []ForceError) {
+	attrs := url.Values{}
+	attrs.Set("grant_type", "refresh_token")
+	attrs.Set("refresh_token", f.Credentials.RefreshToken)
+	attrs.Set("client_id", f.clientId())
+	attrs.Set("format", "json")
+
+	postVars := attrs.Encode()
+	req, err := httpRequest("POST", f.refreshTokenURL(), bytes.NewReader([]byte(postVars)))
 	if err != nil {
-		fmt.Println(err.Error())
 		return
 	}
-	fmt.Println("Save login was ", string(body))
+	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+	fmt.Println("Refreshing Session Token")
+	res, err := doRequest(req)
+	if err != nil {
+		return
+	}
+	defer res.Body.Close()
+	body, err := ioutil.ReadAll(res.Body)
+	if res.StatusCode != 200 {
+		ErrorAndExit("Failed to refresh session.  Please run `force login`.")
+		return
+	}
+	if err != nil {
+		return
+	}
+
+	var result ForceCredentials
+	json.Unmarshal(body, &result)
+	f.UpdateCredentials(result)
+	LogAuth()
 	return
 }
 
@@ -283,9 +356,6 @@ func ForceLogin(endpoint ForceEndpoint) (creds ForceCredentials, err error) {
 	var url string
 
 	Redir := RedirectUri
-	if Version == "dev" {
-		Redir = RedirectUriStaging
-	}
 
 	switch endpoint {
 	case EndpointProduction:
@@ -930,11 +1000,19 @@ func (f *Force) Whoami() (me ForceRecord, err error) {
 
 func (f *Force) httpGet(url string) (body []byte, err error) {
 	body, err = f.httpGetRequest(url, "Authorization", fmt.Sprintf("Bearer %s", f.Credentials.AccessToken))
+	if err == SessionExpiredError {
+		f.RefreshSession()
+		return f.httpGet(url)
+	}
 	return
 }
 
 func (f *Force) httpGetBulk(url string) (body []byte, err error) {
 	body, err = f.httpGetRequest(url, "X-SFDC-Session", fmt.Sprintf("Bearer %s", f.Credentials.AccessToken))
+	if err == SessionExpiredError {
+		f.RefreshSession()
+		return f.httpGetBulk(url)
+	}
 	return
 }
 
@@ -949,12 +1027,8 @@ func (f *Force) httpGetRequest(url string, headerName string, headerValue string
 		return
 	}
 	defer res.Body.Close()
-	if res.StatusCode == 401 {
-		err = errors.New("authorization expired, please run `force login`")
-		return
-	}
-	if res.StatusCode == 403 {
-		err = errors.New("Forbidden; Your authorization may have expired, or you do not have access. Please run `force login` and try again")
+	if res.StatusCode == 401 || res.StatusCode == 403 {
+		err = SessionExpiredError
 		return
 	}
 	body, err = ioutil.ReadAll(res.Body)
@@ -973,11 +1047,19 @@ func (f *Force) httpGetRequest(url string, headerName string, headerValue string
 
 func (f *Force) httpPostCSV(url string, data string) (body []byte, err error) {
 	body, err = f.httpPostWithContentType(url, data, "text/csv")
+	if err == SessionExpiredError {
+		f.RefreshSession()
+		return f.httpPostCSV(url, data)
+	}
 	return
 }
 
 func (f *Force) httpPostXML(url string, data string) (body []byte, err error) {
 	body, err = f.httpPostWithContentType(url, data, "application/xml")
+	if err == SessionExpiredError {
+		f.RefreshSession()
+		return f.httpPostXML(url, data)
+	}
 	return
 }
 
@@ -996,7 +1078,7 @@ func (f *Force) httpPostWithContentType(url string, data string, contenttype str
 	}
 	defer res.Body.Close()
 	if res.StatusCode == 401 {
-		err = errors.New("authorization expired, please run `force login`")
+		err = SessionExpiredError
 		return
 	}
 	body, err = ioutil.ReadAll(res.Body)
@@ -1013,6 +1095,15 @@ func (f *Force) httpPostWithContentType(url string, data string, contenttype str
 }
 
 func (f *Force) httpPost(url string, attrs map[string]string) (body []byte, err error, emessages []ForceError) {
+	body, err, emessages = f.httpPostAttributes(url, attrs)
+	if err == SessionExpiredError {
+		f.RefreshSession()
+		return f.httpPost(url, attrs)
+	}
+	return
+}
+
+func (f *Force) httpPostAttributes(url string, attrs map[string]string) (body []byte, err error, emessages []ForceError) {
 	rbody, _ := json.Marshal(attrs)
 	req, err := httpRequest("POST", url, bytes.NewReader(rbody))
 	if err != nil {
@@ -1026,7 +1117,7 @@ func (f *Force) httpPost(url string, attrs map[string]string) (body []byte, err 
 	}
 	defer res.Body.Close()
 	if res.StatusCode == 401 {
-		err = errors.New("authorization expired, please run `force login`")
+		err = SessionExpiredError
 		return
 	}
 	body, err = ioutil.ReadAll(res.Body)
@@ -1041,6 +1132,15 @@ func (f *Force) httpPost(url string, attrs map[string]string) (body []byte, err 
 }
 
 func (f *Force) httpPatch(url string, attrs map[string]string) (body []byte, err error) {
+	body, err = f.httpPatchAttributes(url, attrs)
+	if err == SessionExpiredError {
+		f.RefreshSession()
+		return f.httpPatchAttributes(url, attrs)
+	}
+	return
+}
+
+func (f *Force) httpPatchAttributes(url string, attrs map[string]string) (body []byte, err error) {
 	rbody, _ := json.Marshal(attrs)
 	req, err := httpRequest("PATCH", url, bytes.NewReader(rbody))
 	if err != nil {
@@ -1054,7 +1154,7 @@ func (f *Force) httpPatch(url string, attrs map[string]string) (body []byte, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode == 401 {
-		err = errors.New("Authorization expired, please run `force login`")
+		err = SessionExpiredError
 		return
 	}
 	body, err = ioutil.ReadAll(res.Body)
@@ -1068,6 +1168,15 @@ func (f *Force) httpPatch(url string, attrs map[string]string) (body []byte, err
 }
 
 func (f *Force) httpDelete(url string) (body []byte, err error) {
+	body, err = f.httpDeleteUrl(url)
+	if err == SessionExpiredError {
+		f.RefreshSession()
+		return f.httpDeleteUrl(url)
+	}
+	return
+}
+
+func (f *Force) httpDeleteUrl(url string) (body []byte, err error) {
 	req, err := httpRequest("DELETE", url, nil)
 	if err != nil {
 		return
@@ -1079,7 +1188,7 @@ func (f *Force) httpDelete(url string) (body []byte, err error) {
 	}
 	defer res.Body.Close()
 	if res.StatusCode == 401 {
-		err = errors.New("authorization expired, please run `force login`")
+		err = SessionExpiredError
 		return
 	}
 	body, err = ioutil.ReadAll(res.Body)
@@ -1107,36 +1216,66 @@ func httpRequest(method, url string, body io.Reader) (request *http.Request, err
 }
 
 func startLocalHttpServer(ch chan ForceCredentials) (port int, err error) {
-	listener, err := net.Listen("tcp", ":0")
+	listener, err := net.Listen("tcp", ":3835")
 	if err != nil {
 		return
 	}
 	port = listener.Addr().(*net.TCPAddr).Port
 	h := http.NewServeMux()
-	url := "https://force-cli"
-	if Version == "dev" {
-		url = fmt.Sprintf("%s%s", url, "staging")
-	}
-	url = fmt.Sprintf("%s%s", url, ".herokuapp.com")
-	h.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", url)
-		if r.Method == "OPTIONS" {
-			w.Header().Set("Access-Control-Allow-Headers", "X-Requested-With")
-		} else {
-			query := r.URL.Query()
+	h.HandleFunc("/oauth/callback", func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query()
+		if r.Method == "POST" {
 			var creds ForceCredentials
 			creds.AccessToken = query.Get("access_token")
+			creds.RefreshToken = query.Get("refresh_token")
 			creds.Id = query.Get("id")
 			creds.InstanceUrl = query.Get("instance_url")
 			creds.IssuedAt = query.Get("issued_at")
 			creds.Scope = query.Get("scope")
 			ch <- creds
-			if _, ok := r.Header["X-Requested-With"]; ok == false {
-				http.Redirect(w, r, fmt.Sprintf("%s/auth/complete", url), http.StatusSeeOther)
-			}
+			LogAuth()
 			listener.Close()
+		} else {
+			io.WriteString(w, oauthCallbackHtml())
 		}
 	})
 	go http.Serve(listener, h)
 	return
+}
+
+func oauthCallbackHtml() string {
+	return `
+<!doctype html>
+<html>
+  <head>
+	  <title>Force CLI OAuth Callback</title>
+  </head>
+  <body>
+	  <h1>OAuth Callback</h1>
+	  <p id="status">Status: Idle</p>
+	  <script type="text/javascript">
+	  window.onload = function() {
+		  var url = window.location.href.replace('#', '?');
+		  var req = new XMLHttpRequest();
+		  var completeText = 'Complete! You may now close this window';
+		  var errorText = 'Something went wrong!';
+		  var statusEl = document.getElementById('status');
+
+		  req.onreadystatechange=function() {
+
+			  if(req.readyState==4 && req.status==200) {
+				  statusEl.innerHTML = completeText;
+			  } else {
+				  statusEl.innerHTML = errorText;
+			  }
+		  }
+
+		  req.open('POST', url, true);
+		  req.setRequestHeader('Content-Type', 'text/plain');
+		  statusEl.innerHTML = 'Status: Sending Auth...';
+		  req.send();
+	  }
+	  </script>
+  </body>
+</html>`
 }
