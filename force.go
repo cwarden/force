@@ -932,7 +932,7 @@ func (f *Force) httpGetRequest(url string, headerName string, headerValue string
 		return
 	}
 	req.Header.Add(headerName, headerValue)
-	res, err := httpClient().Do(req)
+	res, err := doRequest(req)
 	if err != nil {
 		return
 	}
@@ -978,7 +978,7 @@ func (f *Force) httpPostWithContentType(url string, data string, contenttype str
 
 	req.Header.Add("X-SFDC-Session", f.Credentials.AccessToken)
 	req.Header.Add("Content-Type", contenttype)
-	res, err := httpClient().Do(req)
+	res, err := doRequest(req)
 	if err != nil {
 		return
 	}
@@ -1008,7 +1008,7 @@ func (f *Force) httpPost(url string, attrs map[string]string) (body []byte, err 
 	}
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", f.Credentials.AccessToken))
 	req.Header.Add("Content-Type", "application/json")
-	res, err := httpClient().Do(req)
+	res, err := doRequest(req)
 	if err != nil {
 		return
 	}
@@ -1036,7 +1036,7 @@ func (f *Force) httpPatch(url string, attrs map[string]string) (body []byte, err
 	}
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", f.Credentials.AccessToken))
 	req.Header.Add("Content-Type", "application/json")
-	res, err := httpClient().Do(req)
+	res, err := doRequest(req)
 	if err != nil {
 		return
 	}
@@ -1061,7 +1061,7 @@ func (f *Force) httpDelete(url string) (body []byte, err error) {
 		return
 	}
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", f.Credentials.AccessToken))
-	res, err := httpClient().Do(req)
+	res, err := doRequest(req)
 	if err != nil {
 		return
 	}
@@ -1080,8 +1080,9 @@ func (f *Force) httpDelete(url string) (body []byte, err error) {
 	return
 }
 
-func httpClient() (client *http.Client) {
-	return &http.Client{}
+func doRequest(request *http.Request) (res *http.Response, err error) {
+	client := &http.Client{}
+	return client.Do(request)
 }
 
 func httpRequest(method, url string, body io.Reader) (request *http.Request, err error) {
