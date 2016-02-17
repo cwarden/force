@@ -35,7 +35,7 @@ deploy:
 - provider: releases
   skip_cleanup: true
   api_key:
-    secure: W+4pJY7DjLNMU91i3LAOqr6FV+PUnoqCoY1kM9IZ391MCot6EAHkYAdlhSJ2+qllIWmamp7Dtv7Ul4AAfhnAbKJY+J2w5/HczctvjGvcER/QIiWgPfZaNkAqBcWu8XXjdJ876J6sfzWVudK/onnPgpKvtVX0WRZEBXgUl0QJp2g=
+    secure: fkmUJ0tn/Z8q7ytQVJLXEKGQ599Wx0gCCuRdxLk7m0B4Z4S6vaNjStMafizp4Fbg0scyBVqFPkzaI8pm5U5C5owJySFE+zbtHx9nAyZTyK+BJmLdHoLHGVy9NHNAw5NgKgvr4nsIbz8gQ5eEuFBnj0azwg4kLcZILM8bHIvFq4M=
   file:
     - force_darwin_amd64
     - force_darwin_386
@@ -45,76 +45,4 @@ deploy:
     - force_windows_386.exe
   on:
     tags: true
-    repo: heroku/force
-- provider: s3
-  skip_cleanup: true
-  access_key_id: AKIAITTRSYTRTVZLGNQQ
-  secret_access_key:
-    secure: bAiAyCQKHlEiIA3Uz1yOE+kPieydEoXMlJX5gkdOImiH2oyDXPtmZJzqogl2mMqPO1g6Syjb+W5z3FARmp8gg/Yz9OELvUGKoMdPB7m3Z7oZ3+CR/uj3OSGzwK2Yoa7StjPIZrUHvxGQ+rMpcOfEcR2dJC/coDefvzxzrBHzDf8=
-  local_dir: darwin/amd64
-  bucket: force-cli
-  upload-dir: heroku/force/$GO_LINKER_VALUE/darwin-amd64
-  acl: public_read
-  on:
-    tags: true
-    repo: heroku/force
-- provider: s3
-  skip_cleanup: true
-  access_key_id: AKIAITTRSYTRTVZLGNQQ
-  secret_access_key:
-    secure: bAiAyCQKHlEiIA3Uz1yOE+kPieydEoXMlJX5gkdOImiH2oyDXPtmZJzqogl2mMqPO1g6Syjb+W5z3FARmp8gg/Yz9OELvUGKoMdPB7m3Z7oZ3+CR/uj3OSGzwK2Yoa7StjPIZrUHvxGQ+rMpcOfEcR2dJC/coDefvzxzrBHzDf8=
-  local_dir: darwin/386
-  bucket: force-cli
-  upload-dir: heroku/force/$GO_LINKER_VALUE/darwin-386
-  acl: public_read
-  on:
-    tags: true
-    repo: heroku/force
-- provider: s3
-  skip_cleanup: true
-  access_key_id: AKIAITTRSYTRTVZLGNQQ
-  secret_access_key:
-    secure: bAiAyCQKHlEiIA3Uz1yOE+kPieydEoXMlJX5gkdOImiH2oyDXPtmZJzqogl2mMqPO1g6Syjb+W5z3FARmp8gg/Yz9OELvUGKoMdPB7m3Z7oZ3+CR/uj3OSGzwK2Yoa7StjPIZrUHvxGQ+rMpcOfEcR2dJC/coDefvzxzrBHzDf8=
-  local_dir: windows/amd64
-  bucket: force-cli
-  upload-dir: heroku/force/$GO_LINKER_VALUE/windows-amd64
-  acl: public_read
-  on:
-    tags: true
-    repo: heroku/force
-- provider: s3
-  skip_cleanup: true
-  access_key_id: AKIAITTRSYTRTVZLGNQQ
-  secret_access_key:
-    secure: bAiAyCQKHlEiIA3Uz1yOE+kPieydEoXMlJX5gkdOImiH2oyDXPtmZJzqogl2mMqPO1g6Syjb+W5z3FARmp8gg/Yz9OELvUGKoMdPB7m3Z7oZ3+CR/uj3OSGzwK2Yoa7StjPIZrUHvxGQ+rMpcOfEcR2dJC/coDefvzxzrBHzDf8=
-  local_dir: windows/386
-  bucket: force-cli
-  upload-dir: heroku/force/$GO_LINKER_VALUE/windows-386
-  acl: public_read
-  on:
-    tags: true
-    repo: heroku/force
-- provider: s3
-  skip_cleanup: true
-  access_key_id: AKIAITTRSYTRTVZLGNQQ
-  secret_access_key:
-    secure: bAiAyCQKHlEiIA3Uz1yOE+kPieydEoXMlJX5gkdOImiH2oyDXPtmZJzqogl2mMqPO1g6Syjb+W5z3FARmp8gg/Yz9OELvUGKoMdPB7m3Z7oZ3+CR/uj3OSGzwK2Yoa7StjPIZrUHvxGQ+rMpcOfEcR2dJC/coDefvzxzrBHzDf8=
-  local_dir: linux/amd64
-  bucket: force-cli
-  upload-dir: heroku/force/$GO_LINKER_VALUE/linux-amd64
-  acl: public_read
-  on:
-    tags: true
-    repo: heroku/force
-- provider: s3
-  skip_cleanup: true
-  access_key_id: AKIAITTRSYTRTVZLGNQQ
-  secret_access_key:
-    secure: bAiAyCQKHlEiIA3Uz1yOE+kPieydEoXMlJX5gkdOImiH2oyDXPtmZJzqogl2mMqPO1g6Syjb+W5z3FARmp8gg/Yz9OELvUGKoMdPB7m3Z7oZ3+CR/uj3OSGzwK2Yoa7StjPIZrUHvxGQ+rMpcOfEcR2dJC/coDefvzxzrBHzDf8=
-  local_dir: linux/386
-  bucket: force-cli
-  upload-dir: heroku/force/$GO_LINKER_VALUE/linux-386
-  acl: public_read
-  on:
-    tags: true
-    repo: heroku/force
+    repo: cwarden/force
