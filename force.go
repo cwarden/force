@@ -2,10 +2,7 @@ package main
 
 import (
 	"bytes"
-	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
-	"encoding/pem"
 	"encoding/xml"
 	"errors"
 	"fmt"
@@ -19,13 +16,14 @@ import (
 )
 
 const (
-	ProductionClientId = "3MVG9A2kN3Bn17huXZp1OQhPe8y4_ozAQZZCKxsWbef9GjSnHGOunHSwhnY1BWz_5vHkTL9BeLMriIX5EUKaw"
+	ProductionClientId = "3MVG9ytVT1SanXDnX_hOa9Ys5NxVp5C26JlyQjwr.xTJtUqoKonXY.M8CcjoEknMrV4YUvPvXLiMyzI.Aw23C"
 	PrereleaseClientId = "3MVG9lKcPoNINVBIRgC7lsz5tIhlg0mtoEqkA9ZjDAwEMbBy43gsnfkzzdTdhFLeNnWS8M4bnRnVv1Qj0k9MD"
 	Mobile1ClientId    = "3MVG9Iu66FKeHhIPqCB9VWfYPxjfcb5Ube.v5L81BLhnJtDYVP2nkA.mDPwfm5FTLbvL6aMftfi8w0rL7Dv7f"
-	RedirectUri        = "https://force-cli.herokuapp.com/auth/callback"
+	RedirectUri        = "http://localhost:3835/oauth/callback"
 )
 
 var CustomEndpoint = ``
+var SessionExpiredError = errors.New("Session expired")
 
 const (
 	EndpointProduction = iota
@@ -40,113 +38,6 @@ const (
 	apiVersionNumber = "35.0"
 )
 
-var RootCertificates = `
------BEGIN CERTIFICATE-----
-MIICPDCCAaUCEHC65B0Q2Sk0tjjKewPMur8wDQYJKoZIhvcNAQECBQAwXzELMAkG
-A1UEBhMCVVMxFzAVBgNVBAoTDlZlcmlTaWduLCBJbmMuMTcwNQYDVQQLEy5DbGFz
-cyAzIFB1YmxpYyBQcmltYXJ5IENlcnRpZmljYXRpb24gQXV0aG9yaXR5MB4XDTk2
-MDEyOTAwMDAwMFoXDTI4MDgwMTIzNTk1OVowXzELMAkGA1UEBhMCVVMxFzAVBgNV
-BAoTDlZlcmlTaWduLCBJbmMuMTcwNQYDVQQLEy5DbGFzcyAzIFB1YmxpYyBQcmlt
-YXJ5IENlcnRpZmljYXRpb24gQXV0aG9yaXR5MIGfMA0GCSqGSIb3DQEBAQUAA4GN
-ADCBiQKBgQDJXFme8huKARS0EN8EQNvjV69qRUCPhAwL0TPZ2RHP7gJYHyX3KqhE
-BarsAx94f56TuZoAqiN91qyFomNFx3InzPRMxnVx0jnvT0Lwdd8KkMaOIG+YD/is
-I19wKTakyYbnsZogy1Olhec9vn2a/iRFM9x2Fe0PonFkTGUugWhFpwIDAQABMA0G
-CSqGSIb3DQEBAgUAA4GBALtMEivPLCYATxQT3ab7/AoRhIzzKBxnki98tsX63/Do
-lbwdj2wsqFHMc9ikwFPwTtYmwHYBV4GSXiHx0bH/59AhWM1pF+NEHJwZRDmJXNyc
-AA9WjQKZ7aKQRUzkuxCkPfAyAw7xzvjoyVGM5mKf5p/AfbdynMk2OmufTqj/ZA1k
------END CERTIFICATE-----
------BEGIN CERTIFICATE-----
-MIIDxTCCAq2gAwIBAgIQAqxcJmoLQJuPC3nyrkYldzANBgkqhkiG9w0BAQUFADBs
-MQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3
-d3cuZGlnaWNlcnQuY29tMSswKQYDVQQDEyJEaWdpQ2VydCBIaWdoIEFzc3VyYW5j
-ZSBFViBSb290IENBMB4XDTA2MTExMDAwMDAwMFoXDTMxMTExMDAwMDAwMFowbDEL
-MAkGA1UEBhMCVVMxFTATBgNVBAoTDERpZ2lDZXJ0IEluYzEZMBcGA1UECxMQd3d3
-LmRpZ2ljZXJ0LmNvbTErMCkGA1UEAxMiRGlnaUNlcnQgSGlnaCBBc3N1cmFuY2Ug
-RVYgUm9vdCBDQTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAMbM5XPm
-+9S75S0tMqbf5YE/yc0lSbZxKsPVlDRnogocsF9ppkCxxLeyj9CYpKlBWTrT3JTW
-PNt0OKRKzE0lgvdKpVMSOO7zSW1xkX5jtqumX8OkhPhPYlG++MXs2ziS4wblCJEM
-xChBVfvLWokVfnHoNb9Ncgk9vjo4UFt3MRuNs8ckRZqnrG0AFFoEt7oT61EKmEFB
-Ik5lYYeBQVCmeVyJ3hlKV9Uu5l0cUyx+mM0aBhakaHPQNAQTXKFx01p8VdteZOE3
-hzBWBOURtCmAEvF5OYiiAhF8J2a3iLd48soKqDirCmTCv2ZdlYTBoSUeh10aUAsg
-EsxBu24LUTi4S8sCAwEAAaNjMGEwDgYDVR0PAQH/BAQDAgGGMA8GA1UdEwEB/wQF
-MAMBAf8wHQYDVR0OBBYEFLE+w2kD+L9HAdSYJhoIAu9jZCvDMB8GA1UdIwQYMBaA
-FLE+w2kD+L9HAdSYJhoIAu9jZCvDMA0GCSqGSIb3DQEBBQUAA4IBAQAcGgaX3Nec
-nzyIZgYIVyHbIUf4KmeqvxgydkAQV8GK83rZEWWONfqe/EW1ntlMMUu4kehDLI6z
-eM7b41N5cdblIZQB2lWHmiRk9opmzN6cN82oNLFpmyPInngiK3BD41VHMWEZ71jF
-hS9OMPagMRYjyOfiZRYzy78aG6A9+MpeizGLYAiJLQwGXFK3xPkKmNEVX58Svnw2
-Yzi9RKR/5CYrCsSXaQ3pjOLAEFe4yHYSkVXySGnYvCoCWw9E1CAx2/S6cCZdkGCe
-vEsXCS+0yx5DaMkHJ8HSXPfqIbloEpw8nL+e/IBcm2PN7EeqJSdnoDfzAIJ9VNep
-+OkuE6N36B9K
------END CERTIFICATE-----
------BEGIN CERTIFICATE-----
-MIIDdzCCAl+gAwIBAgIEAgAAuTANBgkqhkiG9w0BAQUFADBaMQswCQYDVQQGEwJJ
-RTESMBAGA1UEChMJQmFsdGltb3JlMRMwEQYDVQQLEwpDeWJlclRydXN0MSIwIAYD
-VQQDExlCYWx0aW1vcmUgQ3liZXJUcnVzdCBSb290MB4XDTAwMDUxMjE4NDYwMFoX
-DTI1MDUxMjIzNTkwMFowWjELMAkGA1UEBhMCSUUxEjAQBgNVBAoTCUJhbHRpbW9y
-ZTETMBEGA1UECxMKQ3liZXJUcnVzdDEiMCAGA1UEAxMZQmFsdGltb3JlIEN5YmVy
-VHJ1c3QgUm9vdDCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAKMEuyKr
-mD1X6CZymrV51Cni4eiVgLGw41uOKymaZN+hXe2wCQVt2yguzmKiYv60iNoS6zjr
-IZ3AQSsBUnuId9Mcj8e6uYi1agnnc+gRQKfRzMpijS3ljwumUNKoUMMo6vWrJYeK
-mpYcqWe4PwzV9/lSEy/CG9VwcPCPwBLKBsua4dnKM3p31vjsufFoREJIE9LAwqSu
-XmD+tqYF/LTdB1kC1FkYmGP1pWPgkAx9XbIGevOF6uvUA65ehD5f/xXtabz5OTZy
-dc93Uk3zyZAsuT3lySNTPx8kmCFcB5kpvcY67Oduhjprl3RjM71oGDHweI12v/ye
-jl0qhqdNkNwnGjkCAwEAAaNFMEMwHQYDVR0OBBYEFOWdWTCCR1jMrPoIVDaGezq1
-BE3wMBIGA1UdEwEB/wQIMAYBAf8CAQMwDgYDVR0PAQH/BAQDAgEGMA0GCSqGSIb3
-DQEBBQUAA4IBAQCFDF2O5G9RaEIFoN27TyclhAO992T9Ldcw46QQF+vaKSm2eT92
-9hkTI7gQCvlYpNRhcL0EYWoSihfVCr3FvDB81ukMJY2GQE/szKN+OMY3EU/t3Wgx
-jkzSswF07r51XgdIGn9w/xZchMB5hbgF/X++ZRGjD8ACtPhSNzkE1akxehi/oCr0
-Epn3o0WC4zxe9Z2etciefC7IpJ5OCBRLbf1wbWsaY71k5h+3zvDyny67G7fyUIhz
-ksLi4xaNmjICq44Y3ekQEe5+NauQrz4wlHrQMz2nZQ/1/I6eYs9HRCwBXbsdtTLS
-R9I4LtD+gdwyah617jzV/OeBHRnDJELqYzmp
------END CERTIFICATE-----
------BEGIN CERTIFICATE-----
-MIIDdzCCAl+gAwIBAgIEAgAAuTANBgkqhkiG9w0BAQUFADBaMQswCQYDVQQGEwJJ
-RTESMBAGA1UEChMJQmFsdGltb3JlMRMwEQYDVQQLEwpDeWJlclRydXN0MSIwIAYD
-VQQDExlCYWx0aW1vcmUgQ3liZXJUcnVzdCBSb290MB4XDTAwMDUxMjE4NDYwMFoX
-DTI1MDUxMjIzNTkwMFowWjELMAkGA1UEBhMCSUUxEjAQBgNVBAoTCUJhbHRpbW9y
-ZTETMBEGA1UECxMKQ3liZXJUcnVzdDEiMCAGA1UEAxMZQmFsdGltb3JlIEN5YmVy
-VHJ1c3QgUm9vdDCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAKMEuyKr
-mD1X6CZymrV51Cni4eiVgLGw41uOKymaZN+hXe2wCQVt2yguzmKiYv60iNoS6zjr
-IZ3AQSsBUnuId9Mcj8e6uYi1agnnc+gRQKfRzMpijS3ljwumUNKoUMMo6vWrJYeK
-mpYcqWe4PwzV9/lSEy/CG9VwcPCPwBLKBsua4dnKM3p31vjsufFoREJIE9LAwqSu
-XmD+tqYF/LTdB1kC1FkYmGP1pWPgkAx9XbIGevOF6uvUA65ehD5f/xXtabz5OTZy
-dc93Uk3zyZAsuT3lySNTPx8kmCFcB5kpvcY67Oduhjprl3RjM71oGDHweI12v/ye
-jl0qhqdNkNwnGjkCAwEAAaNFMEMwHQYDVR0OBBYEFOWdWTCCR1jMrPoIVDaGezq1
-BE3wMBIGA1UdEwEB/wQIMAYBAf8CAQMwDgYDVR0PAQH/BAQDAgEGMA0GCSqGSIb3
-DQEBBQUAA4IBAQCFDF2O5G9RaEIFoN27TyclhAO992T9Ldcw46QQF+vaKSm2eT92
-9hkTI7gQCvlYpNRhcL0EYWoSihfVCr3FvDB81ukMJY2GQE/szKN+OMY3EU/t3Wgx
-jkzSswF07r51XgdIGn9w/xZchMB5hbgF/X++ZRGjD8ACtPhSNzkE1akxehi/oCr0
-Epn3o0WC4zxe9Z2etciefC7IpJ5OCBRLbf1wbWsaY71k5h+3zvDyny67G7fyUIhz
-ksLi4xaNmjICq44Y3ekQEe5+NauQrz4wlHrQMz2nZQ/1/I6eYs9HRCwBXbsdtTLS
-R9I4LtD+gdwyah617jzV/OeBHRnDJELqYzmp
------END CERTIFICATE-----
------BEGIN CERTIFICATE-----
-MIIEeDCCA2CgAwIBAgIOAQAAAAABNwQKT8CN490wDQYJKoZIhvcNAQEFBQAwUDEX
-MBUGA1UEChMOQ3liZXJ0cnVzdCBJbmMxNTAzBgNVBAMTLEN5YmVydHJ1c3QgU3Vy
-ZVNlcnZlciBTdGFuZGFyZCBWYWxpZGF0aW9uIENBMB4XDTEyMDQzMDE2MzI0NloX
-DTE1MDQzMDE2MzI0NlowgbExCzAJBgNVBAYTAlVTMRMwEQYDVQQIEwpDYWxpZm9y
-bmlhMRYwFAYDVQQHEw1TYW4gRnJhbmNpc2NvMRswGQYDVQQKExJTYWxlc2ZvcmNl
-LmNvbSBJbmMxFTATBgNVBAsTDEFwcGxpY2F0aW9uczEhMB8GCSqGSIb3DQEJARYS
-bm9jQHNhbGVzZm9yY2UuY29tMR4wHAYDVQQDDBUqLnNvbWEuc2FsZXNmb3JjZS5j
-b20wggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDHo8bILux1ZYwD1JTW
-PBE6LTV0hAdILIv06++N0RkhYU0ry69/yAFKWM5SUqt19dk9H3x43uC50tFRUT/l
-UoP/ztjT8Z47UczjVXSPrRCa/HloiA9zobLNFrsES/atCLHjzoxBLth477iZNnFs
-sINW8Kz6+v+7G83zzrMs6J4eYzZauNlhvCHBjwotPqtbJEp6MESoEO0XcNJkVLXA
-2sysfOpZH89P8j+1AMByc/32aauAZqwfmTD1iyGHyguieFdySWMDYL3r3j+uhey8
-XjxMO5AYRRh6EB4UQ5IlsjyzoAeJg5+q7+dJRhZ3KVr9KJ74UkRLab4NiUFRbXjj
-TnqjAgMBAAGjge0wgeowHwYDVR0jBBgwFoAUzTqWn65uD0BcHEj4Sy24cQHridow
-OQYDVR0fBDIwMDAuoCygKoYoaHR0cDovL2NybC5vbW5pcm9vdC5jb20vU3VyZVNl
-cnZlckcyLmNybDAdBgNVHQ4EFgQUVKhO+ZroJ0ZNcV80wap72/eTqGswCQYDVR0T
-BAIwADAOBgNVHQ8BAf8EBAMCBaAwHQYDVR0lBBYwFAYIKwYBBQUHAwEGCCsGAQUF
-BwMCMBEGCWCGSAGG+EIBAQQEAwIGwDAgBgNVHREEGTAXghUqLnNvbWEuc2FsZXNm
-b3JjZS5jb20wDQYJKoZIhvcNAQEFBQADggEBACiMRXtltlPjDdzuTG6B8F6c0AOE
-nJl5T4Lz4BMc5jvyin3zR1uPrZC7H/VEc6MOzXQK+n1i9xfNGURjTtfpCOdbcmZ9
-MkkRbu8EJyoO2FM84BdVtCOs5nomE/Py9xqX4mdy38yhjnJywvFa+M4rGDNcVR4W
-ZOV5H9LlMuEjuVuWYRLSRwu6Uk+QVN/tL9ImiWM1p4cziuizWXtjPqLyaQmOvykY
-4ihtSnZuel7PqGhBMoFHbuw11CB3S3ap2hzfreeJcYT/019Y5p8DPuFh6BJ3Q85J
-oo54Un5pgx/wX8L1UaMLMLUSv9d+nuKKLYYg+MW+1+LNNkLP704/Y/GWPvE=
------END CERTIFICATE-----`
-
 type Force struct {
 	Credentials ForceCredentials
 	Metadata    *ForceMetadata
@@ -154,14 +45,15 @@ type Force struct {
 }
 
 type ForceCredentials struct {
-	AccessToken   string
-	Id            string
+	AccessToken   string `json:"access_token"`
+	Id            string `json:"id"`
 	UserId        string
-	InstanceUrl   string
-	IssuedAt      string
-	Scope         string
+	InstanceUrl   string `json:"instance_url"`
+	IssuedAt      string `json:"issued_at"`
+	Scope         string `json:"scope"`
 	IsCustomEP    bool
 	Namespace     string
+	RefreshToken  string
 	ForceEndpoint ForceEndpoint
 }
 
@@ -367,17 +259,94 @@ func ForceSoapLogin(endpoint ForceEndpoint, username string, password string) (c
 	}
 	instanceUrl := u.Scheme + "://" + u.Host
 	identity := u.Scheme + "://" + u.Host + "/id/" + orgid + "/" + result.Id
-	creds = ForceCredentials{result.SessionId, identity, result.Id, instanceUrl, "", "", endpoint == EndpointCustom, "", endpoint}
+	creds = ForceCredentials{AccessToken: result.SessionId, Id: identity, UserId: result.Id, InstanceUrl: instanceUrl, IsCustomEP: endpoint == EndpointCustom, ForceEndpoint: endpoint}
+	LogAuth()
 
-	f := NewForce(creds)
-	url := fmt.Sprintf("https://force-cli.herokuapp.com/auth/soaplogin/?id=%s&access_token=%s&instance_url=%s", creds.Id, creds.AccessToken, creds.InstanceUrl)
+	return
+}
 
-	body, err := f.httpGet(url)
+// Log authentication for Salesforce usage tracking
+func LogAuth() {
+	http.Get("https://force-cli.herokuapp.com/auth/complete")
+}
+
+func (f *Force) UpdateCredentials(creds ForceCredentials) {
+	f.Credentials.AccessToken = creds.AccessToken
+	f.Credentials.IssuedAt = creds.IssuedAt
+	f.Credentials.InstanceUrl = creds.InstanceUrl
+	f.Credentials.Scope = creds.Scope
+	f.Credentials.Id = creds.Id
+	ForceSaveLogin(f.Credentials)
+}
+
+func (f *Force) refreshTokenURL() string {
+	var refreshURL string
+	endpoint := f.Credentials.ForceEndpoint
+	switch endpoint {
+	case EndpointProduction:
+		refreshURL = fmt.Sprintf("https://login.salesforce.com/services/oauth2/token")
+	case EndpointTest:
+		refreshURL = fmt.Sprintf("https://test.salesforce.com/services/oauth2/token")
+	case EndpointPrerelease:
+		refreshURL = fmt.Sprintf("https://prerellogin.pre.salesforce.com/services/oauth2/token")
+	case EndpointMobile1:
+		refreshURL = fmt.Sprintf("https://EndpointMobile1.t.salesforce.com/services/oauth2/token")
+	default:
+		ErrorAndExit("no such endpoint type")
+	}
+	return refreshURL
+}
+
+func (f *Force) clientId() string {
+	var clientId string
+	endpoint := f.Credentials.ForceEndpoint
+	switch endpoint {
+	case EndpointProduction:
+		clientId = ProductionClientId
+	case EndpointTest:
+		clientId = ProductionClientId
+	case EndpointPrerelease:
+		clientId = PrereleaseClientId
+	case EndpointMobile1:
+		clientId = Mobile1ClientId
+	default:
+		ErrorAndExit("no such endpoint type")
+	}
+	return clientId
+}
+
+func (f *Force) RefreshSession() (err error, emessages []ForceError) {
+	attrs := url.Values{}
+	attrs.Set("grant_type", "refresh_token")
+	attrs.Set("refresh_token", f.Credentials.RefreshToken)
+	attrs.Set("client_id", f.clientId())
+	attrs.Set("format", "json")
+
+	postVars := attrs.Encode()
+	req, err := httpRequest("POST", f.refreshTokenURL(), bytes.NewReader([]byte(postVars)))
 	if err != nil {
-		fmt.Println(err.Error())
 		return
 	}
-	fmt.Println("Save login was ", string(body))
+	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+	fmt.Println("Refreshing Session Token")
+	res, err := doRequest(req)
+	if err != nil {
+		return
+	}
+	defer res.Body.Close()
+	body, err := ioutil.ReadAll(res.Body)
+	if res.StatusCode != 200 {
+		ErrorAndExit("Failed to refresh session.  Please run `force login`.")
+		return
+	}
+	if err != nil {
+		return
+	}
+
+	var result ForceCredentials
+	json.Unmarshal(body, &result)
+	f.UpdateCredentials(result)
+	LogAuth()
 	return
 }
 
@@ -385,15 +354,18 @@ func ForceLogin(endpoint ForceEndpoint) (creds ForceCredentials, err error) {
 	ch := make(chan ForceCredentials)
 	port, err := startLocalHttpServer(ch)
 	var url string
+
+	Redir := RedirectUri
+
 	switch endpoint {
 	case EndpointProduction:
-		url = fmt.Sprintf("https://login.salesforce.com/services/oauth2/authorize?response_type=token&client_id=%s&redirect_uri=%s&state=%d&prompt=login", ProductionClientId, RedirectUri, port)
+		url = fmt.Sprintf("https://login.salesforce.com/services/oauth2/authorize?response_type=token&client_id=%s&redirect_uri=%s&state=%d&prompt=login", ProductionClientId, Redir, port)
 	case EndpointTest:
-		url = fmt.Sprintf("https://test.salesforce.com/services/oauth2/authorize?response_type=token&client_id=%s&redirect_uri=%s&state=%d&prompt=login", ProductionClientId, RedirectUri, port)
+		url = fmt.Sprintf("https://test.salesforce.com/services/oauth2/authorize?response_type=token&client_id=%s&redirect_uri=%s&state=%d&prompt=login", ProductionClientId, Redir, port)
 	case EndpointPrerelease:
-		url = fmt.Sprintf("https://prerellogin.pre.salesforce.com/services/oauth2/authorize?response_type=token&client_id=%s&redirect_uri=%s&state=%d&prompt=login", PrereleaseClientId, RedirectUri, port)
+		url = fmt.Sprintf("https://prerellogin.pre.salesforce.com/services/oauth2/authorize?response_type=token&client_id=%s&redirect_uri=%s&state=%d&prompt=login", PrereleaseClientId, Redir, port)
 	case EndpointMobile1:
-		url = fmt.Sprintf("https://EndpointMobile1.t.salesforce.com/services/oauth2/authorize?response_type=token&client_id=%s&redirect_uri=%s&state=%d&prompt=login", Mobile1ClientId, RedirectUri, port)
+		url = fmt.Sprintf("https://EndpointMobile1.t.salesforce.com/services/oauth2/authorize?response_type=token&client_id=%s&redirect_uri=%s&state=%d&prompt=login", Mobile1ClientId, Redir, port)
 	default:
 		ErrorAndExit("no such endpoint type")
 	}
@@ -1073,11 +1045,19 @@ func (f *Force) Whoami() (me ForceRecord, err error) {
 
 func (f *Force) httpGet(url string) (body []byte, err error) {
 	body, err = f.httpGetRequest(url, "Authorization", fmt.Sprintf("Bearer %s", f.Credentials.AccessToken))
+	if err == SessionExpiredError {
+		f.RefreshSession()
+		return f.httpGet(url)
+	}
 	return
 }
 
 func (f *Force) httpGetBulk(url string) (body []byte, err error) {
 	body, err = f.httpGetRequest(url, "X-SFDC-Session", fmt.Sprintf("Bearer %s", f.Credentials.AccessToken))
+	if err == SessionExpiredError {
+		f.RefreshSession()
+		return f.httpGetBulk(url)
+	}
 	return
 }
 
@@ -1087,17 +1067,13 @@ func (f *Force) httpGetRequest(url string, headerName string, headerValue string
 		return
 	}
 	req.Header.Add(headerName, headerValue)
-	res, err := httpClient().Do(req)
+	res, err := doRequest(req)
 	if err != nil {
 		return
 	}
 	defer res.Body.Close()
-	if res.StatusCode == 401 {
-		err = errors.New("authorization expired, please run `force login`")
-		return
-	}
-	if res.StatusCode == 403 {
-		err = errors.New("Forbidden; Your authorization may have expired, or you do not have access. Please run `force login` and try again")
+	if res.StatusCode == 401 || res.StatusCode == 403 {
+		err = SessionExpiredError
 		return
 	}
 	body, err = ioutil.ReadAll(res.Body)
@@ -1116,11 +1092,19 @@ func (f *Force) httpGetRequest(url string, headerName string, headerValue string
 
 func (f *Force) httpPostCSV(url string, data string) (body []byte, err error) {
 	body, err = f.httpPostWithContentType(url, data, "text/csv")
+	if err == SessionExpiredError {
+		f.RefreshSession()
+		return f.httpPostCSV(url, data)
+	}
 	return
 }
 
 func (f *Force) httpPostXML(url string, data string) (body []byte, err error) {
 	body, err = f.httpPostWithContentType(url, data, "application/xml")
+	if err == SessionExpiredError {
+		f.RefreshSession()
+		return f.httpPostXML(url, data)
+	}
 	return
 }
 
@@ -1133,13 +1117,13 @@ func (f *Force) httpPostWithContentType(url string, data string, contenttype str
 
 	req.Header.Add("X-SFDC-Session", f.Credentials.AccessToken)
 	req.Header.Add("Content-Type", contenttype)
-	res, err := httpClient().Do(req)
+	res, err := doRequest(req)
 	if err != nil {
 		return
 	}
 	defer res.Body.Close()
 	if res.StatusCode == 401 {
-		err = errors.New("authorization expired, please run `force login`")
+		err = SessionExpiredError
 		return
 	}
 	body, err = ioutil.ReadAll(res.Body)
@@ -1156,6 +1140,15 @@ func (f *Force) httpPostWithContentType(url string, data string, contenttype str
 }
 
 func (f *Force) httpPost(url string, attrs map[string]string) (body []byte, err error, emessages []ForceError) {
+	body, err, emessages = f.httpPostAttributes(url, attrs)
+	if err == SessionExpiredError {
+		f.RefreshSession()
+		return f.httpPost(url, attrs)
+	}
+	return
+}
+
+func (f *Force) httpPostAttributes(url string, attrs map[string]string) (body []byte, err error, emessages []ForceError) {
 	rbody, _ := json.Marshal(attrs)
 	req, err := httpRequest("POST", url, bytes.NewReader(rbody))
 	if err != nil {
@@ -1163,13 +1156,13 @@ func (f *Force) httpPost(url string, attrs map[string]string) (body []byte, err 
 	}
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", f.Credentials.AccessToken))
 	req.Header.Add("Content-Type", "application/json")
-	res, err := httpClient().Do(req)
+	res, err := doRequest(req)
 	if err != nil {
 		return
 	}
 	defer res.Body.Close()
 	if res.StatusCode == 401 {
-		err = errors.New("authorization expired, please run `force login`")
+		err = SessionExpiredError
 		return
 	}
 	body, err = ioutil.ReadAll(res.Body)
@@ -1184,6 +1177,15 @@ func (f *Force) httpPost(url string, attrs map[string]string) (body []byte, err 
 }
 
 func (f *Force) httpPatch(url string, attrs map[string]string) (body []byte, err error) {
+	body, err = f.httpPatchAttributes(url, attrs)
+	if err == SessionExpiredError {
+		f.RefreshSession()
+		return f.httpPatchAttributes(url, attrs)
+	}
+	return
+}
+
+func (f *Force) httpPatchAttributes(url string, attrs map[string]string) (body []byte, err error) {
 	rbody, _ := json.Marshal(attrs)
 	req, err := httpRequest("PATCH", url, bytes.NewReader(rbody))
 	if err != nil {
@@ -1191,13 +1193,13 @@ func (f *Force) httpPatch(url string, attrs map[string]string) (body []byte, err
 	}
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", f.Credentials.AccessToken))
 	req.Header.Add("Content-Type", "application/json")
-	res, err := httpClient().Do(req)
+	res, err := doRequest(req)
 	if err != nil {
 		return
 	}
 	defer res.Body.Close()
 	if res.StatusCode == 401 {
-		err = errors.New("Authorization expired, please run `force login`")
+		err = SessionExpiredError
 		return
 	}
 	body, err = ioutil.ReadAll(res.Body)
@@ -1211,18 +1213,27 @@ func (f *Force) httpPatch(url string, attrs map[string]string) (body []byte, err
 }
 
 func (f *Force) httpDelete(url string) (body []byte, err error) {
+	body, err = f.httpDeleteUrl(url)
+	if err == SessionExpiredError {
+		f.RefreshSession()
+		return f.httpDeleteUrl(url)
+	}
+	return
+}
+
+func (f *Force) httpDeleteUrl(url string) (body []byte, err error) {
 	req, err := httpRequest("DELETE", url, nil)
 	if err != nil {
 		return
 	}
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", f.Credentials.AccessToken))
-	res, err := httpClient().Do(req)
+	res, err := doRequest(req)
 	if err != nil {
 		return
 	}
 	defer res.Body.Close()
 	if res.StatusCode == 401 {
-		err = errors.New("authorization expired, please run `force login`")
+		err = SessionExpiredError
 		return
 	}
 	body, err = ioutil.ReadAll(res.Body)
@@ -1235,25 +1246,9 @@ func (f *Force) httpDelete(url string) (body []byte, err error) {
 	return
 }
 
-func httpClient() (client *http.Client) {
-	if CustomEndpoint == "" {
-		chain := rootCertificate()
-		config := tls.Config{InsecureSkipVerify: true}
-		config.RootCAs = x509.NewCertPool()
-		for _, cert := range chain.Certificate {
-			x509Cert, err := x509.ParseCertificate(cert)
-			if err != nil {
-				panic(err)
-			}
-			config.RootCAs.AddCert(x509Cert)
-		}
-		config.BuildNameToCertificate()
-		tr := http.Transport{TLSClientConfig: &config}
-		client = &http.Client{Transport: &tr}
-	} else {
-		client = &http.Client{}
-	}
-	return
+func doRequest(request *http.Request) (res *http.Response, err error) {
+	client := &http.Client{}
+	return client.Do(request)
 }
 
 func httpRequest(method, url string, body io.Reader) (request *http.Request, err error) {
@@ -1265,47 +1260,67 @@ func httpRequest(method, url string, body io.Reader) (request *http.Request, err
 	return
 }
 
-func rootCertificate() (cert tls.Certificate) {
-	certPEMBlock := []byte(RootCertificates)
-	var certDERBlock *pem.Block
-	for {
-		certDERBlock, certPEMBlock = pem.Decode(certPEMBlock)
-		if certDERBlock == nil {
-			break
-		}
-		if certDERBlock.Type == "CERTIFICATE" {
-			cert.Certificate = append(cert.Certificate, certDERBlock.Bytes)
-		}
-	}
-	return
-}
-
 func startLocalHttpServer(ch chan ForceCredentials) (port int, err error) {
-	listener, err := net.Listen("tcp", ":0")
+	listener, err := net.Listen("tcp", ":3835")
 	if err != nil {
 		return
 	}
 	port = listener.Addr().(*net.TCPAddr).Port
 	h := http.NewServeMux()
-	h.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "https://force-cli.herokuapp.com")
-		if r.Method == "OPTIONS" {
-			w.Header().Set("Access-Control-Allow-Headers", "X-Requested-With")
-		} else {
-			query := r.URL.Query()
+	h.HandleFunc("/oauth/callback", func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query()
+		if r.Method == "POST" {
 			var creds ForceCredentials
 			creds.AccessToken = query.Get("access_token")
+			creds.RefreshToken = query.Get("refresh_token")
 			creds.Id = query.Get("id")
 			creds.InstanceUrl = query.Get("instance_url")
 			creds.IssuedAt = query.Get("issued_at")
 			creds.Scope = query.Get("scope")
 			ch <- creds
-			if _, ok := r.Header["X-Requested-With"]; ok == false {
-				http.Redirect(w, r, "https://force-cli.herokuapp.com/auth/complete", http.StatusSeeOther)
-			}
+			LogAuth()
 			listener.Close()
+		} else {
+			io.WriteString(w, oauthCallbackHtml())
 		}
 	})
 	go http.Serve(listener, h)
 	return
+}
+
+func oauthCallbackHtml() string {
+	return `
+<!doctype html>
+<html>
+  <head>
+	  <title>Force CLI OAuth Callback</title>
+  </head>
+  <body>
+	  <h1>OAuth Callback</h1>
+	  <p id="status">Status: Idle</p>
+	  <script type="text/javascript">
+	  window.onload = function() {
+		  var url = window.location.href.replace('#', '?');
+		  var req = new XMLHttpRequest();
+		  var completeText = 'Complete! You may now close this window';
+		  var errorText = 'Something went wrong!';
+		  var statusEl = document.getElementById('status');
+
+		  req.onreadystatechange=function() {
+
+			  if(req.readyState==4 && req.status==200) {
+				  statusEl.innerHTML = completeText;
+			  } else {
+				  statusEl.innerHTML = errorText;
+			  }
+		  }
+
+		  req.open('POST', url, true);
+		  req.setRequestHeader('Content-Type', 'text/plain');
+		  statusEl.innerHTML = 'Status: Sending Auth...';
+		  req.send();
+	  }
+	  </script>
+  </body>
+</html>`
 }

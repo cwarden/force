@@ -191,8 +191,8 @@ type ForceDeployOptions struct {
 	PerformRetrieve   bool     `xml:"performRetrieve"`
 	PurgeOnDelete     bool     `xml:"purgeOnDelete"`
 	RollbackOnError   bool     `xml:"rollbackOnError"`
-	RunAllTests       bool     `xml:"runAllTests"`
-	runTests          []string `xml:"runTests"`
+	TestLevel         string   `xml:"testLevel"`
+	RunTests          []string `xml:"runTests"`
 	SinglePackage     bool     `xml:"singlePackage"`
 }
 
@@ -824,7 +824,7 @@ func (fm *ForceMetadata) CreateCustomField(object, field, typ string, options ma
 		soapField = "<type>Picklist</type>\n"
 		for key, value := range options {
 			fmt.Println("Options: ", options)
-			fmt.Println("Key %s", key)
+			fmt.Println(fmt.Sprintf("Key %s", key))
 			if key == "picklist>picklistValues" {
 				soapField += "<picklist>\n"
 				for _, k := range strings.Split(value, ",") {
@@ -1064,6 +1064,16 @@ func (fm *ForceMetadata) DeleteCustomObject(object string) (err error) {
 }
 
 func (fm *ForceMetadata) MakeDeploySoap(options ForceDeployOptions) (soap string) {
+	tests := ""
+	for _, test := range options.RunTests {
+		tests += "<runTests>" + test + "</runTests>\n"
+	}
+	var testLevel string
+	if tests == "" {
+		testLevel = options.TestLevel
+	} else {
+		testLevel = "RunSpecifiedTests"
+	}
 	soap = fmt.Sprintf(`
 		<zipFile>%s</zipFile>
 		<deployOptions>
@@ -1073,9 +1083,10 @@ func (fm *ForceMetadata) MakeDeploySoap(options ForceDeployOptions) (soap string
 			<ignoreWarnings>%t</ignoreWarnings>
 			<purgeOnDelete>%t</purgeOnDelete>
 			<rollbackOnError>%t</rollbackOnError>
-			<runAllTests>%t</runAllTests>
+			<testLevel>%s</testLevel>
+			%s
 		</deployOptions>
-	`, "%s", options.AllowMissingFiles, options.AutoUpdatePackage, options.CheckOnly, options.IgnoreWarnings, options.PurgeOnDelete, options.RollbackOnError, options.RunAllTests)
+		`, "%s", options.AllowMissingFiles, options.AutoUpdatePackage, options.CheckOnly, options.IgnoreWarnings, options.PurgeOnDelete, options.RollbackOnError, testLevel, tests)
 	return
 }
 
