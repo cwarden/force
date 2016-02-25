@@ -253,7 +253,11 @@ func getFirstXmlElement(xmlFile []byte) (firstElement string) {
 // that contains the xml file, then bail out.  If no file is found for the
 // passed in type, then folder is empty.
 func findMetadataTypeFolder(mdtype string, root string) (folder string) {
-	filepath.Walk(root, func(path string, f os.FileInfo, err error) error {
+	expandedRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		ErrorAndExit(err.Error())
+	}
+	filepath.Walk(expandedRoot, func(path string, f os.FileInfo, err error) error {
 		//base := filepath.Base(path)
 		//if filepath.Ext(base) == ".object" {
 		firstEl, _ := getMDTypeFromXml(path)
