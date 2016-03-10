@@ -194,7 +194,8 @@ func runFetch(cmd *Command, args []string) {
 	var err error
 	var expandResources bool = unpack
 
-	if strings.ToLower(metadataType) == "aura" {
+	switch strings.ToLower(metadataType) {
+	case "aura":
 		if len(metadataName) > 0 {
 			for names := range metadataName {
 				runFetchAura2(cmd, metadataName[names])
@@ -202,7 +203,7 @@ func runFetch(cmd *Command, args []string) {
 		} else {
 			runFetchAura2(cmd, "")
 		}
-	} else if strings.ToLower(metadataType) == "package" {
+	case "package":
 		if len(metadataName) > 0 {
 			for names := range metadataName {
 				files, err = force.Metadata.RetrievePackage(metadataName[names])
@@ -214,7 +215,14 @@ func runFetch(cmd *Command, args []string) {
 				}
 			}
 		}
-	} else {
+	case "reportfolder", "documentfolder", "dashboardfolder", "emailfolder":
+		if len(metadataName) > 0 {
+			files, err = force.Metadata.RetrieveFolders(metadataType, metadataName)
+			if err != nil {
+				ErrorAndExit(err.Error())
+			}
+		}
+	default:
 		query := ForceMetadataQuery{}
 		if len(metadataName) > 0 {
 			mq := ForceMetadataQueryElement{metadataType, metadataName}
@@ -235,9 +243,11 @@ func runFetch(cmd *Command, args []string) {
 	root, err := GetSourceDir()
 	existingPackage, _ := pathExists(filepath.Join(root, "package.xml"))
 
-	if len(files) == 1 {
-		ErrorAndExit("Could not find any objects for " + metadataType + ". (Is the metadata type correct?)")
-	}
+	/*
+		if len(files) == 1 {
+			ErrorAndExit("Could not find any objects for " + metadataType + ". (Is the metadata type correct?)")
+		}
+	*/
 	for name, data := range files {
 		if !existingPackage || name != "package.xml" {
 			file := filepath.Join(root, name)

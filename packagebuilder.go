@@ -47,8 +47,11 @@ var metapaths = []metapath{
 	metapath{path: "customMetadata", name: "CustomMetadata"},
 	metapath{path: "customPermissions", name: "CustomPermission"},
 	metapath{path: "dashboards", name: "Dashboard", hasFolder: true},
+	metapath{path: "dashboards", name: "DashboardFolder"},
 	metapath{path: "documents", name: "Document", hasFolder: true},
+	metapath{path: "documents", name: "DocumentFolder"},
 	metapath{path: "email", name: "EmailTemplate", hasFolder: true},
+	metapath{path: "email", name: "EmailFolder"},
 	metapath{path: "flexipages", name: "FlexiPage"},
 	metapath{path: "groups", name: "Group"},
 	metapath{path: "homePageLayouts", name: "HomePageLayout"},
@@ -64,6 +67,7 @@ var metapaths = []metapath{
 	metapath{path: "quickActions", name: "QuickAction"},
 	metapath{path: "remoteSiteSettings", name: "RemoteSiteSetting"},
 	metapath{path: "reports", name: "Report", hasFolder: true},
+	metapath{path: "reports", name: "ReportFolder"},
 	metapath{path: "reportTypes", name: "ReportType"},
 	metapath{path: "roles", name: "Role"},
 	metapath{path: "scontrols", name: "Scontrol"},
@@ -154,10 +158,16 @@ func (pb *PackageBuilder) AddFile(fpath string) (fname string, err error) {
 
 // Adds the file to a temp directory for deploy
 func (pb *PackageBuilder) addFileToWorkingDir(metaName string, fpath string) (err error) {
+	fileInfo, err := os.Stat(fpath)
+	if err != nil {
+		return
+	}
+	isDir := fileInfo.IsDir()
+
 	// Get relative dir from source
 	srcDir := filepath.Dir(filepath.Dir(fpath))
 	for _, mp := range metapaths {
-		if metaName == mp.name && mp.hasFolder {
+		if metaName == mp.name && mp.hasFolder && !isDir {
 			srcDir = filepath.Dir(srcDir)
 		}
 	}
@@ -179,17 +189,24 @@ func (pb *PackageBuilder) addFileToWorkingDir(metaName string, fpath string) (er
 		fmetarel, _ = filepath.Rel(srcDir, fmeta)
 	}
 
+	if hasMeta {
+		var metaContents []byte
+		metaContents, err = ioutil.ReadFile(fmeta)
+		if err != nil {
+			return
+		}
+		pb.Files[fmetarel] = metaContents
+	}
+
+	if isDir {
+		return
+	}
+
 	fdata, err := ioutil.ReadFile(fpath)
 	if err != nil {
 		return
 	}
-
 	pb.Files[frel] = fdata
-	if hasMeta {
-		fdata, err = ioutil.ReadFile(fmeta)
-		pb.Files[fmetarel] = fdata
-		return
-	}
 
 	return
 }
@@ -228,7 +245,7 @@ func getMetaTypeFromPath(fpath string) (metaName string, name string) {
 	}
 
 	// Get the metadata type and name for the file
-	metaName, fileName := getMetaForPath(fpath)
+	metaName, fileName := GetMetaForPath(fpath)
 	name = strings.TrimSuffix(fileName, filepath.Ext(fileName))
 	return
 }
@@ -246,7 +263,7 @@ func getPathForMeta(metaname string) string {
 }
 
 // Gets meta type and name based on a path
-func getMetaForPath(path string) (metaName string, objectName string) {
+func GetMetaForPath(path string) (metaName string, objectName string) {
 	parentDir := filepath.Dir(path)
 	parentName := filepath.Base(parentDir)
 	grandparentName := filepath.Base(filepath.Dir(parentDir))
