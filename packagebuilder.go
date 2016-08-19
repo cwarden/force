@@ -56,6 +56,7 @@ var metapaths = []metapath{
 	metapath{path: "flowDefinitions", name: "FlowDefinition"},
 	metapath{path: "flows", name: "Flow"},
 	metapath{path: "groups", name: "Group"},
+	metapath{path: "homePageComponents", name: "HomePageComponent"},
 	metapath{path: "homePageLayouts", name: "HomePageLayout"},
 	metapath{path: "installedPackages", name: "InstalledPackage"},
 	metapath{path: "labels", name: "CustomLabels"},
