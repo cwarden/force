@@ -252,9 +252,11 @@ func ForceSoapLogin(endpoint ForceEndpoint, username string, password string) (c
 	default:
 		ErrorAndExit("Unable to login with SOAP. Unknown endpoint type")
 	}
+	fmt.Printf("Logging in at %s\n", surl)
 
 	soap := NewSoap(surl, "", "")
 	response, err := soap.ExecuteLogin(username, password)
+	fmt.Printf("LOGIN RESPONSE:\n%s\n", response)
 	var result struct {
 		SessionId    string `xml:"Body>loginResponse>result>sessionId"`
 		Id           string `xml:"Body>loginResponse>result>userId"`
