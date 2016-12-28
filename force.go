@@ -1192,12 +1192,9 @@ func (f *Force) RetrieveLog(logId string) (result string, err error) {
 }
 
 func (f *Force) QueryLogs() (results ForceQueryResult, err error) {
-	url := fmt.Sprintf("%s/services/data/%s/tooling/query/?q=Select+Id,+Application,+DurationMilliseconds,+Location,+LogLength,+LogUser.Name,+Operation,+Request,StartTime,+Status+From+ApexLog+Order+By+StartTime", f.Credentials.InstanceUrl, apiVersion)
-	body, err := f.httpGet(url)
-	if err != nil {
-		return
-	}
-	json.Unmarshal(body, &results)
+	query := "SELECT Id, Application, DurationMilliseconds, Location, LogLength, LogUser.Name, Operation, Request, StartTime, Status FROM ApexLog ORDER BY StartTime"
+	useTooling := true
+	results, _, err = f.Query(query, useTooling)
 	return
 }
 
