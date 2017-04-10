@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/devangel/config"
 )
@@ -45,8 +46,14 @@ func GetSourceDir() (dir string, err error) {
 
 	// Check the current directory and then start looking up at our parents.
 	// When dir's parent is identical, it means we're at the root.  If we blow
-	// past the actual root, we should drop to the next section of code
-	for dir != filepath.Dir(dir) {
+	// past the actual root, we should drop to the next section of code.  Only
+	// check parents up to three levels above current working directory, e.g.
+	// from within src/reports/MyReports/
+	validRoot, err := filepath.Abs(filepath.FromSlash(filepath.ToSlash(base) + "/../../../"))
+	if err != nil {
+		ErrorAndExit("Could not find valid root for " + base)
+	}
+	for dir != filepath.Dir(dir) && IsSubdirectory(validRoot, filepath.Dir(dir)) {
 		dir = filepath.Dir(dir)
 		for _, src := range sourceDirs {
 			adir := filepath.Join(dir, src)
@@ -65,6 +72,14 @@ func GetSourceDir() (dir string, err error) {
 	os.Symlink(dir, symlink)
 	dir = symlink
 	return
+}
+
+func IsSubdirectory(base string, check string) bool {
+	path, err := filepath.Rel(filepath.Clean(base), filepath.Clean(check))
+	if err != nil {
+		ErrorAndExit(err.Error())
+	}
+	return !strings.Contains(path, "..")
 }
 
 func ExitIfNoSourceDir(err error) {
