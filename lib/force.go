@@ -1244,6 +1244,13 @@ func (f *Force) httpGetRequestAndSend(url string, headers map[string]string, res
 		if err != nil {
 			return err
 		}
+		if res.StatusCode/100 == 5 && retryMode == retry {
+			// If we're behind a proxy and the bulk API returns a malformed
+			// chunk-encoded body, the proxy may return an error (mitmproxy returns a
+			// 502 error).
+			Log.Info(fmt.Sprintf("%d error: %s retrying", res.StatusCode), string(body))
+			return f.httpGetRequestAndSend(url, headers, results, doNotRetry)
+		}
 		if strings.HasPrefix(contentType, "application/xml") {
 			var fault LoginFault
 			xml.Unmarshal(body, &fault)
@@ -1265,8 +1272,12 @@ func (f *Force) httpGetRequestAndSend(url string, headers map[string]string, res
 	buf := make([]byte, 50*1024*1024)
 	firstChunk := true
 	isCSV := strings.Contains(contentType, "text/csv")
+	totalRead := 0
+	chunks := 0
 	for {
 		n, err := io.ReadFull(res.Body, buf)
+		totalRead += n
+		chunks++
 
 		if n > 0 {
 			data := make([]byte, n)
@@ -1278,13 +1289,20 @@ func (f *Force) httpGetRequestAndSend(url string, headers map[string]string, res
 		}
 
 		if err == io.EOF || err == io.ErrUnexpectedEOF {
-			if retryMode == retry && firstChunk && err == io.EOF {
-				f.httpGetRequestAndSend(url, headers, results, doNotRetry)
-			} else {
-				return nil
-			}
+			return nil
 		} else if err != nil {
-			return err
+			// Bulk API sometimes returns an incomplete response.  This causes an
+			// "unexpected EOF reading trailer" error reading res.Body.  Retry
+			// once in this case.
+			Log.Info(fmt.Sprintf("unexpected Error reading chunk: %s; first chunk: %v; chunk: %d, totalRead: %d", err.Error(), firstChunk, chunks, totalRead))
+			// TODO: if totalRead > 0, we'll need to skip the totalRead
+			// bytes already sent when retrying (Bulk API doesn't support Ranges)
+			if retryMode == retry && totalRead == 0 {
+				Log.Info("Received incomplete response.  Retrying.")
+				return f.httpGetRequestAndSend(url, headers, results, doNotRetry)
+			} else {
+				return err
+			}
 		}
 		firstChunk = false
 	}
