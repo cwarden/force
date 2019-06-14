@@ -1123,7 +1123,7 @@ func (f *Force) httpGetBulkAndSend(url string, results chan<- BatchResultChunk) 
 		"X-SFDC-Session": fmt.Sprintf("Bearer %s", f.Credentials.AccessToken),
 		"Content-Type":   "application/xml",
 	}
-	err = f.httpGetRequestAndSend(url, headers, results, retry)
+	err = f.httpGetRequestAndSend(url, headers, results, 0, retry)
 	if err == SessionExpiredError {
 		err = f.RefreshSession()
 		if err != nil {
@@ -1155,7 +1155,7 @@ func (f *Force) httpGetBulkJSONAndSend(url string, results chan<- BatchResultChu
 		"X-SFDC-Session": fmt.Sprintf("Bearer %s", f.Credentials.AccessToken),
 		"Content-Type":   "application/json",
 	}
-	err = f.httpGetRequestAndSend(url, headers, results, retry)
+	err = f.httpGetRequestAndSend(url, headers, results, 0, retry)
 	if err == SessionExpiredError {
 		err = f.RefreshSession()
 		if err != nil {
@@ -1222,7 +1222,7 @@ func (f *Force) httpGetRequest(url string, headers map[string]string) (body []by
 	return
 }
 
-func (f *Force) httpGetRequestAndSend(url string, headers map[string]string, results chan<- BatchResultChunk, retryMode int) (err error) {
+func (f *Force) httpGetRequestAndSend(url string, headers map[string]string, results chan<- BatchResultChunk, seekTo int, retryMode int) (err error) {
 	req, err := httpRequest("GET", url, nil)
 	if err != nil {
 		return err
@@ -1249,7 +1249,7 @@ func (f *Force) httpGetRequestAndSend(url string, headers map[string]string, res
 			// chunk-encoded body, the proxy may return an error (mitmproxy returns a
 			// 502 error).
 			Log.Info(fmt.Sprintf("%d error: %s retrying", res.StatusCode), string(body))
-			return f.httpGetRequestAndSend(url, headers, results, doNotRetry)
+			return f.httpGetRequestAndSend(url, headers, results, seekTo, doNotRetry)
 		}
 		if strings.HasPrefix(contentType, "application/xml") {
 			var fault LoginFault
@@ -1274,14 +1274,22 @@ func (f *Force) httpGetRequestAndSend(url string, headers map[string]string, res
 	isCSV := strings.Contains(contentType, "text/csv")
 	totalRead := 0
 	chunks := 0
+	skip := seekTo
 	for {
 		n, err := io.ReadFull(res.Body, buf)
 		totalRead += n
 		chunks++
 
+		if skip >= n {
+			Log.Info(fmt.Sprintf("Skipping %d bytes", n))
+			skip -= n
+			n = 0
+		}
+
 		if n > 0 {
-			data := make([]byte, n)
-			copy(data, buf[:n])
+			data := make([]byte, n-skip)
+			copy(data, buf[skip:n])
+			skip = 0
 			results <- BatchResultChunk{
 				HasCSVHeader: firstChunk && isCSV,
 				Data:         data,
@@ -1295,11 +1303,12 @@ func (f *Force) httpGetRequestAndSend(url string, headers map[string]string, res
 			// "unexpected EOF reading trailer" error reading res.Body.  Retry
 			// once in this case.
 			Log.Info(fmt.Sprintf("unexpected Error reading chunk: %s; first chunk: %v; chunk: %d, totalRead: %d", err.Error(), firstChunk, chunks, totalRead))
-			// TODO: if totalRead > 0, we'll need to skip the totalRead
-			// bytes already sent when retrying (Bulk API doesn't support Ranges)
+			// If totalRead > 0, we'll need to skip the totalRead bytes that have
+			// already sent when retrying (Bulk API doesn't support Ranges so
+			// we'll be fetching the entire result again)
 			if retryMode == retry && totalRead == 0 {
 				Log.Info("Received incomplete response.  Retrying.")
-				return f.httpGetRequestAndSend(url, headers, results, doNotRetry)
+				return f.httpGetRequestAndSend(url, headers, results, totalRead, doNotRetry)
 			} else {
 				return err
 			}
