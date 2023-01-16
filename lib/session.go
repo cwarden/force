@@ -36,6 +36,7 @@ func (f *Force) refreshOauth() (err error) {
 	defer res.Body.Close()
 	body, err := ioutil.ReadAll(res.Body)
 	if res.StatusCode != 200 {
+		fmt.Println(string(body))
 		err = SessionRefreshError
 		return
 	}
