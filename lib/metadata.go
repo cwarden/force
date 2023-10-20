@@ -219,7 +219,9 @@ type ForceMetadataQueryElement struct {
 
 type ForceMetadataQuery []ForceMetadataQueryElement
 
-type ForceMetadataFiles map[string][]byte
+type FilePath = string
+
+type ForceMetadataFiles map[FilePath][]byte
 
 type ForceMetadata struct {
 	ApiVersion string
@@ -809,12 +811,12 @@ func (fm *ForceMetadata) CheckRetrieveStatus(id string) (files ForceMetadataFile
 	if err != nil {
 		return
 	}
-	files = make(map[string][]byte)
+	files = make(map[FilePath][]byte)
 	for _, file := range zipfiles.File {
 		fd, _ := file.Open()
 		defer fd.Close()
 		data, _ := ioutil.ReadAll(fd)
-		files[file.Name] = data
+		files[FilePath(file.Name)] = data
 	}
 	return
 }
@@ -1194,9 +1196,9 @@ func (fm *ForceMetadata) MakeZipWithOptions(files ForceMetadataFiles, options Fo
 	zipfile := new(bytes.Buffer)
 	zipper := zip.NewWriter(zipfile)
 	for name, data := range files {
-		name = filepath.ToSlash(name)
+		name = FilePath(filepath.ToSlash(name))
 		if !options.SinglePackage {
-			name = fmt.Sprintf("unpackaged/%s", name)
+			name = FilePath(fmt.Sprintf("unpackaged/%s", name))
 		}
 		wr, err := zipper.Create(name)
 		if err != nil {

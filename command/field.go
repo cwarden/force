@@ -156,7 +156,7 @@ func updateFLSOnProfile(force *Force, objectName string, fieldName string) (err 
 		return err
 	}
 
-	profileDir := filepath.Join(tempdir, mpath)
+	profileDir := filepath.Join(tempdir, string(mpath))
 
 	err = os.MkdirAll(profileDir, 0777)
 	if err != nil {

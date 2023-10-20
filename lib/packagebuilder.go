@@ -19,12 +19,15 @@ type Package struct {
 	Version string     `xml:"version"`
 }
 
+type MetadataType string
+type MetadataTypeDirectory string
+
 type MetaType struct {
-	Members []string `xml:"members"`
-	Name    string   `xml:"name"`
+	Members []string     `xml:"members"`
+	Name    MetadataType `xml:"name"`
 }
 
-func createPackage() Package {
+func createPackageXml() Package {
 	return Package{
 		Version: strings.TrimPrefix(apiVersion, "v"),
 		Xmlns:   "http://soap.sforce.com/2006/04/metadata",
@@ -32,8 +35,8 @@ func createPackage() Package {
 }
 
 type metapath struct {
-	path       string
-	name       string
+	path       MetadataTypeDirectory
+	name       MetadataType
 	hasFolder  bool
 	onlyFolder bool
 	extension  string
@@ -147,14 +150,14 @@ var metapaths = []metapath{
 
 type PackageBuilder struct {
 	IsPush   bool
-	Metadata map[string]MetaType
+	Metadata map[MetadataType]MetaType
 	Files    ForceMetadataFiles
 	Root     string
 }
 
 func NewPushBuilder() PackageBuilder {
 	pb := PackageBuilder{IsPush: true}
-	pb.Metadata = make(map[string]MetaType)
+	pb.Metadata = make(map[MetadataType]MetaType)
 	pb.Files = make(ForceMetadataFiles)
 
 	return pb
@@ -162,7 +165,7 @@ func NewPushBuilder() PackageBuilder {
 
 func NewFetchBuilder() PackageBuilder {
 	pb := PackageBuilder{IsPush: false}
-	pb.Metadata = make(map[string]MetaType)
+	pb.Metadata = make(map[MetadataType]MetaType)
 	pb.Files = make(ForceMetadataFiles)
 
 	return pb
@@ -170,7 +173,7 @@ func NewFetchBuilder() PackageBuilder {
 
 // Build and return package.xml
 func (pb PackageBuilder) PackageXml() []byte {
-	p := createPackage()
+	p := createPackageXml()
 
 	for _, metaType := range pb.Metadata {
 		p.Types = append(p.Types, metaType)
@@ -188,7 +191,7 @@ func (pb *PackageBuilder) ForceMetadataFiles() ForceMetadataFiles {
 }
 
 // Returns the source file path for a given metadata file path.
-func MetaPathToSourcePath(mpath string) (spath string) {
+func MetaPathToSourcePath(mpath string) (spath FilePath) {
 	spath = strings.TrimSuffix(mpath, "-meta.xml")
 	if spath == mpath {
 		return
@@ -353,7 +356,7 @@ func (pb *PackageBuilder) isComponent(fpath string) bool {
 	}
 	metadataRoot := parts[0]
 	for _, mp := range metapaths {
-		if metadataRoot == mp.path {
+		if MetadataTypeDirectory(metadataRoot) == mp.path {
 			return mp.onlyFolder
 		}
 	}
@@ -442,7 +445,7 @@ func (pb *PackageBuilder) contains(members []string, name string) bool {
 }
 
 // Adds a metadata name to the pending package
-func (pb *PackageBuilder) AddMetaToPackage(metaName string, name string) {
+func (pb *PackageBuilder) AddMetaToPackage(metaName MetadataType, name string) {
 	mt := pb.Metadata[metaName]
 	if mt.Name == "" {
 		mt.Name = metaName
@@ -456,30 +459,30 @@ func (pb *PackageBuilder) AddMetaToPackage(metaName string, name string) {
 }
 
 // Gets metadata type name and target name from a file path
-func (pb *PackageBuilder) getMetaTypeForRelativePath(fpath string) (metaName string, name string, err error) {
+func (pb *PackageBuilder) getMetaTypeForRelativePath(fpath string) (metaName MetadataType, name string, err error) {
 	fpath, err = filepath.Abs(fpath)
 	if err != nil {
-		return "", "", fmt.Errorf("Cound not find %s: %w", fpath, err)
+		return "", "", fmt.Errorf("Could not find %s: %w", fpath, err)
 	}
 	if _, err := os.Stat(fpath); err != nil {
-		return "", "", fmt.Errorf("Cound not open %s: %w", fpath, err)
+		return "", "", fmt.Errorf("Could not open %s: %w", fpath, err)
 	}
 
 	// Get the metadata type and name for the file
 	return pb.GetMetaForAbsolutePath(fpath)
 }
 
-func FindMetapathForFile(file string) (string, error) {
+func FindMetapathForFile(file string) (MetadataTypeDirectory, error) {
 	parentDir := filepath.Dir(file)
 	parentName := filepath.Base(parentDir)
 	grandparentName := filepath.Base(filepath.Dir(parentDir))
 	fileExtension := filepath.Ext(file)
 
 	for _, mp := range metapaths {
-		if mp.hasFolder && grandparentName == mp.path {
+		if mp.hasFolder && MetadataTypeDirectory(grandparentName) == mp.path {
 			return mp.path, nil
 		}
-		if mp.path == parentName {
+		if mp.path == MetadataTypeDirectory(parentName) {
 			return mp.path, nil
 		}
 	}
@@ -494,7 +497,7 @@ func FindMetapathForFile(file string) (string, error) {
 }
 
 // Gets meta type and name based on a path
-func (pb *PackageBuilder) GetMetaForAbsolutePath(path string) (metaName string, objectName string, err error) {
+func (pb *PackageBuilder) GetMetaForAbsolutePath(path string) (metaName MetadataType, objectName string, err error) {
 	if pb.Root == "" {
 		return "", "", errors.Wrap(err, "PackageBuilder.Root is not set")
 	}
@@ -513,18 +516,19 @@ func (pb *PackageBuilder) GetMetaForAbsolutePath(path string) (metaName string, 
 	}
 
 	for _, mp := range metapaths {
-		if metadataRoot == mp.path {
+		if MetadataTypeDirectory(metadataRoot) == mp.path {
 			return mp.name, objectName, nil
 		}
 	}
 
+	panic(fmt.Errorf("Unable to identify metadata type for %s", path))
 	return "", "", fmt.Errorf("Unable to identify metadata type for %s", path)
 }
 
 func (pb *PackageBuilder) MetadataDir(metadataType string) (path string, err error) {
 	for _, mp := range metapaths {
-		if strings.ToLower(metadataType) == strings.ToLower(mp.name) {
-			return filepath.Join(pb.Root, mp.path), nil
+		if strings.ToLower(metadataType) == strings.ToLower(string(mp.name)) {
+			return filepath.Join(pb.Root, string(mp.path)), nil
 		}
 	}
 	return "", fmt.Errorf("Unknown metadata type: %s", metadataType)
