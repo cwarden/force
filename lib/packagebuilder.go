@@ -234,6 +234,7 @@ func (pb *PackageBuilder) AddFile(fpath string) error {
 		return nil
 	}
 
+	// Get the metadata type from the file
 	metadataTypeName, err := getRootElementName(fpath)
 	if err == NotXMLError {
 		metadataTypeName, err = getRootElementName(fpath + "-meta.xml")
@@ -244,7 +245,16 @@ func (pb *PackageBuilder) AddFile(fpath string) error {
 	fmt.Println("Metadata type is", metadataTypeName)
 
 	// File is XML
+	//   File has -meta.xml extension
+	//     e.g. Group in source format (My_Group.group-meta.xml)
+	//     e.g. Report folder in metadata format (My_Folder-meta.xml)
+	//     e.g. Report folder in source format (My_Folder.reportFolder-meta.xml)
+	//   File does not have -meta.xml extension
+	//     e.g. Group in metadata format (My_Group.group)
 	// File is not XML, but there's a -meta.xml file
+	//   e.g. Apex Class (MyClass.cls)
+
+	// Get the component name from the file
 
 	isFolderMetadata := isFolderMetadata(fpath)
 	// Path with -meta.xml stripped
@@ -500,16 +510,16 @@ func (pb *PackageBuilder) contains(members []string, name string) bool {
 }
 
 // Adds a metadata name to the pending package
-func (pb *PackageBuilder) AddMetaToPackage(metaName MetadataType, name string) {
-	mt := pb.Metadata[metaName]
+func (pb *PackageBuilder) AddMetaToPackage(metadataType MetadataType, name string) {
+	mt := pb.Metadata[metadataType]
 	if mt.Name == "" {
-		mt.Name = metaName
+		mt.Name = metadataType
 	}
 
 	canonicalName := filepath.ToSlash(name)
 	if !pb.contains(mt.Members, canonicalName) {
 		mt.Members = append(mt.Members, canonicalName)
-		pb.Metadata[metaName] = mt
+		pb.Metadata[metadataType] = mt
 	}
 }
 
