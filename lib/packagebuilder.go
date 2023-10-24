@@ -1,8 +1,10 @@
 package lib
 
 import (
+	"bytes"
 	"encoding/xml"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -11,6 +13,8 @@ import (
 
 	"github.com/pkg/errors"
 )
+
+var NotXMLError = errors.New("Could not parse as XML")
 
 // Structs for XML building
 type Package struct {
@@ -218,8 +222,9 @@ func (pb *PackageBuilder) AddFile(fpath string) error {
 	if err != nil {
 		return err
 	}
+
 	if isDestructiveChanges {
-		err = pb.addFileOnly(fpath)
+		err = pb.addFileOnlyWithName(filepath.Base(fpath), fpath)
 		return err
 	}
 
@@ -228,6 +233,18 @@ func (pb *PackageBuilder) AddFile(fpath string) error {
 		// don't consider it bad.
 		return nil
 	}
+
+	metadataTypeName, err := getRootElementName(fpath)
+	if err == NotXMLError {
+		metadataTypeName, err = getRootElementName(fpath + "-meta.xml")
+	}
+	if err != nil {
+		return fmt.Errorf("Could not determine metadata type: %w", err)
+	}
+	fmt.Println("Metadata type is", metadataTypeName)
+
+	// File is XML
+	// File is not XML, but there's a -meta.xml file
 
 	isFolderMetadata := isFolderMetadata(fpath)
 	// Path with -meta.xml stripped
@@ -255,6 +272,33 @@ func (pb *PackageBuilder) AddFile(fpath string) error {
 	}
 
 	return nil
+}
+
+func getRootElementName(file string) (string, error) {
+	fmt.Println("Getting metadata type for", file)
+	xmlData, err := ioutil.ReadFile(file)
+	if err != nil {
+		return "", fmt.Errorf("Could read XML file: %w", err)
+	}
+
+	decoder := xml.NewDecoder(ioutil.NopCloser(bytes.NewReader(xmlData)))
+
+	for {
+		t, err := decoder.Token()
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return "", NotXMLError
+		}
+
+		switch element := t.(type) {
+		case xml.StartElement:
+			// Return the name of the root element
+			return element.Name.Local, nil
+		}
+	}
+	return "", NotXMLError
 }
 
 func (pb *PackageBuilder) AddMetadataType(metadataType string) error {
@@ -431,6 +475,17 @@ func (pb *PackageBuilder) addFileOnly(fpath string) (err error) {
 		frel = filepath.Base(frel)
 	}
 	pb.Files[frel] = fdata
+
+	return err
+}
+
+func (pb *PackageBuilder) addFileOnlyWithName(name, fpath string) (err error) {
+	fdata, err := ioutil.ReadFile(fpath)
+	if err != nil {
+		return err
+	}
+
+	pb.Files[name] = fdata
 
 	return err
 }
