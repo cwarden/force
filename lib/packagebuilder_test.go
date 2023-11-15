@@ -27,7 +27,6 @@ var _ = Describe("Packagebuilder", func() {
 		BeforeEach(func() {
 			pb = NewPushBuilder()
 			tempDir, _ = ioutil.TempDir("", "packagebuilder-test")
-			pb.Root = tempDir + "/src"
 		})
 
 		AfterEach(func() {
@@ -167,7 +166,6 @@ var _ = Describe("Packagebuilder", func() {
 			BeforeEach(func() {
 				pb = NewPushBuilder()
 				tempDir, _ = ioutil.TempDir("", "packagebuilder-test")
-				pb.Root = tempDir + "/src"
 				destructiveChangesPath := tempDir + "/src/destructiveChanges.xml"
 				destructiveChangesXml := `<?xml version="1.0" encoding="UTF-8"?>
 					<Package xmlns="http://soap.sforce.com/2006/04/metadata">
@@ -203,7 +201,6 @@ var _ = Describe("Packagebuilder", func() {
 		BeforeEach(func() {
 			pb = NewPushBuilder()
 			tempDir, _ = ioutil.TempDir("", "packagebuilder-test")
-			pb.Root = tempDir + "/src"
 		})
 
 		AfterEach(func() {
@@ -255,7 +252,6 @@ var _ = Describe("Packagebuilder", func() {
 
 		BeforeEach(func() {
 			pb = NewFetchBuilder()
-			pb.Root = "/path/to/src"
 		})
 
 		Describe("adding a folder of lightning web components", func() {
