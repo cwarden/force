@@ -37,10 +37,15 @@ var _ = Describe("IsMetadata", func() {
 `
 			ioutil.WriteFile(tabPath, []byte(tabContents), 0644)
 			Expect(IsMetadata(tabPath)).To(Equal(true))
+			m, err := MetadataFromPath(tabPath)
+			Expect(err).To(BeNil())
+			Expect(m).To(BeAssignableToTypeOf(&CustomTab{}))
 		})
 
 		It("should not identify directories", func() {
 			Expect(IsMetadata(tempDir)).To(Equal(false))
+			_, err := MetadataFromPath(tempDir)
+			Expect(err).To(Not(BeNil()))
 		})
 
 		It("should not identify unknown types", func() {
@@ -53,6 +58,8 @@ var _ = Describe("IsMetadata", func() {
 `
 			ioutil.WriteFile(unknownPath, []byte(unknownContents), 0644)
 			Expect(IsMetadata(unknownPath)).To(Equal(false))
+			_, err := MetadataFromPath(unknownPath)
+			Expect(err).To(Not(BeNil()))
 		})
 
 		It("should not identify non-xml", func() {
@@ -61,6 +68,8 @@ var _ = Describe("IsMetadata", func() {
 			nonXmlContents := `junk`
 			ioutil.WriteFile(nonXmlPath, []byte(nonXmlContents), 0644)
 			Expect(IsMetadata(nonXmlPath)).To(Equal(false))
+			_, err := MetadataFromPath(nonXmlPath)
+			Expect(err).To(Equal(MetadataFileNotFound))
 		})
 	})
 
@@ -86,6 +95,13 @@ public class MyClass {}
 			Expect(IsMetadata(classMetaPath)).To(Equal(true))
 			Expect(HasRelatedMetadata(classPath)).To(Equal(true))
 			Expect(HasRelatedMetadata(classMetaPath)).To(Equal(false))
+
+			m, err := MetadataFromPath(classPath)
+			Expect(err).To(BeNil())
+			Expect(m).To(BeAssignableToTypeOf(&ApexClass{}))
+			m, err = MetadataFromPath(classMetaPath)
+			Expect(err).To(BeNil())
+			Expect(m).To(BeAssignableToTypeOf(&ApexClass{}))
 		})
 	})
 
@@ -111,6 +127,9 @@ public class MyClass {}
 			Expect(IsMetadata(folderPath)).To(Equal(false))
 			Expect(HasRelatedMetadata(folderPath)).To(Equal(true))
 			Expect(HasRelatedMetadata(folderMetaPath)).To(Equal(false))
+			m, err := MetadataFromPath(folderMetaPath)
+			Expect(err).To(BeNil())
+			Expect(m).To(BeAssignableToTypeOf(&ReportFolder{}))
 		})
 	})
 })

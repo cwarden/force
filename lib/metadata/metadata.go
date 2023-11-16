@@ -11,9 +11,43 @@ import (
 )
 
 var NotXMLError = errors.New("Could not parse as XML")
+var MetadataFileNotFound = errors.New("Could not find metadata file")
 
 func HasRelatedMetadata(path string) bool {
 	return !IsMetadata(path) && IsMetadata(path+"-meta.xml")
+}
+
+type MetadataType string
+
+// If the file in path contains metadata, return it.  Otherwise, try to find
+// the corresponding file that contains metadata.
+func metadataFileFromPath(path string) (string, error) {
+	if IsMetadata(path) {
+		return path, nil
+	}
+	if IsMetadata(path + "-meta.xml") {
+		return path + "-meta.xml", nil
+	}
+	return "", MetadataFileNotFound
+}
+
+func MetadataFromPath(path string) (Metadata, error) {
+	path, err := metadataFileFromPath(path)
+	if err != nil {
+		return nil, err
+	}
+	_, err = os.Stat(path)
+	if err != nil {
+		return nil, err
+	}
+	element, err := getRootElementName(path)
+	if err == NotXMLError {
+		return nil, err
+	}
+	if f, ok := Registry.createFuncs[element]; ok {
+		return f(path)
+	}
+	return nil, fmt.Errorf("Could not find metadata")
 }
 
 func IsMetadata(path string) bool {
