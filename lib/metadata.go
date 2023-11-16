@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ForceCLI/force/lib/metadata"
 	"github.com/ForceCLI/inflect"
 
 	. "github.com/ForceCLI/force/error"
@@ -219,9 +220,9 @@ type ForceMetadataQueryElement struct {
 
 type ForceMetadataQuery []ForceMetadataQueryElement
 
-type FilePath = string
+type FilePath = metadata.FilePath
 
-type ForceMetadataFiles map[FilePath][]byte
+type ForceMetadataFiles = metadata.ForceMetadataFiles
 
 type ForceMetadata struct {
 	ApiVersion string

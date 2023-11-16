@@ -13,6 +13,9 @@ import (
 var NotXMLError = errors.New("Could not parse as XML")
 var MetadataFileNotFound = errors.New("Could not find metadata file")
 
+type FilePath = string
+type ForceMetadataFiles map[FilePath][]byte
+
 func HasRelatedMetadata(path string) bool {
 	return !IsMetadata(path) && IsMetadata(path+"-meta.xml")
 }

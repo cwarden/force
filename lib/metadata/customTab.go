@@ -14,6 +14,8 @@ func isCustomTab(path string) bool {
 }
 
 func createCustomTab(path string) (Metadata, error) {
-	// Creation logic
+	// Get the file contents
+	// Get the path relative to the tabs directory
+	// Normalize file extension
 	return &CustomTab{Path: path}, nil
 }
