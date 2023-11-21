@@ -39,7 +39,7 @@ var _ = Describe("Metadata", func() {
 			Expect(IsMetadata(tabPath)).To(Equal(true))
 			m, err := MetadataFromPath(tabPath)
 			Expect(err).To(BeNil())
-			Expect(m).To(BeAssignableToTypeOf(&CustomTab{}))
+			Expect(m).To(BeAssignableToTypeOf(&BaseMetadata{}))
 			Expect(m.Name()).To(Equal("MyTab"))
 			Expect(m.DeployedType()).To(Equal("CustomTab"))
 
@@ -65,7 +65,7 @@ var _ = Describe("Metadata", func() {
 			Expect(IsMetadata(tabPath)).To(Equal(true))
 			m, err := MetadataFromPath(tabPath)
 			Expect(err).To(BeNil())
-			Expect(m).To(BeAssignableToTypeOf(&CustomTab{}))
+			Expect(m).To(BeAssignableToTypeOf(&BaseMetadata{}))
 			Expect(m.Name()).To(Equal("MyTab"))
 			Expect(m.DeployedType()).To(Equal("CustomTab"))
 
@@ -169,7 +169,7 @@ public class MyClass {}
 			Expect(HasRelatedMetadata(folderMetaPath)).To(Equal(false))
 			m, err := MetadataFromPath(folderMetaPath)
 			Expect(err).To(BeNil())
-			Expect(m).To(BeAssignableToTypeOf(&ReportFolder{}))
+			Expect(m).To(BeAssignableToTypeOf(&FolderedMetadata{}))
 
 			Expect(m.Name()).To(Equal("MyFolder"))
 			Expect(m.DeployedType()).To(Equal("Report"))
@@ -201,7 +201,7 @@ public class MyClass {}
 			Expect(HasRelatedMetadata(folderMetaPath)).To(Equal(false))
 			m, err := MetadataFromPath(folderMetaPath)
 			Expect(err).To(BeNil())
-			Expect(m).To(BeAssignableToTypeOf(&ReportFolder{}))
+			Expect(m).To(BeAssignableToTypeOf(&FolderedMetadata{}))
 
 			Expect(m.Name()).To(Equal("MyFolder/MySubfolder"))
 			Expect(m.DeployedType()).To(Equal("Report"))
@@ -228,7 +228,7 @@ public class MyClass {}
 
 			m, err := MetadataFromPath(reportPath)
 			Expect(err).To(BeNil())
-			Expect(m).To(BeAssignableToTypeOf(&Report{}))
+			Expect(m).To(BeAssignableToTypeOf(&FolderedMetadata{}))
 
 			Expect(m.Name()).To(Equal("MyFolder/MyReport"))
 			Expect(m.DeployedType()).To(Equal("Report"))
@@ -252,7 +252,7 @@ public class MyClass {}
 			Expect(HasRelatedMetadata(reportPath)).To(Equal(false))
 			m, err := MetadataFromPath(reportPath)
 			Expect(err).To(BeNil())
-			Expect(m).To(BeAssignableToTypeOf(&Report{}))
+			Expect(m).To(BeAssignableToTypeOf(&FolderedMetadata{}))
 
 			Expect(m.Name()).To(Equal("MyFolder/MySubfolder/MyReport"))
 			Expect(m.DeployedType()).To(Equal("Report"))

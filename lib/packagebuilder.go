@@ -40,7 +40,6 @@ type metapath struct {
 	name       MetadataType
 	hasFolder  bool
 	onlyFolder bool
-	extension  string
 }
 
 var metapaths = []metapath{
@@ -120,7 +119,7 @@ var metapaths = []metapath{
 	{path: "platformEventChannelMembers", name: "PlatformEventChannelMember"},
 	{path: "PlatformEventSubscriberConfigs", name: "PlatformEventSubscriberConfig"},
 	{path: "postTemplates", name: "PostTemplate"},
-	{path: "profiles", name: "Profile", extension: ".profile"},
+	{path: "profiles", name: "Profile"},
 	{path: "postTemplates", name: "PostTemplate"},
 	{path: "postTemplates", name: "PostTemplate"},
 	{path: "profiles", name: "Profile"},
