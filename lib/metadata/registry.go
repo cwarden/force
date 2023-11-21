@@ -3,6 +3,10 @@ package metadata
 import "fmt"
 
 type Metadata interface {
+	DeployedType() string
+	Name() string
+	Files() (ForceMetadataFiles, error)
+	dir() string
 }
 
 type MetadataTypeFunc func(path string) bool

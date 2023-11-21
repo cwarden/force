@@ -40,6 +40,38 @@ var _ = Describe("IsMetadata", func() {
 			m, err := MetadataFromPath(tabPath)
 			Expect(err).To(BeNil())
 			Expect(m).To(BeAssignableToTypeOf(&CustomTab{}))
+			Expect(m.Name()).To(Equal("MyTab"))
+			Expect(m.DeployedType()).To(Equal("CustomTab"))
+
+			expectedMap := make(ForceMetadataFiles)
+			expectedMap["tabs/MyTab.tab"] = []byte(tabContents)
+			Expect(m.Files()).To(Equal(expectedMap))
+		})
+
+		It("should handle source format", func() {
+			os.MkdirAll(tempDir+"/sfdx/main/default/tabs", 0755)
+			tabPath := tempDir + "/sfdx/main/default/tabs/MyTab.tab-meta.xml"
+			tabContents := `
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomTab xmlns="http://soap.sforce.com/2006/04/metadata">
+	<frameHeight>900</frameHeight>
+	<hasSidebar>false</hasSidebar>
+	<label>Palo</label>
+	<motif>Custom41: Stack of Cash</motif>
+	<urlEncodingKey>UTF-8</urlEncodingKey>
+</CustomTab>
+`
+			ioutil.WriteFile(tabPath, []byte(tabContents), 0644)
+			Expect(IsMetadata(tabPath)).To(Equal(true))
+			m, err := MetadataFromPath(tabPath)
+			Expect(err).To(BeNil())
+			Expect(m).To(BeAssignableToTypeOf(&CustomTab{}))
+			Expect(m.Name()).To(Equal("MyTab"))
+			Expect(m.DeployedType()).To(Equal("CustomTab"))
+
+			expectedMap := make(ForceMetadataFiles)
+			expectedMap["tabs/MyTab.tab"] = []byte(tabContents)
+			Expect(m.Files()).To(Equal(expectedMap))
 		})
 
 		It("should not identify directories", func() {
@@ -102,6 +134,14 @@ public class MyClass {}
 			m, err = MetadataFromPath(classMetaPath)
 			Expect(err).To(BeNil())
 			Expect(m).To(BeAssignableToTypeOf(&ApexClass{}))
+
+			Expect(m.Name()).To(Equal("MyClass"))
+			Expect(m.DeployedType()).To(Equal("ApexClass"))
+
+			expectedMap := make(ForceMetadataFiles)
+			expectedMap["classes/MyClass.cls"] = []byte(classContents)
+			expectedMap["classes/MyClass.cls-meta.xml"] = []byte(classMetaContents)
+			Expect(m.Files()).To(Equal(expectedMap))
 		})
 	})
 
@@ -130,6 +170,45 @@ public class MyClass {}
 			m, err := MetadataFromPath(folderMetaPath)
 			Expect(err).To(BeNil())
 			Expect(m).To(BeAssignableToTypeOf(&ReportFolder{}))
+
+			Expect(m.Name()).To(Equal("MyFolder"))
+			Expect(m.DeployedType()).To(Equal("Report"))
+
+			expectedMap := make(ForceMetadataFiles)
+			expectedMap["reports/MyFolder-meta.xml"] = []byte(folderMetaContents)
+			Expect(m.Files()).To(Equal(expectedMap))
+		})
+		It("should support nested folders", func() {
+			folderPath := tempDir + "/src/reports/MyFolder/MySubfolder"
+			os.MkdirAll(folderPath, 0755)
+			folderMetaPath := tempDir + "/src/reports/MyFolder/MySubfolder-meta.xml"
+			folderMetaContents := `
+<?xml version="1.0" encoding="UTF-8"?>
+<ReportFolder xmlns="http://soap.sforce.com/2006/04/metadata">
+	<folderShares>
+		<accessLevel>Manage</accessLevel>
+		<sharedTo>System_Administrator</sharedTo>
+		<sharedToType>Role</sharedToType>
+	</folderShares>
+	<name>My Folder</name>
+</ReportFolder>
+`
+			ioutil.WriteFile(folderMetaPath, []byte(folderMetaContents), 0644)
+
+			Expect(IsMetadata(folderMetaPath)).To(Equal(true))
+			Expect(IsMetadata(folderPath)).To(Equal(false))
+			Expect(HasRelatedMetadata(folderPath)).To(Equal(true))
+			Expect(HasRelatedMetadata(folderMetaPath)).To(Equal(false))
+			m, err := MetadataFromPath(folderMetaPath)
+			Expect(err).To(BeNil())
+			Expect(m).To(BeAssignableToTypeOf(&ReportFolder{}))
+
+			Expect(m.Name()).To(Equal("MySubfolder"))
+			Expect(m.DeployedType()).To(Equal("Report"))
+
+			expectedMap := make(ForceMetadataFiles)
+			expectedMap["reports/MyFolder/MySubfolder-meta.xml"] = []byte(folderMetaContents)
+			Expect(m.Files()).To(Equal(expectedMap))
 		})
 	})
 })

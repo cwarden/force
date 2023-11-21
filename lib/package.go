@@ -1,7 +1,5 @@
 package lib
 
-import "github.com/ForceCLI/force/lib/metadata"
-
 type Format int
 
 const (
@@ -45,10 +43,12 @@ func deployablePackageFromPath(path string) (DeployablePackage, error) {
 		case isDir(path):
 			// Metadata directory
 	*/
-	case metadata.IsMetadata(path):
-		// Standalone metadata, e.g. CustomTab, CustomApplication, etc.
-	case hasRelatedMetadata(path):
-		// Has separate metadata file, e.g. ApexClass
+	/*
+		case metadata.IsMetadata(path):
+			// Standalone metadata, e.g. CustomTab, CustomApplication, etc.
+		case hasRelatedMetadata(path):
+			// Has separate metadata file, e.g. ApexClass
+	*/
 	}
 	return DeployablePackage{}, nil
 }

@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/ForceCLI/force/lib/metadata"
 	"github.com/pkg/errors"
 )
 
@@ -157,6 +158,7 @@ type PackageBuilder struct {
 	Metadata map[MetadataType]MetaType
 	Files    ForceMetadataFiles
 	Root     string
+	metadata []metadata.Metadata
 }
 
 func NewPushBuilder() PackageBuilder {
@@ -179,8 +181,18 @@ func NewFetchBuilder() PackageBuilder {
 func (pb PackageBuilder) PackageXml() []byte {
 	p := createPackageXml()
 
-	for _, metaType := range pb.Metadata {
-		p.Types = append(p.Types, metaType)
+	types := make(map[string][]string)
+
+	for _, m := range pb.metadata {
+		if members, ok := types[m.DeployedType()]; ok {
+			types[m.DeployedType()] = append(members, m.Name())
+		} else {
+			types[m.DeployedType()] = []string{m.Name()}
+		}
+	}
+
+	for k, v := range types {
+		p.Types = append(p.Types, MetaType{Name: MetadataType(k), Members: v})
 	}
 
 	byteXml, _ := xml.MarshalIndent(p, "", "    ")
@@ -192,6 +204,22 @@ func (pb PackageBuilder) PackageXml() []byte {
 func (pb *PackageBuilder) ForceMetadataFiles() ForceMetadataFiles {
 	pb.Files["package.xml"] = pb.PackageXml()
 	return pb.Files
+}
+
+func (pb *PackageBuilder) PackageFiles() (ForceMetadataFiles, error) {
+	f := make(ForceMetadataFiles)
+	f["package.xml"] = pb.PackageXml()
+	for _, m := range pb.metadata {
+		files, err := m.Files()
+		if err != nil {
+			return f, err
+		}
+		for name, content := range files {
+			f[name] = content
+		}
+	}
+
+	return f, nil
 }
 
 // Returns the source file path for a given metadata file path.
@@ -208,79 +236,21 @@ func MetaPathToSourcePath(mpath string) (spath FilePath) {
 	return
 }
 
+func (pb *PackageBuilder) AddMetadata(m metadata.Metadata) {
+	pb.metadata = append(pb.metadata, m)
+}
+
 func (pb *PackageBuilder) AddFile(fpath string) error {
-	fpath, err := filepath.Abs(fpath)
-	if err != nil {
-		return err
-	}
-	_, err = os.Stat(fpath)
-	if err != nil {
-		return err
-	}
-
-	isDestructiveChanges, err := regexp.MatchString("destructiveChanges(Pre|Post)?"+regexp.QuoteMeta(".")+"xml", fpath)
-	if err != nil {
-		return err
-	}
-
-	if isDestructiveChanges {
-		err = pb.addFileOnlyWithName(filepath.Base(fpath), fpath)
-		return err
-	}
-
 	if lwcJsTestFile.MatchString(fpath) {
 		// If this is a JS test file, just ignore it entirely,
 		// don't consider it bad.
 		return nil
 	}
-
-	// Get the metadata type from the file
-	metadataTypeName, err := getRootElementName(fpath)
-	if err == NotXMLError {
-		metadataTypeName, err = getRootElementName(fpath + "-meta.xml")
-	}
+	m, err := metadata.MetadataFromPath(fpath)
 	if err != nil {
-		return fmt.Errorf("Could not determine metadata type: %w", err)
+		return fmt.Errorf("Could not add file: %w", err)
 	}
-	fmt.Println("Metadata type is", metadataTypeName)
-
-	// File is XML
-	//   File has -meta.xml extension
-	//     e.g. Group in source format (My_Group.group-meta.xml)
-	//     e.g. Report folder in metadata format (My_Folder-meta.xml)
-	//     e.g. Report folder in source format (My_Folder.reportFolder-meta.xml)
-	//   File does not have -meta.xml extension
-	//     e.g. Group in metadata format (My_Group.group)
-	// File is not XML, but there's a -meta.xml file
-	//   e.g. Apex Class (MyClass.cls)
-
-	// Get the component name from the file
-
-	isFolderMetadata := isFolderMetadata(fpath)
-	// Path with -meta.xml stripped
-	spath := MetaPathToSourcePath(fpath)
-	metaName, fname, err := pb.getMetaTypeForRelativePath(spath)
-	if err != nil {
-		return err
-	}
-	if isFolderMetadata {
-		pb.AddMetaToPackage(metaName, fname)
-	} else if !strings.HasSuffix(spath, "-meta.xml") {
-		pb.AddMetaToPackage(metaName, fname)
-	}
-	if pb.isComponent(fpath) {
-		pb.AddMetaToPackage(metaName, fname)
-	}
-
-	// If it's a push, we want to actually add the files
-	if pb.IsPush {
-		if isFolderMetadata {
-			err = pb.addFileOnly(fpath)
-		} else {
-			err = pb.addFileAndMetaXml(spath)
-		}
-	}
-
+	pb.AddMetadata(m)
 	return nil
 }
 

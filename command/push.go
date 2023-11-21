@@ -152,15 +152,6 @@ func sourceDirFromPaths(resourcePaths []string) string {
 
 func pushByPaths(resourcePaths []string, deployOptions *ForceDeployOptions, displayOptions *deployOutputOptions) {
 	pb := NewPushBuilder()
-	/*
-		sourceDir := sourceDirFromPaths(resourcePaths)
-		var err error
-		if sourceDir == "" {
-			sourceDir, err = config.GetSourceDir()
-			ExitIfNoSourceDir(err)
-		}
-		pb.Root = sourceDir
-	*/
 	for _, p := range resourcePaths {
 		f, err := os.Stat(p)
 		if err != nil {
@@ -175,7 +166,11 @@ func pushByPaths(resourcePaths []string, deployOptions *ForceDeployOptions, disp
 			ErrorAndExit("Could not add %s: %s", p, err.Error())
 		}
 	}
-	err := deploy(force, pb.ForceMetadataFiles(), deployOptions, displayOptions)
+	files, err := pb.PackageFiles()
+	if err != nil {
+		ErrorAndExit(err.Error())
+	}
+	err = deploy(force, files, deployOptions, displayOptions)
 	if err != nil {
 		ErrorAndExit(err.Error())
 	}
