@@ -1,6 +1,8 @@
 package metadata
 
 import (
+	"fmt"
+	"io/ioutil"
 	"path/filepath"
 	"strings"
 )
@@ -27,4 +29,31 @@ func RelativePath(fullpath, relativeTo string) string {
 	relativePath := normalizedPath[idx:]
 
 	return relativePath
+}
+
+func metadataOnlyFile(m Metadata) (ForceMetadataFiles, error) {
+	files := make(ForceMetadataFiles)
+	fileContent, err := ioutil.ReadFile(m.path())
+	if err != nil {
+		return nil, fmt.Errorf("Could not read metadata: %w", err)
+	}
+	files[RelativePath(m.path(), m.dir())] = fileContent
+	return files, nil
+}
+
+func metadataAndContentFiles(m Metadata) (ForceMetadataFiles, error) {
+	files := make(ForceMetadataFiles)
+	fileContent, err := ioutil.ReadFile(m.path())
+	if err != nil {
+		return nil, fmt.Errorf("Could not read metadata: %w", err)
+	}
+	files[RelativePath(m.path(), m.dir())] = fileContent
+
+	class := strings.TrimSuffix(m.path(), "-meta.xml")
+	fileContent, err = ioutil.ReadFile(class)
+	if err != nil {
+		return nil, fmt.Errorf("Could not read metadata: %w", err)
+	}
+	files[RelativePath(class, m.dir())] = fileContent
+	return files, nil
 }
