@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/ForceCLI/force/config"
 	. "github.com/ForceCLI/force/error"
 	. "github.com/ForceCLI/force/lib"
 	"github.com/spf13/cobra"
@@ -178,9 +177,7 @@ func pushByPaths(resourcePaths []string, deployOptions *ForceDeployOptions, disp
 
 func pushByMetadataType(metadataType string, metadataNames []string, deployOptions *ForceDeployOptions, displayOptions *deployOutputOptions) {
 	pb := NewPushBuilder()
-	sourceDir, err := config.GetSourceDir()
-	ExitIfNoSourceDir(err)
-	pb.Root = sourceDir
+	var err error
 	if len(metadataNames) == 0 {
 		err = pb.AddMetadataType(metadataType)
 		if err != nil {
@@ -195,7 +192,11 @@ func pushByMetadataType(metadataType string, metadataNames []string, deployOptio
 		}
 	}
 
-	err = deploy(force, pb.ForceMetadataFiles(), deployOptions, displayOptions)
+	files, err := pb.PackageFiles()
+	if err != nil {
+		ErrorAndExit(err.Error())
+	}
+	err = deploy(force, files, deployOptions, displayOptions)
 	if err != nil {
 		ErrorAndExit(err.Error())
 	}
@@ -203,10 +204,7 @@ func pushByMetadataType(metadataType string, metadataNames []string, deployOptio
 
 func pushMetadataTypes(metadataTypes []string, deployOptions *ForceDeployOptions, displayOptions *deployOutputOptions) {
 	pb := NewPushBuilder()
-	sourceDir, err := config.GetSourceDir()
-	ExitIfNoSourceDir(err)
-	pb.Root = sourceDir
-
+	var err error
 	for _, metadataType := range metadataTypes {
 		err = pb.AddMetadataType(metadataType)
 		if err != nil {
@@ -214,7 +212,11 @@ func pushMetadataTypes(metadataTypes []string, deployOptions *ForceDeployOptions
 		}
 	}
 
-	err = deploy(force, pb.ForceMetadataFiles(), deployOptions, displayOptions)
+	files, err := pb.PackageFiles()
+	if err != nil {
+		ErrorAndExit(err.Error())
+	}
+	err = deploy(force, files, deployOptions, displayOptions)
 	if err != nil {
 		ErrorAndExit(err.Error())
 	}

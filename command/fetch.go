@@ -243,11 +243,10 @@ func buildPackageAndFetch(paths []string) {
 	// for each argument
 	// add name and type to package
 	pb := NewFetchBuilder()
-	sourceDir, err := config.GetSourceDir()
+	var err error
 	if err != nil {
 		ErrorAndExit("Could not find source dir")
 	}
-	pb.Root = sourceDir
 	for _, f := range paths {
 		if info, err := os.Stat(f); err != nil {
 			Log.Info("Cannot fetch", f, err.Error())
@@ -267,7 +266,7 @@ func buildPackageAndFetch(paths []string) {
 		}
 	}
 	packageXml := pb.PackageXml()
-	if len(pb.Metadata) == 0 {
+	if pb.Size() == 0 {
 		ErrorAndExit("Nothing to fetch")
 	}
 
