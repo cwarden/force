@@ -101,7 +101,7 @@ var _ = Describe("IsMetadata", func() {
 			ioutil.WriteFile(nonXmlPath, []byte(nonXmlContents), 0644)
 			Expect(IsMetadata(nonXmlPath)).To(Equal(false))
 			_, err := MetadataFromPath(nonXmlPath)
-			Expect(err).To(Equal(MetadataFileNotFound))
+			Expect(err).To(MatchError(MetadataFileNotFound))
 		})
 	})
 

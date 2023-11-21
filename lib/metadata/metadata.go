@@ -11,7 +11,7 @@ import (
 )
 
 var NotXMLError = errors.New("Could not parse as XML")
-var MetadataFileNotFound = errors.New("Could not find metadata file")
+var MetadataFileNotFound = errors.New("Could not identify metadata type")
 
 type FilePath = string
 type ForceMetadataFiles map[FilePath][]byte
@@ -31,7 +31,7 @@ func metadataFileFromPath(path string) (string, error) {
 	if IsMetadata(path + "-meta.xml") {
 		return path + "-meta.xml", nil
 	}
-	return "", MetadataFileNotFound
+	return "", fmt.Errorf("%w: %s", MetadataFileNotFound, path)
 }
 
 func MetadataFromPath(path string) (Metadata, error) {
