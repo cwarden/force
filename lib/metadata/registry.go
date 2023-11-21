@@ -9,7 +9,7 @@ type Metadata interface {
 }
 
 type MetadataTypeFunc func(path string) bool
-type MetadataCreateFunc func(path string) (Metadata, error)
+type MetadataCreateFunc func(path string) Metadata
 
 type metadataTypeRegistry struct {
 	createFuncs map[string]MetadataCreateFunc

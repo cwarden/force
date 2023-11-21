@@ -10,7 +10,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("IsMetadata", func() {
+var _ = Describe("Metadata", func() {
 	var (
 		tempDir string
 	)
@@ -203,11 +203,62 @@ public class MyClass {}
 			Expect(err).To(BeNil())
 			Expect(m).To(BeAssignableToTypeOf(&ReportFolder{}))
 
-			Expect(m.Name()).To(Equal("MySubfolder"))
+			Expect(m.Name()).To(Equal("MyFolder/MySubfolder"))
 			Expect(m.DeployedType()).To(Equal("Report"))
 
 			expectedMap := make(ForceMetadataFiles)
 			expectedMap["reports/MyFolder/MySubfolder-meta.xml"] = []byte(folderMetaContents)
+			Expect(m.Files()).To(Equal(expectedMap))
+		})
+	})
+	Context("Reports", func() {
+		It("should should include folder in path", func() {
+			folderPath := tempDir + "/src/reports/MyFolder"
+			os.MkdirAll(folderPath, 0755)
+			reportPath := tempDir + "/src/reports/MyFolder/MyReport.report"
+			reportContents := `
+<?xml version="1.0" encoding="UTF-8"?>
+<Report xmlns="http://soap.sforce.com/2006/04/metadata">
+</Report>
+`
+			ioutil.WriteFile(reportPath, []byte(reportContents), 0644)
+
+			Expect(IsMetadata(reportPath)).To(Equal(true))
+			Expect(HasRelatedMetadata(reportPath)).To(Equal(false))
+
+			m, err := MetadataFromPath(reportPath)
+			Expect(err).To(BeNil())
+			Expect(m).To(BeAssignableToTypeOf(&Report{}))
+
+			Expect(m.Name()).To(Equal("MyFolder/MyReport"))
+			Expect(m.DeployedType()).To(Equal("Report"))
+
+			expectedMap := make(ForceMetadataFiles)
+			expectedMap["reports/MyFolder/MyReport.report"] = []byte(reportContents)
+			Expect(m.Files()).To(Equal(expectedMap))
+		})
+		It("should support nested folders", func() {
+			folderPath := tempDir + "/src/reports/MyFolder/MySubfolder"
+			os.MkdirAll(folderPath, 0755)
+			reportPath := tempDir + "/src/reports/MyFolder/MySubfolder/MyReport.report"
+			reportContents := `
+<?xml version="1.0" encoding="UTF-8"?>
+<Report xmlns="http://soap.sforce.com/2006/04/metadata">
+</Report>
+`
+			ioutil.WriteFile(reportPath, []byte(reportContents), 0644)
+
+			Expect(IsMetadata(reportPath)).To(Equal(true))
+			Expect(HasRelatedMetadata(reportPath)).To(Equal(false))
+			m, err := MetadataFromPath(reportPath)
+			Expect(err).To(BeNil())
+			Expect(m).To(BeAssignableToTypeOf(&Report{}))
+
+			Expect(m.Name()).To(Equal("MyFolder/MySubfolder/MyReport"))
+			Expect(m.DeployedType()).To(Equal("Report"))
+
+			expectedMap := make(ForceMetadataFiles)
+			expectedMap["reports/MyFolder/MySubfolder/MyReport.report"] = []byte(reportContents)
 			Expect(m.Files()).To(Equal(expectedMap))
 		})
 	})

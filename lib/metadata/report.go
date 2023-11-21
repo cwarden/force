@@ -1,11 +1,11 @@
 package metadata
 
-type ReportFolder struct {
+type Report struct {
 	FolderedMetadata
 }
 
-func NewReportFolder(path string) Metadata {
-	return &ReportFolder{
+func NewReport(path string) Metadata {
+	return &Report{
 		FolderedMetadata: FolderedMetadata{
 			BaseMetadata: BaseMetadata{
 				Path:         path,

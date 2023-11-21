@@ -48,7 +48,7 @@ func MetadataFromPath(path string) (Metadata, error) {
 		return nil, err
 	}
 	if f, ok := Registry.createFuncs[element]; ok {
-		return f(path)
+		return f(path), nil
 	}
 	return nil, fmt.Errorf("Could not find metadata")
 }

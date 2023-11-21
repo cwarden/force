@@ -1,31 +1,17 @@
 package metadata
 
-func init() {
-	Registry.Register("ApexClass", createApexClass)
-}
-
 type ApexClass struct {
-	Path string
+	BaseMetadata
 }
 
-func createApexClass(path string) (Metadata, error) {
-	return &ApexClass{Path: path}, nil
-}
-
-func (t *ApexClass) DeployedType() string {
-	return "ApexClass"
-}
-
-func (t *ApexClass) Name() string {
-	return ComponentName(t.Path)
-}
-
-func (t *ApexClass) dir() string {
-	return "classes"
-}
-
-func (t *ApexClass) path() string {
-	return t.Path
+func NewApexClass(path string) Metadata {
+	return &ApexClass{
+		BaseMetadata: BaseMetadata{
+			Path:         path,
+			deployedType: "ApexClass",
+			Dir:          "classes",
+		},
+	}
 }
 
 func (t *ApexClass) Files() (ForceMetadataFiles, error) {
