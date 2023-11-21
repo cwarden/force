@@ -1,10 +1,8 @@
 package lib
 
 import (
-	"bytes"
 	"encoding/xml"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -222,20 +220,6 @@ func (pb *PackageBuilder) PackageFiles() (ForceMetadataFiles, error) {
 	return f, nil
 }
 
-// Returns the source file path for a given metadata file path.
-func MetaPathToSourcePath(mpath string) (spath FilePath) {
-	spath = strings.TrimSuffix(mpath, "-meta.xml")
-	if spath == mpath {
-		return
-	}
-
-	_, err := os.Stat(spath)
-	if err != nil {
-		spath = mpath
-	}
-	return
-}
-
 func (pb *PackageBuilder) AddMetadata(m metadata.Metadata) {
 	pb.metadata = append(pb.metadata, m)
 }
@@ -252,33 +236,6 @@ func (pb *PackageBuilder) AddFile(fpath string) error {
 	}
 	pb.AddMetadata(m)
 	return nil
-}
-
-func getRootElementName(file string) (string, error) {
-	fmt.Println("Getting metadata type for", file)
-	xmlData, err := ioutil.ReadFile(file)
-	if err != nil {
-		return "", fmt.Errorf("Could read XML file: %w", err)
-	}
-
-	decoder := xml.NewDecoder(ioutil.NopCloser(bytes.NewReader(xmlData)))
-
-	for {
-		t, err := decoder.Token()
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			return "", NotXMLError
-		}
-
-		switch element := t.(type) {
-		case xml.StartElement:
-			// Return the name of the root element
-			return element.Name.Local, nil
-		}
-	}
-	return "", NotXMLError
 }
 
 func (pb *PackageBuilder) AddMetadataType(metadataType string) error {
@@ -315,26 +272,6 @@ func (pb *PackageBuilder) Add(path string) error {
 
 // AddDirectory Recursively add files contained in provided directory
 func (pb *PackageBuilder) AddDirectory(fpath string) error {
-	fpath, err := filepath.Abs(fpath)
-	if err != nil {
-		return fmt.Errorf("Cound not find %s: %w", fpath, err)
-	}
-
-	isComponent := pb.isComponent(fpath)
-	metadataType, metadataName, err := pb.getMetaTypeForRelativePath(fpath)
-	if err != nil {
-		return fmt.Errorf("Unable to add directory: %w", err)
-	}
-	if isComponent && metadataName != "" {
-		pb.AddMetaToPackage(metadataType, metadataName)
-	}
-
-	if m := correspondingMetadata(fpath); m != "" {
-		if err = pb.AddFile(m); err != nil {
-			return fmt.Errorf("Failed to add metadata for directory: %w", err)
-		}
-	}
-
 	files, err := ioutil.ReadDir(fpath)
 	if err != nil {
 		return err
@@ -362,10 +299,9 @@ func (pb *PackageBuilder) AddDirectory(fpath string) error {
 			continue
 		}
 
-		if isComponent {
-			err = pb.addFileOnly(dirOrFilePath)
-		} else {
-			err = pb.AddFile(dirOrFilePath)
+		err = pb.AddFile(dirOrFilePath)
+		if err != nil {
+			return err
 		}
 
 	}
@@ -491,73 +427,6 @@ func (pb *PackageBuilder) AddMetaToPackage(metadataType MetadataType, name strin
 		mt.Members = append(mt.Members, canonicalName)
 		pb.Metadata[metadataType] = mt
 	}
-}
-
-// Gets metadata type name and target name from a file path
-func (pb *PackageBuilder) getMetaTypeForRelativePath(fpath string) (metaName MetadataType, name string, err error) {
-	fpath, err = filepath.Abs(fpath)
-	if err != nil {
-		return "", "", fmt.Errorf("Could not find %s: %w", fpath, err)
-	}
-	if _, err := os.Stat(fpath); err != nil {
-		return "", "", fmt.Errorf("Could not open %s: %w", fpath, err)
-	}
-
-	// Get the metadata type and name for the file
-	return pb.GetMetaForAbsolutePath(fpath)
-}
-
-func FindMetapathForFile(file string) (MetadataTypeDirectory, error) {
-	parentDir := filepath.Dir(file)
-	parentName := filepath.Base(parentDir)
-	grandparentName := filepath.Base(filepath.Dir(parentDir))
-	fileExtension := filepath.Ext(file)
-
-	for _, mp := range metapaths {
-		if mp.hasFolder && MetadataTypeDirectory(grandparentName) == mp.path {
-			return mp.path, nil
-		}
-		if mp.path == MetadataTypeDirectory(parentName) {
-			return mp.path, nil
-		}
-	}
-
-	// Hmm, maybe we can use the extension to determine the type
-	for _, mp := range metapaths {
-		if mp.extension == fileExtension {
-			return mp.path, nil
-		}
-	}
-	return "", fmt.Errorf("metadata path not found")
-}
-
-// Gets meta type and name based on a path
-func (pb *PackageBuilder) GetMetaForAbsolutePath(path string) (metaName MetadataType, objectName string, err error) {
-	if pb.Root == "" {
-		return "", "", errors.Wrap(err, "PackageBuilder.Root is not set")
-	}
-	relativePath, err := filepath.Rel(pb.Root, path)
-	if err != nil {
-		return "", "", errors.Wrap(err, "Failed to create relative path")
-	}
-	parts := strings.Split(relativePath, string(os.PathSeparator))
-	metadataRoot := parts[0]
-	objectName = ""
-	if len(parts) > 1 {
-		objectName = strings.TrimSuffix(strings.Join(parts[1:], string(os.PathSeparator)), filepath.Ext(path))
-		if pb.isComponent(path) {
-			objectName = parts[1]
-		}
-	}
-
-	for _, mp := range metapaths {
-		if MetadataTypeDirectory(metadataRoot) == mp.path {
-			return mp.name, objectName, nil
-		}
-	}
-
-	panic(fmt.Errorf("Unable to identify metadata type for %s", path))
-	return "", "", fmt.Errorf("Unable to identify metadata type for %s", path)
 }
 
 func (pb *PackageBuilder) MetadataDir(metadataType string) (path string, err error) {
