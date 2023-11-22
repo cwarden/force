@@ -191,6 +191,9 @@ func (pb PackageBuilder) PackageXml() []byte {
 
 func (pb *PackageBuilder) PackageFiles() (ForceMetadataFiles, error) {
 	f := make(ForceMetadataFiles)
+	if len(pb.metadata) == 0 {
+		return f, nil
+	}
 	f["package.xml"] = pb.PackageXml()
 	for _, m := range pb.metadata {
 		files, err := m.Files()

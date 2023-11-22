@@ -115,6 +115,7 @@ func init() {
 	// ObjectTranslations
 	// LWC/Aura
 	// Unzipped Static Resources
+	// Package (destructiveChanges.xml)
 }
 
 func createMetadataFunc(constructor func(string) Metadata) MetadataCreateFunc {

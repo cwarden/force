@@ -16,10 +16,6 @@ var MetadataFileNotFound = errors.New("Could not identify metadata type")
 type FilePath = string
 type ForceMetadataFiles map[FilePath][]byte
 
-func HasRelatedMetadata(path string) bool {
-	return !IsMetadata(path) && IsMetadata(path+"-meta.xml")
-}
-
 type MetadataType string
 
 // If the file in path contains metadata, return it.  Otherwise, try to find

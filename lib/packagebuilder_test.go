@@ -14,7 +14,7 @@ var _ = Describe("Packagebuilder", func() {
 	Describe("NewPushBuilder", func() {
 		It("should return a Packagebuilder", func() {
 			pb := NewPushBuilder()
-			Expect(pb).To(BeAssignableToTypeOf(PackageBuilder{IsPush: true}))
+			Expect(pb).To(BeAssignableToTypeOf(PackageBuilder{}))
 		})
 	})
 
@@ -40,18 +40,21 @@ var _ = Describe("Packagebuilder", func() {
 				os.MkdirAll(tempDir+"/src/classes", 0755)
 				apexClassPath = tempDir + "/src/classes/Test.cls"
 				apexClassContents := "class Test {}"
+				apexClassMetadataContents := `
+<?xml version="1.0" encoding="UTF-8"?>
+<ApexClass xmlns="http://soap.sforce.com/2006/04/metadata">
+	 <apiVersion>59.0</apiVersion>
+	 <status>Active</status>
+</ApexClass>
+`
 				ioutil.WriteFile(apexClassPath, []byte(apexClassContents), 0644)
+				ioutil.WriteFile(apexClassPath+"-meta.xml", []byte(apexClassMetadataContents), 0644)
 			})
 
 			It("should add the file to package", func() {
 				err := pb.AddFile(apexClassPath)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(pb.Files).To(HaveKey("classes/Test.cls"))
-			})
-			It("should add the file to the package.xml", func() {
-				pb.AddFile(apexClassPath)
-				Expect(pb.Metadata).To(HaveKey("ApexClass"))
-				Expect(pb.Metadata["ApexClass"].Members[0]).To(Equal("Test"))
+				Expect(pb.PackageFiles()).To(HaveKey("classes/Test.cls"))
 			})
 		})
 
@@ -61,18 +64,23 @@ var _ = Describe("Packagebuilder", func() {
 			BeforeEach(func() {
 				os.MkdirAll(tempDir+"/src/classes", 0755)
 				apexClassMetadataPath = tempDir + "/src/classes/Test.cls-meta.xml"
-				apexClassMetadataContents := `<?xml version="1.0" encoding="UTF-8"?>`
+				apexClassMetadataContents := `
+<?xml version="1.0" encoding="UTF-8"?>
+<ApexClass xmlns="http://soap.sforce.com/2006/04/metadata">
+	 <apiVersion>59.0</apiVersion>
+	 <status>Active</status>
+</ApexClass>
+`
+				apexClassPath := tempDir + "/src/classes/Test.cls"
+				apexClassContents := "class Test {}"
+				ioutil.WriteFile(apexClassPath, []byte(apexClassContents), 0644)
 				ioutil.WriteFile(apexClassMetadataPath, []byte(apexClassMetadataContents), 0644)
 			})
 
 			It("should add the file to package", func() {
 				err := pb.AddFile(apexClassMetadataPath)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(pb.Files).To(HaveKey("classes/Test.cls-meta.xml"))
-			})
-			It("should not add the file to the package.xml", func() {
-				pb.AddFile(apexClassMetadataPath)
-				Expect(pb.Metadata).ToNot(HaveKey("ApexClass"))
+				Expect(pb.PackageFiles()).To(HaveKey("classes/Test.cls-meta.xml"))
 			})
 		})
 
@@ -86,15 +94,21 @@ var _ = Describe("Packagebuilder", func() {
 				apexClassContents := "class Test {}"
 				ioutil.WriteFile(apexClassPath, []byte(apexClassContents), 0644)
 				apexClassMetadataPath = tempDir + "/src/classes/Test.cls-meta.xml"
-				apexClassMetadataContents := `<?xml version="1.0" encoding="UTF-8"?>`
+				apexClassMetadataContents := `
+<?xml version="1.0" encoding="UTF-8"?>
+<ApexClass xmlns="http://soap.sforce.com/2006/04/metadata">
+	 <apiVersion>59.0</apiVersion>
+	 <status>Active</status>
+</ApexClass>
+`
 				ioutil.WriteFile(apexClassMetadataPath, []byte(apexClassMetadataContents), 0644)
 			})
 
 			It("should add both files to package", func() {
 				err := pb.AddFile(apexClassMetadataPath)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(pb.Files).To(HaveKey("classes/Test.cls"))
-				Expect(pb.Files).To(HaveKey("classes/Test.cls-meta.xml"))
+				Expect(pb.PackageFiles()).To(HaveKey("classes/Test.cls"))
+				Expect(pb.PackageFiles()).To(HaveKey("classes/Test.cls-meta.xml"))
 			})
 		})
 
@@ -104,19 +118,18 @@ var _ = Describe("Packagebuilder", func() {
 			BeforeEach(func() {
 				os.MkdirAll(tempDir+"/src/customMetadata", 0755)
 				customMetadataPath = tempDir + "/src/customMetadata/My_Type.My_Object.md"
-				customMetadataContents := `<?xml version="1.0" encoding="UTF-8"?>`
+				customMetadataContents := `
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomMetadata xmlns="http://soap.sforce.com/2006/04/metadata" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+</CustomMetadata>
+`
 				ioutil.WriteFile(customMetadataPath, []byte(customMetadataContents), 0644)
 			})
 
 			It("should add the file to package", func() {
 				err := pb.AddFile(customMetadataPath)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(pb.Files).To(HaveKey("customMetadata/My_Type.My_Object.md"))
-			})
-			It("should add the file to the package.xml", func() {
-				pb.AddFile(customMetadataPath)
-				Expect(pb.Metadata).To(HaveKey("CustomMetadata"))
-				Expect(pb.Metadata["CustomMetadata"].Members[0]).To(Equal("My_Type.My_Object"))
+				Expect(pb.PackageFiles()).To(HaveKey("customMetadata/My_Type.My_Object.md"))
 			})
 		})
 
@@ -124,11 +137,7 @@ var _ = Describe("Packagebuilder", func() {
 			It("should not add the file to package", func() {
 				err := pb.AddFile(tempDir + "/no/such/file")
 				Expect(err).To(HaveOccurred())
-				Expect(pb.Files).To(BeEmpty())
-			})
-			It("should not add the file to the package.xml", func() {
-				pb.AddFile(tempDir + "/no/such/file")
-				Expect(pb.Metadata).To(BeEmpty())
+				Expect(pb.PackageFiles()).To(BeEmpty())
 			})
 		})
 
@@ -145,9 +154,7 @@ var _ = Describe("Packagebuilder", func() {
 				mustWrite(filePath, `export default const x = 1;`)
 				err := pb.AddFile(filePath)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(pb.Files).To(HaveKey("lwc/mycomponent/mycomponent.js"))
-				Expect(pb.Metadata).To(HaveKey("LightningComponentBundle"))
-				Expect(pb.Metadata["LightningComponentBundle"].Members[0]).To(Equal("mycomponent"))
+				Expect(pb.PackageFiles()).To(HaveKey("lwc/mycomponent/mycomponent.js"))
 			})
 
 			It("should not add test files to package or package.xml", func() {
@@ -155,8 +162,7 @@ var _ = Describe("Packagebuilder", func() {
 				mustWrite(filePath, `export default const x = 1;`)
 				err := pb.AddFile(filePath)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(pb.Files).To(BeEmpty())
-				Expect(pb.Metadata).To(BeEmpty())
+				Expect(pb.PackageFiles()).To(BeEmpty())
 			})
 		})
 
@@ -180,16 +186,15 @@ var _ = Describe("Packagebuilder", func() {
 			It("should add the file to package", func() {
 				err := pb.AddFile(tempDir + "/src/destructiveChanges.xml")
 				Expect(err).ToNot(HaveOccurred())
-				Expect(pb.Files).To(HaveKey("destructiveChanges.xml"))
+				Expect(pb.PackageFiles()).To(HaveKey("destructiveChanges.xml"))
 			})
 			It("should not add the file to the package.xml", func() {
 				pb.AddFile(tempDir + "/src/destructiveChanges.xml")
-				Expect(pb.Metadata).To(BeEmpty())
 			})
 			It("should allow adding the file outside the root directory", func() {
 				err := pb.AddFile(tempDir + "/destructiveChanges.xml")
 				Expect(err).ToNot(HaveOccurred())
-				Expect(pb.Files).To(HaveKey("destructiveChanges.xml"))
+				Expect(pb.PackageFiles()).To(HaveKey("destructiveChanges.xml"))
 			})
 		})
 	})
@@ -219,18 +224,14 @@ var _ = Describe("Packagebuilder", func() {
 				mustWrite(lwcRoot+"/supercomponent.js", "export default const x = 1;")
 				err := pb.AddDirectory(lwcRoot)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(pb.Files).To(HaveKey("lwc/supercomponent/supercomponent.js"))
-				Expect(pb.Metadata).To(HaveKey("LightningComponentBundle"))
-				Expect(pb.Metadata["LightningComponentBundle"].Members[0]).To(Equal("supercomponent"))
+				Expect(pb.PackageFiles()).To(HaveKey("lwc/supercomponent/supercomponent.js"))
 			})
 
 			It("should add components in subdirectories", func() {
 				mustWrite(lwcRoot+"/supercomponent.js", "export default const x = 1;")
 				err := pb.AddDirectory(tempDir + "/src/lwc")
 				Expect(err).ToNot(HaveOccurred())
-				Expect(pb.Files).To(HaveKey("lwc/supercomponent/supercomponent.js"))
-				Expect(pb.Metadata).To(HaveKey("LightningComponentBundle"))
-				Expect(pb.Metadata["LightningComponentBundle"].Members[0]).To(Equal("supercomponent"))
+				Expect(pb.PackageFiles()).To(HaveKey("lwc/supercomponent/supercomponent.js"))
 			})
 
 			It("ignores test files and folders", func() {
@@ -241,42 +242,9 @@ var _ = Describe("Packagebuilder", func() {
 
 				err := pb.AddDirectory(lwcRoot)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(pb.Files).To(HaveKey("lwc/supercomponent/supercomponent.js"))
-				Expect(pb.Metadata).To(HaveKey("LightningComponentBundle"))
+				Expect(pb.PackageFiles()).To(HaveKey("lwc/supercomponent/supercomponent.js"))
 			})
 		})
 	})
 
-	Describe("GetMetaForAbsolutePath", func() {
-		var pb PackageBuilder
-
-		BeforeEach(func() {
-			pb = NewFetchBuilder()
-		})
-
-		Describe("adding a folder of lightning web components", func() {
-
-			It("should handle LWC component directories", func() {
-				metadataType, metadataName, err := pb.GetMetaForAbsolutePath("/path/to/src/lwc/supercomponent")
-				Expect(err).ToNot(HaveOccurred())
-				Expect(metadataType).To(Equal("LightningComponentBundle"))
-				Expect(metadataName).To(Equal("supercomponent"))
-			})
-
-			It("should handle LWC component files", func() {
-				metadataType, metadataName, err := pb.GetMetaForAbsolutePath("/path/to/src/lwc/supercomponent/component.js")
-				Expect(err).ToNot(HaveOccurred())
-				Expect(metadataType).To(Equal("LightningComponentBundle"))
-				Expect(metadataName).To(Equal("supercomponent"))
-			})
-
-			It("should handle normal components", func() {
-				metadataType, metadataName, err := pb.GetMetaForAbsolutePath("/path/to/src/classes/MyClass.cls")
-				Expect(err).ToNot(HaveOccurred())
-				Expect(metadataType).To(Equal("ApexClass"))
-				Expect(metadataName).To(Equal("MyClass"))
-			})
-
-		})
-	})
 })

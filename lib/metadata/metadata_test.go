@@ -74,6 +74,27 @@ var _ = Describe("Metadata", func() {
 			Expect(m.Files()).To(Equal(expectedMap))
 		})
 
+		It("should handle custom metadata", func() {
+			os.MkdirAll(tempDir+"/src/customMetadata", 0755)
+			customMetadataPath := tempDir + "/src/customMetadata/My_Type.My_Record.md"
+			customMetadataContents := `
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomMetadata xmlns="http://soap.sforce.com/2006/04/metadata" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+</CustomMetadata>
+`
+			ioutil.WriteFile(customMetadataPath, []byte(customMetadataContents), 0644)
+			Expect(IsMetadata(customMetadataPath)).To(Equal(true))
+			m, err := MetadataFromPath(customMetadataPath)
+			Expect(err).To(BeNil())
+			Expect(m).To(BeAssignableToTypeOf(&BaseMetadata{}))
+			Expect(m.Name()).To(Equal("My_Type.My_Record"))
+			Expect(m.DeployedType()).To(Equal("CustomMetadata"))
+
+			expectedMap := make(ForceMetadataFiles)
+			expectedMap["customMetadata/My_Type.My_Record.md"] = []byte(customMetadataContents)
+			Expect(m.Files()).To(Equal(expectedMap))
+		})
+
 		It("should not identify directories", func() {
 			Expect(IsMetadata(tempDir)).To(Equal(false))
 			_, err := MetadataFromPath(tempDir)
@@ -125,8 +146,6 @@ public class MyClass {}
 
 			Expect(IsMetadata(classPath)).To(Equal(false))
 			Expect(IsMetadata(classMetaPath)).To(Equal(true))
-			Expect(HasRelatedMetadata(classPath)).To(Equal(true))
-			Expect(HasRelatedMetadata(classMetaPath)).To(Equal(false))
 
 			m, err := MetadataFromPath(classPath)
 			Expect(err).To(BeNil())
@@ -165,8 +184,6 @@ public class MyClass {}
 
 			Expect(IsMetadata(folderMetaPath)).To(Equal(true))
 			Expect(IsMetadata(folderPath)).To(Equal(false))
-			Expect(HasRelatedMetadata(folderPath)).To(Equal(true))
-			Expect(HasRelatedMetadata(folderMetaPath)).To(Equal(false))
 			m, err := MetadataFromPath(folderMetaPath)
 			Expect(err).To(BeNil())
 			Expect(m).To(BeAssignableToTypeOf(&FolderedMetadata{}))
@@ -197,8 +214,6 @@ public class MyClass {}
 
 			Expect(IsMetadata(folderMetaPath)).To(Equal(true))
 			Expect(IsMetadata(folderPath)).To(Equal(false))
-			Expect(HasRelatedMetadata(folderPath)).To(Equal(true))
-			Expect(HasRelatedMetadata(folderMetaPath)).To(Equal(false))
 			m, err := MetadataFromPath(folderMetaPath)
 			Expect(err).To(BeNil())
 			Expect(m).To(BeAssignableToTypeOf(&FolderedMetadata{}))
@@ -224,7 +239,6 @@ public class MyClass {}
 			ioutil.WriteFile(reportPath, []byte(reportContents), 0644)
 
 			Expect(IsMetadata(reportPath)).To(Equal(true))
-			Expect(HasRelatedMetadata(reportPath)).To(Equal(false))
 
 			m, err := MetadataFromPath(reportPath)
 			Expect(err).To(BeNil())
@@ -249,7 +263,6 @@ public class MyClass {}
 			ioutil.WriteFile(reportPath, []byte(reportContents), 0644)
 
 			Expect(IsMetadata(reportPath)).To(Equal(true))
-			Expect(HasRelatedMetadata(reportPath)).To(Equal(false))
 			m, err := MetadataFromPath(reportPath)
 			Expect(err).To(BeNil())
 			Expect(m).To(BeAssignableToTypeOf(&FolderedMetadata{}))
