@@ -3,7 +3,7 @@ package metadata
 type BaseMetadata struct {
 	Path         string
 	deployedType string
-	Dir          string
+	dir          string
 }
 
 func (b *BaseMetadata) Name() string {
@@ -14,8 +14,8 @@ func (b *BaseMetadata) DeployedType() string {
 	return b.deployedType
 }
 
-func (b *BaseMetadata) dir() string {
-	return b.Dir
+func (b *BaseMetadata) Dir() string {
+	return b.dir
 }
 
 func (b *BaseMetadata) path() string {

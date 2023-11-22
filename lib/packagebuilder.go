@@ -35,119 +35,6 @@ func createPackageXml() Package {
 	}
 }
 
-type metapath struct {
-	path       MetadataTypeDirectory
-	name       MetadataType
-	hasFolder  bool
-	onlyFolder bool
-}
-
-var metapaths = []metapath{
-	{path: "actionLinkGroupTemplates", name: "ActionLinkGroupTemplate"},
-	{path: "analyticSnapshots", name: "AnalyticSnapshot"},
-	{path: "apexEmailNotifications", name: "ApexEmailNotifications"},
-	{path: "applications", name: "CustomApplication"},
-	{path: "appMenus", name: "AppMenu"},
-	{path: "approvalProcesses", name: "ApprovalProcess"},
-	{path: "assignmentRules", name: "AssignmentRules"},
-	{path: "audience", name: "Audience"},
-	{path: "authproviders", name: "AuthProvider"},
-	{path: "aura", name: "AuraDefinitionBundle", hasFolder: true, onlyFolder: true},
-	{path: "autoResponseRules", name: "AutoResponseRules"},
-	{path: "callCenters", name: "CallCenter"},
-	{path: "cachePartitions", name: "PlatformCachePartition"},
-	{path: "certs", name: "Certificate"},
-	{path: "channelLayouts", name: "ChannelLayout"},
-	{path: "classes", name: "ApexClass"},
-	{path: "cleanDataServices", name: "CleanDataService"},
-	{path: "communities", name: "Community"},
-	{path: "components", name: "ApexComponent"},
-	{path: "connectedApps", name: "ConnectedApp"},
-	{path: "contentassets", name: "ContentAsset"},
-	{path: "corsWhitelistOrigins", name: "CorsWhitelistOrigin"},
-	{path: "customApplicationComponents", name: "CustomApplicationComponent"},
-	{path: "customMetadata", name: "CustomMetadata"},
-	{path: "notificationtypes", name: "CustomNotificationType"},
-	{path: "customHelpMenuSections", name: "CustomHelpMenuSection"},
-	{path: "customPermissions", name: "CustomPermission"},
-	{path: "dashboards", name: "Dashboard", hasFolder: true},
-	{path: "dataSources", name: "ExternalDataSource"},
-	{path: "datacategorygroups", name: "DataCategoryGroup"},
-	{path: "delegateGroups", name: "DelegateGroup"},
-	{path: "documents", name: "Document", hasFolder: true},
-	{path: "duplicateRules", name: "DuplicateRule"},
-	{path: "dw", name: "DataWeaveResource"},
-	{path: "EmbeddedServiceConfig", name: "EmbeddedServiceConfig"},
-	{path: "email", name: "EmailTemplate", hasFolder: true},
-	{path: "escalationRules", name: "EscalationRules"},
-	{path: "experiences", name: "ExperienceBundle"},
-	{path: "externalCredentials", name: "ExternalCredential"},
-	{path: "feedFilters", name: "CustomFeedFilter"},
-	{path: "flexipages", name: "FlexiPage"},
-	{path: "flowDefinitions", name: "FlowDefinition"},
-	{path: "flows", name: "Flow"},
-	{path: "flowtests", name: "FlowTest"},
-	{path: "globalPicklists", name: "GlobalPicklist"},
-	{path: "globalValueSets", name: "GlobalValueSet"},
-	{path: "globalValueSetTranslations", name: "GlobalValueSetTranslation"},
-	{path: "groups", name: "Group"},
-	{path: "homePageComponents", name: "HomePageComponent"},
-	{path: "homePageLayouts", name: "HomePageLayout"},
-	{path: "installedPackages", name: "InstalledPackage"},
-	{path: "labels", name: "CustomLabels"},
-	{path: "layouts", name: "Layout"},
-	{path: "LeadConvertSettings", name: "LeadConvertSettings"},
-	{path: "letterhead", name: "Letterhead"},
-	{path: "lwc", name: "LightningComponentBundle", hasFolder: true, onlyFolder: true},
-	{path: "matchingRules", name: "MatchingRules"},
-	{path: "matchingRules", name: "MatchingRule"},
-	{path: "messageChannels", name: "LightningMessageChannel"},
-	{path: "namedCredentials", name: "NamedCredential"},
-	{path: "notificationTypeConfig", name: "NotificationTypeConfig"},
-	{path: "networks", name: "Network"},
-	{path: "objects", name: "CustomObject"},
-	{path: "objectTranslations", name: "CustomObjectTranslation"},
-	{path: "omniDataTransforms", name: "OmniDataTransform"},
-	{path: "omniIntegrationProcedures", name: "OmniIntegrationProcedure"},
-	{path: "omniScripts", name: "OmniScript"},
-	{path: "omniUiCard", name: "OmniUiCard"},
-	{path: "pages", name: "ApexPage"},
-	{path: "pathAssistants", name: "PathAssistant"},
-	{path: "permissionsets", name: "PermissionSet"},
-	{path: "permissionsetgroups", name: "PermissionSetGroup"},
-	{path: "platformEventChannels", name: "PlatformEventChannel"},
-	{path: "platformEventChannelMembers", name: "PlatformEventChannelMember"},
-	{path: "PlatformEventSubscriberConfigs", name: "PlatformEventSubscriberConfig"},
-	{path: "postTemplates", name: "PostTemplate"},
-	{path: "profiles", name: "Profile"},
-	{path: "postTemplates", name: "PostTemplate"},
-	{path: "postTemplates", name: "PostTemplate"},
-	{path: "profiles", name: "Profile"},
-	{path: "profileSessionSettings", name: "ProfileSessionSetting"},
-	{path: "queues", name: "Queue"},
-	{path: "quickActions", name: "QuickAction"},
-	{path: "restrictionRules", name: "RestrictionRule"},
-	{path: "remoteSiteSettings", name: "RemoteSiteSetting"},
-	{path: "reports", name: "Report", hasFolder: true},
-	{path: "reportTypes", name: "ReportType"},
-	{path: "roles", name: "Role"},
-	{path: "scontrols", name: "Scontrol"},
-	{path: "settings", name: "Settings"},
-	{path: "sharingRules", name: "SharingRules"},
-	{path: "sharingSets", name: "SharingSet"},
-	{path: "siteDotComSites", name: "SiteDotCom"},
-	{path: "sites", name: "CustomSite"},
-	{path: "standardValueSets", name: "StandardValueSet"},
-	{path: "staticresources", name: "StaticResource"},
-	{path: "synonymDictionaries", name: "SynonymDictionary"},
-	{path: "tabs", name: "CustomTab"},
-	{path: "translations", name: "Translations"},
-	{path: "triggers", name: "ApexTrigger"},
-	{path: "weblinks", name: "CustomPageWebLink"},
-	{path: "workflows", name: "Workflow"},
-	{path: "cspTrustedSites", name: "CspTrustedSite"},
-}
-
 type PackageBuilder struct {
 	metadata []metadata.Metadata
 }
@@ -217,6 +104,7 @@ func (pb *PackageBuilder) AddMetadataType(metadataType string) error {
 	if err != nil {
 		return fmt.Errorf("Could not get metadata directry: %w", err)
 	}
+	fmt.Println("Adding", metaFolder)
 	return pb.AddDirectory(metaFolder)
 }
 
@@ -280,6 +168,7 @@ func (pb *PackageBuilder) AddDirectory(fpath string) error {
 				// avoid the addFile call on the __tests__ dir, we could avoid this check.
 				continue
 			}
+			fmt.Println("Adding", dirOrFilePath)
 			err := pb.AddDirectory(dirOrFilePath)
 			if err != nil {
 				return err
@@ -287,6 +176,7 @@ func (pb *PackageBuilder) AddDirectory(fpath string) error {
 			continue
 		}
 
+		fmt.Println("Adding", dirOrFilePath)
 		err = pb.AddFile(dirOrFilePath)
 		if err != nil {
 			return err
@@ -301,13 +191,11 @@ func (pb *PackageBuilder) MetadataDir(metadataType string) (path string, err err
 	if err != nil {
 		return "", fmt.Errorf("Could not identify source directory: %w", err)
 	}
-
-	for _, mp := range metapaths {
-		if strings.ToLower(metadataType) == strings.ToLower(string(mp.name)) {
-			return filepath.Join(sourceDir, string(mp.path)), nil
-		}
+	md := metadata.Registry.ByName(metadataType)
+	if md == nil {
+		return "", fmt.Errorf("Unknown metadata type: %s", metadataType)
 	}
-	return "", fmt.Errorf("Unknown metadata type: %s", metadataType)
+	return filepath.Join(sourceDir, string(md("").Dir())), nil
 }
 
 // Get the path to a metadata file from the source folder and metadata name

@@ -9,7 +9,7 @@ func NewApexTrigger(path string) Metadata {
 		BaseMetadata: BaseMetadata{
 			Path:         path,
 			deployedType: "ApexTrigger",
-			Dir:          "triggers",
+			dir:          "triggers",
 		},
 	}
 }

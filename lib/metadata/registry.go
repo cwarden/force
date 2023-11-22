@@ -4,7 +4,7 @@ type Metadata interface {
 	DeployedType() string
 	Name() string
 	Files() (ForceMetadataFiles, error)
-	dir() string
+	Dir() string
 	path() string
 }
 
@@ -17,6 +17,10 @@ type metadataTypeRegistry struct {
 
 var Registry = &metadataTypeRegistry{
 	createFuncs: make(map[string]MetadataCreateFunc),
+}
+
+func (r *metadataTypeRegistry) ByName(name string) MetadataCreateFunc {
+	return r.createFuncs[name]
 }
 
 func (r *metadataTypeRegistry) Register(metadataType string, createFunc MetadataCreateFunc) {
@@ -42,7 +46,7 @@ func createBaseMetadataFunc(deployedType, dir string) MetadataCreateFunc {
 		return &BaseMetadata{
 			Path:         path,
 			deployedType: deployedType,
-			Dir:          dir,
+			dir:          dir,
 		}
 	}
 }
@@ -53,7 +57,7 @@ func createFolderedMetadataFunc(deployedType, dir string) MetadataCreateFunc {
 			BaseMetadata: BaseMetadata{
 				Path:         path,
 				deployedType: deployedType,
-				Dir:          dir,
+				dir:          dir,
 			},
 		}
 	}

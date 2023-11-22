@@ -9,7 +9,7 @@ func NewApexClass(path string) Metadata {
 		BaseMetadata: BaseMetadata{
 			Path:         path,
 			deployedType: "ApexClass",
-			Dir:          "classes",
+			dir:          "classes",
 		},
 	}
 }

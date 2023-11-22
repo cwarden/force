@@ -37,7 +37,7 @@ func metadataOnlyFile(m Metadata) (ForceMetadataFiles, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Could not read metadata: %w", err)
 	}
-	files[RelativePath(m.path(), m.dir())] = fileContent
+	files[RelativePath(m.path(), m.Dir())] = fileContent
 	return files, nil
 }
 
@@ -47,13 +47,13 @@ func metadataAndContentFiles(m Metadata) (ForceMetadataFiles, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Could not read metadata: %w", err)
 	}
-	files[RelativePath(m.path(), m.dir())] = fileContent
+	files[RelativePath(m.path(), m.Dir())] = fileContent
 
 	class := strings.TrimSuffix(m.path(), "-meta.xml")
 	fileContent, err = ioutil.ReadFile(class)
 	if err != nil {
 		return nil, fmt.Errorf("Could not read metadata: %w", err)
 	}
-	files[RelativePath(class, m.dir())] = fileContent
+	files[RelativePath(class, m.Dir())] = fileContent
 	return files, nil
 }
