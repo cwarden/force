@@ -106,7 +106,6 @@ func (pb *PackageBuilder) AddMetadataType(metadataType string) error {
 	if err != nil {
 		return fmt.Errorf("Could not get metadata directry: %w", err)
 	}
-	fmt.Println("Adding", metaFolder)
 	return pb.AddDirectory(metaFolder)
 }
 
@@ -170,7 +169,6 @@ func (pb *PackageBuilder) AddDirectory(fpath string) error {
 				// avoid the addFile call on the __tests__ dir, we could avoid this check.
 				continue
 			}
-			fmt.Println("Adding", dirOrFilePath)
 			err := pb.AddDirectory(dirOrFilePath)
 			if err != nil {
 				return err
@@ -178,7 +176,6 @@ func (pb *PackageBuilder) AddDirectory(fpath string) error {
 			continue
 		}
 
-		fmt.Println("Adding", dirOrFilePath)
 		err = pb.AddFile(dirOrFilePath)
 		if err != nil {
 			return err

@@ -14,6 +14,9 @@ func init() {
 	Registry.RegisterFolderType("EmailFolder", "Email", "email")
 	Registry.RegisterFolderType("ReportFolder", "Report", "reports")
 
+	Registry.RegisterBundledType("AuraDefinitionBundle", "aura")
+	Registry.RegisterBundledType("LightningComponentBundle", "lwc")
+
 	Registry.RegisterBaseType("ActionLinkGroupTemplate", "actionLinkGroupTemplates")
 	Registry.RegisterBaseType("AnalyticSnapshot", "analyticSnapshots")
 	Registry.RegisterBaseType("ApexComponent", "components")
@@ -114,7 +117,6 @@ func init() {
 	// TODO: split metadata types in source format
 	//    CustomField, ValidationRule, etc.
 	//    ObjectTranslations: CustomFieldTranslation CustomObjectTranslation
-	// LWC/Aura
 	// Unzipped Static Resources
 }
 

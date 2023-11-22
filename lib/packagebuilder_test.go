@@ -152,6 +152,11 @@ var _ = Describe("Packagebuilder", func() {
 			It("should add the file to the package and package.xml", func() {
 				filePath := componentDir + "/mycomponent.js"
 				mustWrite(filePath, `export default const x = 1;`)
+				mustWrite(filePath+"-meta.xml", `
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+</LightningComponentBundle>
+`)
 				err := pb.AddFile(filePath)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(pb.PackageFiles()).To(HaveKey("lwc/mycomponent/mycomponent.js"))
@@ -222,20 +227,37 @@ var _ = Describe("Packagebuilder", func() {
 
 			It("should add directory contents", func() {
 				mustWrite(lwcRoot+"/supercomponent.js", "export default const x = 1;")
+				mustWrite(lwcRoot+"/supercomponent.js-meta.xml", `
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+</LightningComponentBundle>
+`)
 				err := pb.AddDirectory(lwcRoot)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(pb.PackageFiles()).To(HaveKey("lwc/supercomponent/supercomponent.js"))
+				Expect(pb.PackageFiles()).To(HaveKey("lwc/supercomponent/supercomponent.js-meta.xml"))
 			})
 
 			It("should add components in subdirectories", func() {
 				mustWrite(lwcRoot+"/supercomponent.js", "export default const x = 1;")
+				mustWrite(lwcRoot+"/supercomponent.js-meta.xml", `
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+</LightningComponentBundle>
+`)
 				err := pb.AddDirectory(tempDir + "/src/lwc")
 				Expect(err).ToNot(HaveOccurred())
 				Expect(pb.PackageFiles()).To(HaveKey("lwc/supercomponent/supercomponent.js"))
+				Expect(pb.PackageFiles()).To(HaveKey("lwc/supercomponent/supercomponent.js-meta.xml"))
 			})
 
 			It("ignores test files and folders", func() {
 				mustWrite(lwcRoot+"/supercomponent.js", "export default const x = 1;")
+				mustWrite(lwcRoot+"/supercomponent.js-meta.xml", `
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+</LightningComponentBundle>
+`)
 				mustWrite(lwcRoot+"/supercomponent.test.js", "")
 				mustMkdir(lwcRoot + "/__tests__")
 				mustWrite(lwcRoot+"/__tests__/supercomponent.test.js", "")
@@ -243,6 +265,7 @@ var _ = Describe("Packagebuilder", func() {
 				err := pb.AddDirectory(lwcRoot)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(pb.PackageFiles()).To(HaveKey("lwc/supercomponent/supercomponent.js"))
+				Expect(pb.PackageFiles()).ToNot(HaveKey("lwc/supercomponent/supercomponent.test.js"))
 			})
 		})
 	})

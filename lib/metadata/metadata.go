@@ -8,6 +8,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 )
 
 var NotXMLError = errors.New("Could not parse as XML")
@@ -27,7 +28,32 @@ func metadataFileFromPath(path string) (string, error) {
 	if IsDeployable(path + "-meta.xml") {
 		return path + "-meta.xml", nil
 	}
+	if m := metadataFileInSameFolder(path); m != "" && IsDeployable(m) {
+		return m, nil
+	}
 	return "", fmt.Errorf("%w: %s", MetadataFileNotFound, path)
+}
+
+// Look for a metadata file in the same folder as path to support bundled
+// metadata (Aura and LWC)
+func metadataFileInSameFolder(path string) string {
+	info, err := os.Stat(path)
+	if err != nil {
+		return ""
+	}
+	if info.IsDir() {
+		return ""
+	}
+	dirName := filepath.Dir(path)
+	pattern := dirName + string(os.PathSeparator) + "*-meta.xml"
+	files, err := filepath.Glob(pattern)
+	if err != nil {
+		return ""
+	}
+	if len(files) == 1 {
+		return files[0]
+	}
+	return ""
 }
 
 func MetadataFromPath(path string) (DeployableMetadata, error) {
