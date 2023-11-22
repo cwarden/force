@@ -1,9 +1,14 @@
 package metadata
 
 func init() {
-	Registry.Register("ApexClass", createDeployableFunc(NewApexClass))
-	Registry.Register("ApexTrigger", createDeployableFunc(NewApexTrigger))
 	Registry.Register("Package", NewPackage)
+
+	Registry.RegisterContentType("ApexClass", "classes")
+	Registry.RegisterContentType("ApexTrigger", "triggers")
+	Registry.RegisterContentType("ApexPage", "pages")
+	Registry.RegisterContentType("ApexComponent", "components")
+	Registry.RegisterContentType("WaveDataflow", "wave")
+	Registry.RegisterContentType("WaveRecipe", "wave")
 
 	Registry.RegisterFolderedType("Dashboard", "dashboards")
 	Registry.RegisterFolderedType("Document", "documents")
@@ -19,9 +24,7 @@ func init() {
 
 	Registry.RegisterBaseType("ActionLinkGroupTemplate", "actionLinkGroupTemplates")
 	Registry.RegisterBaseType("AnalyticSnapshot", "analyticSnapshots")
-	Registry.RegisterBaseType("ApexComponent", "components")
 	Registry.RegisterBaseType("ApexEmailNotifications", "apexEmailNotifications")
-	Registry.RegisterBaseType("ApexPage", "pages")
 	Registry.RegisterBaseType("AppMenu", "appMenus")
 	Registry.RegisterBaseType("ApprovalProcess", "approvalProcesses")
 	Registry.RegisterBaseType("AssignmentRules", "assignmentRules")
@@ -50,7 +53,6 @@ func init() {
 	Registry.RegisterBaseType("CustomPermission", "customPermissions")
 	Registry.RegisterBaseType("CustomSite", "sites")
 	Registry.RegisterBaseType("CustomTab", "tabs")
-	Registry.RegisterBaseType("CustomTab", "tabs")
 	Registry.RegisterBaseType("DataCategoryGroup", "datacategorygroups")
 	Registry.RegisterBaseType("DataWeaveResource", "dw")
 	Registry.RegisterBaseType("DelegateGroup", "delegateGroups")
@@ -60,7 +62,6 @@ func init() {
 	Registry.RegisterBaseType("ExperienceBundle", "experiences")
 	Registry.RegisterBaseType("ExternalCredential", "externalCredentials")
 	Registry.RegisterBaseType("ExternalDataSource", "dataSources")
-	Registry.RegisterBaseType("FlexiPage", "flexipages")
 	Registry.RegisterBaseType("FlexiPage", "flexipages")
 	Registry.RegisterBaseType("FlowDefinition", "flowDefinitions")
 	Registry.RegisterBaseType("Flow", "flows")
@@ -93,8 +94,6 @@ func init() {
 	Registry.RegisterBaseType("PlatformEventChannel", "platformEventChannels")
 	Registry.RegisterBaseType("PlatformEventSubscriberConfig", "PlatformEventSubscriberConfigs")
 	Registry.RegisterBaseType("PostTemplate", "postTemplates")
-	Registry.RegisterBaseType("PostTemplate", "postTemplates")
-	Registry.RegisterBaseType("Profile", "profiles")
 	Registry.RegisterBaseType("Profile", "profiles")
 	Registry.RegisterBaseType("ProfileSessionSetting", "profileSessionSettings")
 	Registry.RegisterBaseType("Queue", "queues")
@@ -106,22 +105,17 @@ func init() {
 	Registry.RegisterBaseType("Scontrol", "scontrols")
 	Registry.RegisterBaseType("Settings", "settings")
 	Registry.RegisterBaseType("SharingRules", "sharingRules")
-	Registry.RegisterBaseType("SharingRules", "sharingRules")
 	Registry.RegisterBaseType("SiteDotCom", "siteDotComSites")
 	Registry.RegisterBaseType("StandardValueSet", "standardValueSets")
 	Registry.RegisterBaseType("StaticResource", "staticresources")
 	Registry.RegisterBaseType("SynonymDictionary", "synonymDictionaries")
 	Registry.RegisterBaseType("Translations", "translations")
+	Registry.RegisterBaseType("WaveApplication", "wave")
+	Registry.RegisterBaseType("WaveDataset", "wave")
 	Registry.RegisterBaseType("Workflow", "workflows")
 
 	// TODO: split metadata types in source format
 	//    CustomField, ValidationRule, etc.
 	//    ObjectTranslations: CustomFieldTranslation CustomObjectTranslation
 	// Unzipped Static Resources
-}
-
-func createDeployableFunc(constructor func(string) DeployableMetadata) DeployableCreateFunc {
-	return func(path string) Deployable {
-		return constructor(path)
-	}
 }

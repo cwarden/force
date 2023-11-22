@@ -167,10 +167,10 @@ public class MyClass {}
 
 			m, err := MetadataFromPath(classPath)
 			Expect(err).To(BeNil())
-			Expect(m).To(BeAssignableToTypeOf(&ApexClass{}))
+			Expect(m).To(BeAssignableToTypeOf(&ContentMetadata{}))
 			m, err = MetadataFromPath(classMetaPath)
 			Expect(err).To(BeNil())
-			Expect(m).To(BeAssignableToTypeOf(&ApexClass{}))
+			Expect(m).To(BeAssignableToTypeOf(&ContentMetadata{}))
 
 			Expect(m.Name()).To(Equal("MyClass"))
 			Expect(m.DeployedType()).To(Equal("ApexClass"))

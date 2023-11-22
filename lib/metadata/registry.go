@@ -30,19 +30,26 @@ func (r *deployableTypeRegistry) ByName(name string) DeployableCreateFunc {
 }
 
 func (r *deployableTypeRegistry) Register(metadataType string, createFunc DeployableCreateFunc) {
+	if _, ok := r.createFuncs[metadataType]; ok {
+		panic("Duplicate metadata registration for " + metadataType)
+	}
 	r.createFuncs[metadataType] = createFunc
 }
 
 func (r *deployableTypeRegistry) RegisterBaseType(metadataType, dir string) {
-	r.createFuncs[metadataType] = createBaseMetadataFunc(metadataType, dir)
+	r.Register(metadataType, createBaseMetadataFunc(metadataType, dir))
 }
 
 func (r *deployableTypeRegistry) RegisterFolderedType(metadataType, dir string) {
-	r.createFuncs[metadataType] = createFolderedMetadataFunc(metadataType, dir)
+	r.Register(metadataType, createFolderedMetadataFunc(metadataType, dir))
+}
+
+func (r *deployableTypeRegistry) RegisterContentType(metadataType, dir string) {
+	r.Register(metadataType, createContentMetadataFunc(metadataType, dir))
 }
 
 func (r *deployableTypeRegistry) RegisterBundledType(metadataType, dir string) {
-	r.createFuncs[metadataType] = createBundledMetadataFunc(metadataType, dir)
+	r.Register(metadataType, createBundledMetadataFunc(metadataType, dir))
 }
 
 // Folder types are have their own metadata type, e.g. ReportFolder, but are
@@ -64,6 +71,18 @@ func createBaseMetadataFunc(deployedType, dir string) DeployableCreateFunc {
 func createFolderedMetadataFunc(deployedType, dir string) DeployableCreateFunc {
 	return func(path string) Deployable {
 		return &FolderedMetadata{
+			BaseMetadata: BaseMetadata{
+				Path:         path,
+				deployedType: deployedType,
+				dir:          dir,
+			},
+		}
+	}
+}
+
+func createContentMetadataFunc(deployedType, dir string) DeployableCreateFunc {
+	return func(path string) Deployable {
+		return &ContentMetadata{
 			BaseMetadata: BaseMetadata{
 				Path:         path,
 				deployedType: deployedType,
