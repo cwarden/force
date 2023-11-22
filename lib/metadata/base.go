@@ -22,6 +22,10 @@ func (b *BaseMetadata) path() string {
 	return b.Path
 }
 
+func (b *BaseMetadata) UniqueId() string {
+	return b.path()
+}
+
 func (b *BaseMetadata) Files() (ForceMetadataFiles, error) {
 	return metadataOnlyFile(b)
 }

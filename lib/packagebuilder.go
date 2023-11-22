@@ -36,7 +36,7 @@ func createPackageXml() Package {
 }
 
 type PackageBuilder struct {
-	metadata []metadata.Deployable
+	metadata map[string]metadata.Deployable
 }
 
 func (pb PackageBuilder) Size() int {
@@ -45,11 +45,13 @@ func (pb PackageBuilder) Size() int {
 
 func NewPushBuilder() PackageBuilder {
 	pb := PackageBuilder{}
+	pb.metadata = make(map[string]metadata.Deployable)
 	return pb
 }
 
 func NewFetchBuilder() PackageBuilder {
 	pb := PackageBuilder{}
+	pb.metadata = make(map[string]metadata.Deployable)
 	return pb
 }
 
@@ -98,7 +100,7 @@ func (pb *PackageBuilder) PackageFiles() (ForceMetadataFiles, error) {
 }
 
 func (pb *PackageBuilder) AddMetadata(m metadata.Deployable) {
-	pb.metadata = append(pb.metadata, m)
+	pb.metadata[m.UniqueId()] = m
 }
 
 func (pb *PackageBuilder) AddMetadataType(metadataType string) error {

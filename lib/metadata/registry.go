@@ -11,6 +11,7 @@ type DeployableMetadata interface {
 // destructiveChanges.xml is deployable, but is not metadata
 type Deployable interface {
 	Files() (ForceMetadataFiles, error)
+	UniqueId() string
 }
 
 type DeployableCreateFunc func(path string) Deployable

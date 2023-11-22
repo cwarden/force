@@ -14,6 +14,10 @@ func (m *Package) path() string {
 	return m.Path
 }
 
+func (m *Package) UniqueId() string {
+	return m.path()
+}
+
 func (m *Package) Files() (ForceMetadataFiles, error) {
 	files := make(ForceMetadataFiles)
 	fileContent, err := ioutil.ReadFile(m.Path)
