@@ -1,8 +1,9 @@
 package metadata
 
 func init() {
-	Registry.Register("ApexClass", createMetadataFunc(NewApexClass))
-	Registry.Register("ApexTrigger", createMetadataFunc(NewApexTrigger))
+	Registry.Register("ApexClass", createDeployableFunc(NewApexClass))
+	Registry.Register("ApexTrigger", createDeployableFunc(NewApexTrigger))
+	Registry.Register("Package", NewPackage)
 
 	Registry.RegisterFolderedType("Dashboard", "dashboards")
 	Registry.RegisterFolderedType("Document", "documents")
@@ -115,11 +116,10 @@ func init() {
 	//    ObjectTranslations: CustomFieldTranslation CustomObjectTranslation
 	// LWC/Aura
 	// Unzipped Static Resources
-	// Package (destructiveChanges.xml)
 }
 
-func createMetadataFunc(constructor func(string) Metadata) MetadataCreateFunc {
-	return func(path string) Metadata {
+func createDeployableFunc(constructor func(string) DeployableMetadata) DeployableCreateFunc {
+	return func(path string) Deployable {
 		return constructor(path)
 	}
 }

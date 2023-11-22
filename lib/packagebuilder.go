@@ -36,7 +36,7 @@ func createPackageXml() Package {
 }
 
 type PackageBuilder struct {
-	metadata []metadata.Metadata
+	metadata []metadata.Deployable
 }
 
 func (pb PackageBuilder) Size() int {
@@ -59,11 +59,13 @@ func (pb PackageBuilder) PackageXml() []byte {
 
 	types := make(map[string][]string)
 
-	for _, m := range pb.metadata {
-		if members, ok := types[m.DeployedType()]; ok {
-			types[m.DeployedType()] = append(members, m.Name())
-		} else {
-			types[m.DeployedType()] = []string{m.Name()}
+	for _, d := range pb.metadata {
+		if m, ok := d.(metadata.DeployableMetadata); ok {
+			if members, ok := types[m.DeployedType()]; ok {
+				types[m.DeployedType()] = append(members, m.Name())
+			} else {
+				types[m.DeployedType()] = []string{m.Name()}
+			}
 		}
 	}
 
@@ -95,7 +97,7 @@ func (pb *PackageBuilder) PackageFiles() (ForceMetadataFiles, error) {
 	return f, nil
 }
 
-func (pb *PackageBuilder) AddMetadata(m metadata.Metadata) {
+func (pb *PackageBuilder) AddMetadata(m metadata.Deployable) {
 	pb.metadata = append(pb.metadata, m)
 }
 
@@ -138,7 +140,7 @@ func (pb *PackageBuilder) AddFile(fpath string) error {
 		// don't consider it bad.
 		return nil
 	}
-	m, err := metadata.MetadataFromPath(fpath)
+	m, err := metadata.DeployableFromPath(fpath)
 	if err != nil {
 		return fmt.Errorf("Could not add file: %w", err)
 	}
@@ -195,7 +197,12 @@ func (pb *PackageBuilder) MetadataDir(metadataType string) (path string, err err
 	if md == nil {
 		return "", fmt.Errorf("Unknown metadata type: %s", metadataType)
 	}
-	return filepath.Join(sourceDir, string(md("").Dir())), nil
+	deployable := md("")
+	if m, ok := deployable.(metadata.DeployableMetadata); ok {
+		return filepath.Join(sourceDir, m.Dir()), nil
+	} else {
+		return "", fmt.Errorf("Unknown metadata type: %s", metadataType)
+	}
 }
 
 // Get the path to a metadata file from the source folder and metadata name

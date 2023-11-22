@@ -21,16 +21,27 @@ type MetadataType string
 // If the file in path contains metadata, return it.  Otherwise, try to find
 // the corresponding file that contains metadata.
 func metadataFileFromPath(path string) (string, error) {
-	if IsMetadata(path) {
+	if IsDeployable(path) {
 		return path, nil
 	}
-	if IsMetadata(path + "-meta.xml") {
+	if IsDeployable(path + "-meta.xml") {
 		return path + "-meta.xml", nil
 	}
 	return "", fmt.Errorf("%w: %s", MetadataFileNotFound, path)
 }
 
-func MetadataFromPath(path string) (Metadata, error) {
+func MetadataFromPath(path string) (DeployableMetadata, error) {
+	d, err := DeployableFromPath(path)
+	if err != nil {
+		return nil, err
+	}
+	if m, ok := d.(DeployableMetadata); ok {
+		return m, nil
+	}
+	return nil, fmt.Errorf("%w: %s is not deployable metadata", MetadataFileNotFound, path)
+}
+
+func DeployableFromPath(path string) (Deployable, error) {
 	path, err := metadataFileFromPath(path)
 	if err != nil {
 		return nil, err
@@ -49,7 +60,7 @@ func MetadataFromPath(path string) (Metadata, error) {
 	return nil, fmt.Errorf("Could not find metadata")
 }
 
-func IsMetadata(path string) bool {
+func IsDeployable(path string) bool {
 	info, err := os.Stat(path)
 	if err != nil {
 		return false

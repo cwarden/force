@@ -31,7 +31,7 @@ func RelativePath(fullpath, relativeTo string) string {
 	return relativePath
 }
 
-func metadataOnlyFile(m Metadata) (ForceMetadataFiles, error) {
+func metadataOnlyFile(m DeployableMetadata) (ForceMetadataFiles, error) {
 	files := make(ForceMetadataFiles)
 	fileContent, err := ioutil.ReadFile(m.path())
 	if err != nil {
@@ -41,7 +41,7 @@ func metadataOnlyFile(m Metadata) (ForceMetadataFiles, error) {
 	return files, nil
 }
 
-func metadataAndContentFiles(m Metadata) (ForceMetadataFiles, error) {
+func metadataAndContentFiles(m DeployableMetadata) (ForceMetadataFiles, error) {
 	files := make(ForceMetadataFiles)
 	fileContent, err := ioutil.ReadFile(m.path())
 	if err != nil {

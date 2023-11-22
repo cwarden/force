@@ -4,7 +4,7 @@ type ApexClass struct {
 	BaseMetadata
 }
 
-func NewApexClass(path string) Metadata {
+func NewApexClass(path string) DeployableMetadata {
 	return &ApexClass{
 		BaseMetadata: BaseMetadata{
 			Path:         path,

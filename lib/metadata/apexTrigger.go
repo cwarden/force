@@ -4,7 +4,7 @@ type ApexTrigger struct {
 	BaseMetadata
 }
 
-func NewApexTrigger(path string) Metadata {
+func NewApexTrigger(path string) DeployableMetadata {
 	return &ApexTrigger{
 		BaseMetadata: BaseMetadata{
 			Path:         path,

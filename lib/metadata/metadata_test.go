@@ -36,7 +36,7 @@ var _ = Describe("Metadata", func() {
 </CustomTab>
 `
 			ioutil.WriteFile(tabPath, []byte(tabContents), 0644)
-			Expect(IsMetadata(tabPath)).To(Equal(true))
+			Expect(IsDeployable(tabPath)).To(Equal(true))
 			m, err := MetadataFromPath(tabPath)
 			Expect(err).To(BeNil())
 			Expect(m).To(BeAssignableToTypeOf(&BaseMetadata{}))
@@ -62,7 +62,7 @@ var _ = Describe("Metadata", func() {
 </CustomTab>
 `
 			ioutil.WriteFile(tabPath, []byte(tabContents), 0644)
-			Expect(IsMetadata(tabPath)).To(Equal(true))
+			Expect(IsDeployable(tabPath)).To(Equal(true))
 			m, err := MetadataFromPath(tabPath)
 			Expect(err).To(BeNil())
 			Expect(m).To(BeAssignableToTypeOf(&BaseMetadata{}))
@@ -83,7 +83,7 @@ var _ = Describe("Metadata", func() {
 </CustomMetadata>
 `
 			ioutil.WriteFile(customMetadataPath, []byte(customMetadataContents), 0644)
-			Expect(IsMetadata(customMetadataPath)).To(Equal(true))
+			Expect(IsDeployable(customMetadataPath)).To(Equal(true))
 			m, err := MetadataFromPath(customMetadataPath)
 			Expect(err).To(BeNil())
 			Expect(m).To(BeAssignableToTypeOf(&BaseMetadata{}))
@@ -96,7 +96,7 @@ var _ = Describe("Metadata", func() {
 		})
 
 		It("should not identify directories", func() {
-			Expect(IsMetadata(tempDir)).To(Equal(false))
+			Expect(IsDeployable(tempDir)).To(Equal(false))
 			_, err := MetadataFromPath(tempDir)
 			Expect(err).To(Not(BeNil()))
 		})
@@ -110,7 +110,7 @@ var _ = Describe("Metadata", func() {
 </Unknown>
 `
 			ioutil.WriteFile(unknownPath, []byte(unknownContents), 0644)
-			Expect(IsMetadata(unknownPath)).To(Equal(false))
+			Expect(IsDeployable(unknownPath)).To(Equal(false))
 			_, err := MetadataFromPath(unknownPath)
 			Expect(err).To(Not(BeNil()))
 		})
@@ -120,7 +120,7 @@ var _ = Describe("Metadata", func() {
 			nonXmlPath := tempDir + "/src/tabs/Unknown.tab"
 			nonXmlContents := `junk`
 			ioutil.WriteFile(nonXmlPath, []byte(nonXmlContents), 0644)
-			Expect(IsMetadata(nonXmlPath)).To(Equal(false))
+			Expect(IsDeployable(nonXmlPath)).To(Equal(false))
 			_, err := MetadataFromPath(nonXmlPath)
 			Expect(err).To(MatchError(MetadataFileNotFound))
 		})
@@ -138,7 +138,7 @@ public class Group_Test {
 }
 `
 			ioutil.WriteFile(nonXmlPath, []byte(nonXmlContents), 0644)
-			Expect(IsMetadata(nonXmlPath)).To(Equal(false))
+			Expect(IsDeployable(nonXmlPath)).To(Equal(false))
 			_, err := MetadataFromPath(nonXmlPath)
 			Expect(err).To(MatchError(MetadataFileNotFound))
 		})
@@ -162,8 +162,8 @@ public class MyClass {}
 			ioutil.WriteFile(classPath, []byte(classContents), 0644)
 			ioutil.WriteFile(classMetaPath, []byte(classMetaContents), 0644)
 
-			Expect(IsMetadata(classPath)).To(Equal(false))
-			Expect(IsMetadata(classMetaPath)).To(Equal(true))
+			Expect(IsDeployable(classPath)).To(Equal(false))
+			Expect(IsDeployable(classMetaPath)).To(Equal(true))
 
 			m, err := MetadataFromPath(classPath)
 			Expect(err).To(BeNil())
@@ -200,8 +200,8 @@ public class MyClass {}
 `
 			ioutil.WriteFile(folderMetaPath, []byte(folderMetaContents), 0644)
 
-			Expect(IsMetadata(folderMetaPath)).To(Equal(true))
-			Expect(IsMetadata(folderPath)).To(Equal(false))
+			Expect(IsDeployable(folderMetaPath)).To(Equal(true))
+			Expect(IsDeployable(folderPath)).To(Equal(false))
 			m, err := MetadataFromPath(folderMetaPath)
 			Expect(err).To(BeNil())
 			Expect(m).To(BeAssignableToTypeOf(&FolderedMetadata{}))
@@ -230,8 +230,8 @@ public class MyClass {}
 `
 			ioutil.WriteFile(folderMetaPath, []byte(folderMetaContents), 0644)
 
-			Expect(IsMetadata(folderMetaPath)).To(Equal(true))
-			Expect(IsMetadata(folderPath)).To(Equal(false))
+			Expect(IsDeployable(folderMetaPath)).To(Equal(true))
+			Expect(IsDeployable(folderPath)).To(Equal(false))
 			m, err := MetadataFromPath(folderMetaPath)
 			Expect(err).To(BeNil())
 			Expect(m).To(BeAssignableToTypeOf(&FolderedMetadata{}))
@@ -244,6 +244,7 @@ public class MyClass {}
 			Expect(m.Files()).To(Equal(expectedMap))
 		})
 	})
+
 	Context("Reports", func() {
 		It("should should include folder in path", func() {
 			folderPath := tempDir + "/src/reports/MyFolder"
@@ -256,7 +257,7 @@ public class MyClass {}
 `
 			ioutil.WriteFile(reportPath, []byte(reportContents), 0644)
 
-			Expect(IsMetadata(reportPath)).To(Equal(true))
+			Expect(IsDeployable(reportPath)).To(Equal(true))
 
 			m, err := MetadataFromPath(reportPath)
 			Expect(err).To(BeNil())
@@ -280,7 +281,7 @@ public class MyClass {}
 `
 			ioutil.WriteFile(reportPath, []byte(reportContents), 0644)
 
-			Expect(IsMetadata(reportPath)).To(Equal(true))
+			Expect(IsDeployable(reportPath)).To(Equal(true))
 			m, err := MetadataFromPath(reportPath)
 			Expect(err).To(BeNil())
 			Expect(m).To(BeAssignableToTypeOf(&FolderedMetadata{}))
@@ -290,6 +291,30 @@ public class MyClass {}
 
 			expectedMap := make(ForceMetadataFiles)
 			expectedMap["reports/MyFolder/MySubfolder/MyReport.report"] = []byte(reportContents)
+			Expect(m.Files()).To(Equal(expectedMap))
+		})
+	})
+
+	Context("Destructive Changes", func() {
+		It("should be deployed without path", func() {
+			folderPath := tempDir + "/src"
+			os.MkdirAll(folderPath, 0755)
+			destructiveChangesPath := tempDir + "/src/destructiveChanges.xml"
+			destructiveChangesContents := `
+<?xml version="1.0" encoding="UTF-8"?>
+<Package xmlns="http://soap.sforce.com/2006/04/metadata">
+</Package>
+`
+			ioutil.WriteFile(destructiveChangesPath, []byte(destructiveChangesContents), 0644)
+
+			Expect(IsDeployable(destructiveChangesPath)).To(Equal(true))
+
+			m, err := DeployableFromPath(destructiveChangesPath)
+			Expect(err).To(BeNil())
+			Expect(m).To(BeAssignableToTypeOf(&Package{}))
+
+			expectedMap := make(ForceMetadataFiles)
+			expectedMap["destructiveChanges.xml"] = []byte(destructiveChangesContents)
 			Expect(m.Files()).To(Equal(expectedMap))
 		})
 	})
