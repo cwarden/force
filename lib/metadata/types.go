@@ -111,8 +111,8 @@ func init() {
 	Registry.RegisterBaseType("Workflow", "workflows")
 
 	// TODO: split metadata types in source format
-	// CustomField, ValidationRule, etc.
-	// ObjectTranslations
+	//    CustomField, ValidationRule, etc.
+	//    ObjectTranslations: CustomFieldTranslation CustomObjectTranslation
 	// LWC/Aura
 	// Unzipped Static Resources
 	// Package (destructiveChanges.xml)

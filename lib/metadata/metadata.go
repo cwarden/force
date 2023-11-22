@@ -40,7 +40,7 @@ func MetadataFromPath(path string) (Metadata, error) {
 		return nil, err
 	}
 	element, err := getRootElementName(path)
-	if err == NotXMLError {
+	if err != nil {
 		return nil, err
 	}
 	if f, ok := Registry.createFuncs[element]; ok {
@@ -58,7 +58,7 @@ func IsMetadata(path string) bool {
 		return false
 	}
 	element, err := getRootElementName(path)
-	if err == NotXMLError {
+	if err != nil {
 		return false
 	}
 	if _, ok := Registry.createFuncs[element]; ok {
@@ -70,25 +70,34 @@ func IsMetadata(path string) bool {
 func getRootElementName(file string) (string, error) {
 	xmlData, err := ioutil.ReadFile(file)
 	if err != nil {
-		return "", fmt.Errorf("Could read XML file: %w", err)
+		return "", fmt.Errorf("Could not read XML file: %w", err)
 	}
 
-	decoder := xml.NewDecoder(ioutil.NopCloser(bytes.NewReader(xmlData)))
+	decoder := xml.NewDecoder(io.NopCloser(bytes.NewReader(xmlData)))
 
+	foundXML := false
 	for {
 		t, err := decoder.Token()
 		if err != nil {
 			if err == io.EOF {
 				break
 			}
-			return "", NotXMLError
+			return "", fmt.Errorf("Error while parsing XML: %w", err)
 		}
 
 		switch element := t.(type) {
+		case xml.ProcInst:
+			// Check for the XML declaration and return the version if found
+			if element.Target == "xml" {
+				foundXML = true
+			}
 		case xml.StartElement:
+			if !foundXML {
+				return "", fmt.Errorf("%w: No XML declaration found", NotXMLError)
+			}
 			// Return the name of the root element
 			return element.Name.Local, nil
 		}
 	}
-	return "", NotXMLError
+	return "", fmt.Errorf("%w: No XML elements found", NotXMLError)
 }

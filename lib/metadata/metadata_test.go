@@ -124,6 +124,24 @@ var _ = Describe("Metadata", func() {
 			_, err := MetadataFromPath(nonXmlPath)
 			Expect(err).To(MatchError(MetadataFileNotFound))
 		})
+
+		It("should not mis-identify non-xml", func() {
+			os.MkdirAll(tempDir+"/src/tabs", 0755)
+			nonXmlPath := tempDir + "/src/tabs/Unknown.tab"
+			nonXmlContents := `
+@IsTest
+public class Group_Test {
+	@TestSetup
+	static void testData() {
+		insert new List<Group>{ new Group(Name = 'Test'); };
+	}
+}
+`
+			ioutil.WriteFile(nonXmlPath, []byte(nonXmlContents), 0644)
+			Expect(IsMetadata(nonXmlPath)).To(Equal(false))
+			_, err := MetadataFromPath(nonXmlPath)
+			Expect(err).To(MatchError(MetadataFileNotFound))
+		})
 	})
 
 	Context("Files With Separate Metadata", func() {
