@@ -3,10 +3,13 @@ package metadata
 func init() {
 	Registry.Register("Package", NewPackage)
 
+	Registry.Register("BusinessProcess", NewBusinessProcess)
 	Registry.Register("CustomField", NewCustomField)
 	Registry.Register("CompactLayout", NewCompactLayout)
+	Registry.Register("FieldSet", NewFieldSet)
 	Registry.Register("ListView", NewListView)
 	Registry.Register("RecordType", NewRecordType)
+	Registry.Register("SharingReason", NewSharingReason)
 	Registry.Register("ValidationRule", NewValidationRule)
 	Registry.Register("WebLink", NewWebLink)
 
@@ -122,7 +125,6 @@ func init() {
 	Registry.RegisterBaseType("Workflow", "workflows")
 
 	// TODO: split metadata types in source format
-	//    CustomField, ValidationRule, etc.
 	//    ObjectTranslations: CustomFieldTranslation CustomObjectTranslation
 	// Unzipped Static Resources
 }
