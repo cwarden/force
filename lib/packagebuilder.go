@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strings"
 
+	fmd "github.com/ForceCLI/force-md/general"
 	"github.com/ForceCLI/force/config"
 	"github.com/ForceCLI/force/lib/metadata"
 )
@@ -80,13 +81,45 @@ func (pb PackageBuilder) PackageXml() []byte {
 	return byteXml
 }
 
+type PendingMerge map[string][]metadata.MergeableMetadata
+
+func merge(toMerge PendingMerge) (ForceMetadataFiles, error) {
+	f := make(ForceMetadataFiles)
+	for parentPath, m := range toMerge {
+		var parent fmd.Metadata
+		var err error
+		for _, child := range m {
+			parent, err = child.AddTo(parent)
+			if err != nil {
+				return nil, fmt.Errorf("Could not merge %s: %w", child.Name(), err)
+			}
+		}
+		parentData, err := xml.MarshalIndent(parent, "", "    ")
+		if err != nil {
+			return nil, fmt.Errorf("Could not serialize %s: %w", parentPath, err)
+		}
+
+		f[parentPath] = parentData
+	}
+	return f, nil
+}
+
 func (pb *PackageBuilder) PackageFiles() (ForceMetadataFiles, error) {
 	f := make(ForceMetadataFiles)
 	if len(pb.metadata) == 0 {
 		return f, nil
 	}
 	f["package.xml"] = pb.PackageXml()
+	toMerge := make(PendingMerge)
 	for _, m := range pb.metadata {
+		if merge, ok := m.(metadata.MergeableMetadata); ok {
+			// Group metadata, e.g. CustomFields, that needs to be merged by
+			// parent path
+			parentPath := merge.ParentPath()
+			toMerge[parentPath] = append(toMerge[parentPath], merge)
+			continue
+		} else {
+		}
 		files, err := m.Files()
 		if err != nil {
 			return f, err
@@ -94,6 +127,13 @@ func (pb *PackageBuilder) PackageFiles() (ForceMetadataFiles, error) {
 		for name, content := range files {
 			f[name] = content
 		}
+	}
+	merged, err := merge(toMerge)
+	if err != nil {
+		return f, err
+	}
+	for name, content := range merged {
+		f[name] = content
 	}
 
 	return f, nil

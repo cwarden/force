@@ -3,6 +3,8 @@ package metadata
 func init() {
 	Registry.Register("Package", NewPackage)
 
+	Registry.Register("CustomField", NewCustomField)
+
 	Registry.RegisterContentType("ApexClass", "classes")
 	Registry.RegisterContentType("ApexTrigger", "triggers")
 	Registry.RegisterContentType("ApexPage", "pages")
