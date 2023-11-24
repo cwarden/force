@@ -4,6 +4,11 @@ func init() {
 	Registry.Register("Package", NewPackage)
 
 	Registry.Register("CustomField", NewCustomField)
+	Registry.Register("CompactLayout", NewCompactLayout)
+	Registry.Register("ListView", NewListView)
+	Registry.Register("RecordType", NewRecordType)
+	Registry.Register("ValidationRule", NewValidationRule)
+	Registry.Register("WebLink", NewWebLink)
 
 	Registry.RegisterContentType("ApexClass", "classes")
 	Registry.RegisterContentType("ApexTrigger", "triggers")
