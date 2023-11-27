@@ -3,6 +3,7 @@ package metadata
 func init() {
 	Registry.Register("Package", NewPackage)
 
+	// CustomObject sub-types
 	Registry.Register("BusinessProcess", NewBusinessProcess)
 	Registry.Register("CustomField", NewCustomField)
 	Registry.Register("CompactLayout", NewCompactLayout)
@@ -13,6 +14,11 @@ func init() {
 	Registry.Register("ValidationRule", NewValidationRule)
 	Registry.Register("WebLink", NewWebLink)
 
+	// CustomObjectTranslation and it's child CustomFieldTranslation
+	Registry.Register("CustomObjectTranslation", NewCustomObjectTranslationComponent)
+	Registry.Register("CustomFieldTranslation", NewCustomObjectTranslationComponent)
+
+	// Types with separate content and metadata
 	Registry.RegisterContentType("ApexClass", "classes")
 	Registry.RegisterContentType("ApexTrigger", "triggers")
 	Registry.RegisterContentType("ApexPage", "pages")
@@ -20,18 +26,22 @@ func init() {
 	Registry.RegisterContentType("WaveDataflow", "wave")
 	Registry.RegisterContentType("WaveRecipe", "wave")
 
+	// Types stored within folders
 	Registry.RegisterFolderedType("Dashboard", "dashboards")
 	Registry.RegisterFolderedType("Document", "documents")
 	Registry.RegisterFolderedType("Email", "email")
 	Registry.RegisterFolderedType("Report", "reports")
+	// The folders for foldered types
 	Registry.RegisterFolderType("DashboardFolder", "Dashboard", "dashboards")
 	Registry.RegisterFolderType("DocumentFolder", "Document", "documents")
 	Registry.RegisterFolderType("EmailFolder", "Email", "email")
 	Registry.RegisterFolderType("ReportFolder", "Report", "reports")
 
+	// Types made of multiple files within a folder with a single metadata file
 	Registry.RegisterBundledType("AuraDefinitionBundle", "aura")
 	Registry.RegisterBundledType("LightningComponentBundle", "lwc")
 
+	// Normal single-file types
 	Registry.RegisterBaseType("ActionLinkGroupTemplate", "actionLinkGroupTemplates")
 	Registry.RegisterBaseType("AnalyticSnapshot", "analyticSnapshots")
 	Registry.RegisterBaseType("ApexEmailNotifications", "apexEmailNotifications")
@@ -58,7 +68,6 @@ func init() {
 	Registry.RegisterBaseType("CustomMetadata", "customMetadata")
 	Registry.RegisterBaseType("CustomNotificationType", "notificationtypes")
 	Registry.RegisterBaseType("CustomObject", "objects")
-	Registry.RegisterBaseType("CustomObjectTranslation", "objectTranslations")
 	Registry.RegisterBaseType("CustomPageWebLink", "weblinks")
 	Registry.RegisterBaseType("CustomPermission", "customPermissions")
 	Registry.RegisterBaseType("CustomSite", "sites")
@@ -124,7 +133,6 @@ func init() {
 	Registry.RegisterBaseType("WaveDataset", "wave")
 	Registry.RegisterBaseType("Workflow", "workflows")
 
-	// TODO: split metadata types in source format
-	//    ObjectTranslations: CustomFieldTranslation CustomObjectTranslation
+	// TODO:
 	// Unzipped Static Resources
 }
