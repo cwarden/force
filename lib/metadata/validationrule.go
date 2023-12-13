@@ -17,7 +17,7 @@ func (m *ValidationRule) AddTo(o fmd.Metadata) (fmd.Metadata, error) {
 	var obj *object.CustomObject
 	var err error
 	if o == nil {
-		objectPath := filepath.Dir(filepath.Dir(m.Path))
+		objectPath := filepath.Dir(filepath.Dir(m.path))
 		objectMetaPath := fmt.Sprintf("%s/%s.object-meta.xml", objectPath, m.parentObjectName())
 		obj, err = object.Open(objectMetaPath)
 		if err != nil {
@@ -28,7 +28,7 @@ func (m *ValidationRule) AddTo(o fmd.Metadata) (fmd.Metadata, error) {
 	} else {
 		return nil, fmt.Errorf("Expecting a CustomObject")
 	}
-	f, err := validationrule.Open(m.Path)
+	f, err := validationrule.Open(m.path)
 	if err != nil {
 		return nil, fmt.Errorf("Could not load field: %w", err)
 	}
@@ -40,7 +40,7 @@ func NewValidationRule(path string) Deployable {
 	return &ValidationRule{
 		CustomObjectComponent: CustomObjectComponent{
 			BaseMetadata: BaseMetadata{
-				Path:         path,
+				path:         path,
 				deployedType: "ValidationRule",
 				dir:          "objects",
 			},

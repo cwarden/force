@@ -17,7 +17,7 @@ func (m *CompactLayout) AddTo(o fmd.Metadata) (fmd.Metadata, error) {
 	var obj *object.CustomObject
 	var err error
 	if o == nil {
-		objectPath := filepath.Dir(filepath.Dir(m.Path))
+		objectPath := filepath.Dir(filepath.Dir(m.path))
 		objectMetaPath := fmt.Sprintf("%s/%s.object-meta.xml", objectPath, m.parentObjectName())
 		obj, err = object.Open(objectMetaPath)
 		if err != nil {
@@ -28,7 +28,7 @@ func (m *CompactLayout) AddTo(o fmd.Metadata) (fmd.Metadata, error) {
 	} else {
 		return nil, fmt.Errorf("Expecting a CustomObject")
 	}
-	f, err := compactlayout.Open(m.Path)
+	f, err := compactlayout.Open(m.path)
 	if err != nil {
 		return nil, fmt.Errorf("Could not load field: %w", err)
 	}
@@ -40,7 +40,7 @@ func NewCompactLayout(path string) Deployable {
 	return &CompactLayout{
 		CustomObjectComponent: CustomObjectComponent{
 			BaseMetadata: BaseMetadata{
-				Path:         path,
+				path:         path,
 				deployedType: "CompactLayout",
 				dir:          "objects",
 			},

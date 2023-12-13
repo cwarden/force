@@ -16,6 +16,7 @@ var MetadataFileNotFound = errors.New("Could not identify metadata type")
 
 type FilePath = string
 type ForceMetadataFiles map[FilePath][]byte
+type ForceMetadataFilePaths map[FilePath]FilePath
 
 type MetadataType string
 

@@ -17,7 +17,7 @@ func (m *BusinessProcess) AddTo(o fmd.Metadata) (fmd.Metadata, error) {
 	var obj *object.CustomObject
 	var err error
 	if o == nil {
-		objectPath := filepath.Dir(filepath.Dir(m.Path))
+		objectPath := filepath.Dir(filepath.Dir(m.path))
 		objectMetaPath := fmt.Sprintf("%s/%s.object-meta.xml", objectPath, m.parentObjectName())
 		obj, err = object.Open(objectMetaPath)
 		if err != nil {
@@ -28,7 +28,7 @@ func (m *BusinessProcess) AddTo(o fmd.Metadata) (fmd.Metadata, error) {
 	} else {
 		return nil, fmt.Errorf("Expecting a CustomObject")
 	}
-	f, err := businessprocess.Open(m.Path)
+	f, err := businessprocess.Open(m.path)
 	if err != nil {
 		return nil, fmt.Errorf("Could not load field: %w", err)
 	}
@@ -40,7 +40,7 @@ func NewBusinessProcess(path string) Deployable {
 	return &BusinessProcess{
 		CustomObjectComponent: CustomObjectComponent{
 			BaseMetadata: BaseMetadata{
-				Path:         path,
+				path:         path,
 				deployedType: "BusinessProcess",
 				dir:          "objects",
 			},

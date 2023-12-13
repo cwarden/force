@@ -5,7 +5,12 @@ type DeployableMetadata interface {
 	DeployedType() string
 	Name() string
 	Dir() string
-	path() string
+	Path() string
+}
+
+type FetchableMetadata interface {
+	// Map relative paths used by Metadata API to filesystem paths
+	Paths() ForceMetadataFilePaths
 }
 
 // destructiveChanges.xml is deployable, but is not metadata
@@ -61,7 +66,7 @@ func (r *deployableTypeRegistry) RegisterFolderType(metadataType, deployedType, 
 func createBaseMetadataFunc(deployedType, dir string) DeployableCreateFunc {
 	return func(path string) Deployable {
 		return &BaseMetadata{
-			Path:         path,
+			path:         path,
 			deployedType: deployedType,
 			dir:          dir,
 		}
@@ -72,7 +77,7 @@ func createFolderedMetadataFunc(deployedType, dir string) DeployableCreateFunc {
 	return func(path string) Deployable {
 		return &FolderedMetadata{
 			BaseMetadata: BaseMetadata{
-				Path:         path,
+				path:         path,
 				deployedType: deployedType,
 				dir:          dir,
 			},
@@ -84,7 +89,7 @@ func createContentMetadataFunc(deployedType, dir string) DeployableCreateFunc {
 	return func(path string) Deployable {
 		return &ContentMetadata{
 			BaseMetadata: BaseMetadata{
-				Path:         path,
+				path:         path,
 				deployedType: deployedType,
 				dir:          dir,
 			},
@@ -96,7 +101,7 @@ func createBundledMetadataFunc(deployedType, dir string) DeployableCreateFunc {
 	return func(path string) Deployable {
 		return &BundledMetadata{
 			BaseMetadata: BaseMetadata{
-				Path:         path,
+				path:         path,
 				deployedType: deployedType,
 				dir:          dir,
 			},

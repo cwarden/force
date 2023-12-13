@@ -33,5 +33,5 @@ func FolderedComponentName(path, relativeTo string) string {
 }
 
 func (b *FolderedMetadata) Name() string {
-	return FolderedComponentName(b.Path, b.dir)
+	return FolderedComponentName(b.path, b.dir)
 }

@@ -35,23 +35,23 @@ func RelativePath(fullpath, relativeTo string) string {
 
 func metadataOnlyFile(m DeployableMetadata) (ForceMetadataFiles, error) {
 	files := make(ForceMetadataFiles)
-	fileContent, err := ioutil.ReadFile(m.path())
+	fileContent, err := ioutil.ReadFile(m.Path())
 	if err != nil {
 		return nil, fmt.Errorf("Could not read metadata: %w", err)
 	}
-	files[RelativePath(m.path(), m.Dir())] = fileContent
+	files[RelativePath(m.Path(), m.Dir())] = fileContent
 	return files, nil
 }
 
 func metadataAndContentFiles(m DeployableMetadata) (ForceMetadataFiles, error) {
 	files := make(ForceMetadataFiles)
-	fileContent, err := ioutil.ReadFile(m.path())
+	fileContent, err := ioutil.ReadFile(m.Path())
 	if err != nil {
 		return nil, fmt.Errorf("Could not read metadata: %w", err)
 	}
-	files[RelativePath(m.path(), m.Dir())] = fileContent
+	files[RelativePath(m.Path(), m.Dir())] = fileContent
 
-	class := strings.TrimSuffix(m.path(), "-meta.xml")
+	class := strings.TrimSuffix(m.Path(), "-meta.xml")
 	fileContent, err = ioutil.ReadFile(class)
 	if err != nil {
 		return nil, fmt.Errorf("Could not read metadata: %w", err)
@@ -62,7 +62,7 @@ func metadataAndContentFiles(m DeployableMetadata) (ForceMetadataFiles, error) {
 
 func allFilesInFolder(m DeployableMetadata) (ForceMetadataFiles, error) {
 	files := make(ForceMetadataFiles)
-	dir := filepath.Dir(m.path())
+	dir := filepath.Dir(m.Path())
 	contents, err := ioutil.ReadDir(dir)
 	if err != nil {
 		return nil, err

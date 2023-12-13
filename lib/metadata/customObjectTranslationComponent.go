@@ -18,28 +18,28 @@ type CustomObjectTranslationComponent struct {
 }
 
 func (m *CustomObjectTranslationComponent) Name() string {
-	if !strings.HasSuffix(m.path(), "-meta.xml") {
-		return ComponentName(m.Path)
+	if !strings.HasSuffix(m.Path(), "-meta.xml") {
+		return ComponentName(m.path)
 	}
-	return filepath.Base(filepath.Dir(m.Path))
+	return filepath.Base(filepath.Dir(m.path))
 }
 
 func (m *CustomObjectTranslationComponent) UniqueId() string {
-	if !strings.HasSuffix(m.path(), "-meta.xml") {
-		return m.Path
+	if !strings.HasSuffix(m.Path(), "-meta.xml") {
+		return m.path
 	}
-	return filepath.Dir(m.Path)
+	return filepath.Dir(m.path)
 }
 
 func (m *CustomObjectTranslationComponent) Files() (ForceMetadataFiles, error) {
 	// If it's in metadata format, deploy as-is
-	if !strings.HasSuffix(m.path(), "-meta.xml") {
+	if !strings.HasSuffix(m.Path(), "-meta.xml") {
 		return metadataOnlyFile(m)
 	}
 
 	// Combine the objectTranslation and fieldTranslation metadata
 	files := make(ForceMetadataFiles)
-	dir := filepath.Dir(m.path())
+	dir := filepath.Dir(m.Path())
 	objectTranslationMetadata := dir + string(os.PathSeparator) + m.Name() + ".objectTranslation-meta.xml"
 	objectTranslation, err := objecttranslation.Open(objectTranslationMetadata)
 	if err != nil {
@@ -71,7 +71,7 @@ func (m *CustomObjectTranslationComponent) Files() (ForceMetadataFiles, error) {
 func NewCustomObjectTranslationComponent(path string) Deployable {
 	return &CustomObjectTranslationComponent{
 		BaseMetadata: BaseMetadata{
-			Path:         path,
+			path:         path,
 			deployedType: "CustomObjectTranslation",
 			dir:          "objectTranslations",
 		},

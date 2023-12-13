@@ -182,6 +182,7 @@ func unpackFiles(files ForceMetadataFiles) {
 	}
 	for name, data := range files {
 		if !existingPackage || name != "package.xml" {
+			fmt.Println("Need to figure out where to unpack", name)
 			file := filepath.Join(root, name)
 			dir := filepath.Dir(file)
 			if err := os.MkdirAll(dir, 0755); err != nil {

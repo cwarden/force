@@ -10,11 +10,11 @@ type CustomObjectComponent struct {
 }
 
 func (m *CustomObjectComponent) Name() string {
-	return fmt.Sprintf("%s.%s", m.parentObjectName(), ComponentName(m.Path))
+	return fmt.Sprintf("%s.%s", m.parentObjectName(), ComponentName(m.path))
 }
 
 func (m *CustomObjectComponent) parentObjectName() string {
-	return filepath.Base(filepath.Dir(filepath.Dir(m.Path)))
+	return filepath.Base(filepath.Dir(filepath.Dir(m.path)))
 }
 
 func (m *CustomObjectComponent) ParentPath() string {
