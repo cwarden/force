@@ -29,12 +29,13 @@ func init() {
 	// Types stored within folders
 	Registry.RegisterFolderedType("Dashboard", "dashboards")
 	Registry.RegisterFolderedType("Document", "documents")
-	Registry.RegisterFolderedType("Email", "email")
 	Registry.RegisterFolderedType("Report", "reports")
+	// EmailTemplates are foldered and have separate -meta.xml files.
+	Registry.Register("EmailTemplate", NewEmailTemplate)
 	// The folders for foldered types
 	Registry.RegisterFolderType("DashboardFolder", "Dashboard", "dashboards")
 	Registry.RegisterFolderType("DocumentFolder", "Document", "documents")
-	Registry.RegisterFolderType("EmailFolder", "Email", "email")
+	Registry.RegisterFolderType("EmailFolder", "EmailTemplate", "email")
 	Registry.RegisterFolderType("ReportFolder", "Report", "reports")
 
 	// Types made of multiple files within a folder with a single metadata file
