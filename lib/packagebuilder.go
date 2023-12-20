@@ -2,6 +2,7 @@ package lib
 
 import (
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -13,6 +14,8 @@ import (
 	"github.com/ForceCLI/force/config"
 	"github.com/ForceCLI/force/lib/metadata"
 )
+
+var SourcePathNotFoundError = errors.New("Source path not found")
 
 // Structs for XML building
 type Package struct {
@@ -141,6 +144,17 @@ func (pb *PackageBuilder) PackageFiles() (ForceMetadataFiles, error) {
 
 func (pb *PackageBuilder) AddMetadata(m metadata.Deployable) {
 	pb.metadata[m.UniqueId()] = m
+}
+
+func (pb *PackageBuilder) SourcePath(relativePath string) (string, error) {
+	for _, d := range pb.metadata {
+		for relative, full := range d.Paths() {
+			if relative == relativePath {
+				return full, nil
+			}
+		}
+	}
+	return "", SourcePathNotFoundError
 }
 
 func (pb *PackageBuilder) AddMetadataType(metadataType string) error {

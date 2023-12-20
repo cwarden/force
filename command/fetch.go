@@ -108,7 +108,8 @@ func runFetchForPackageXml(packageXml string) {
 	for _, problem := range problems {
 		fmt.Fprintln(os.Stderr, problem)
 	}
-	unpackFiles(files)
+	var pb PackageBuilder
+	unpackFiles(files, pb)
 }
 
 // Fetch by Type
@@ -158,10 +159,11 @@ func runFetch() {
 	for _, problem := range problems {
 		fmt.Fprintln(os.Stderr, problem)
 	}
-	unpackFiles(files)
+	var pb PackageBuilder
+	unpackFiles(files, pb)
 }
 
-func unpackFiles(files ForceMetadataFiles) {
+func unpackFiles(retrieved ForceMetadataFiles, pb PackageBuilder) {
 	var err error
 	var expandResources bool = unpack
 
@@ -177,18 +179,28 @@ func unpackFiles(files ForceMetadataFiles) {
 	}
 	existingPackage, _ := pathExists(filepath.Join(root, "package.xml"))
 
-	if len(files) == 1 {
+	if len(retrieved) == 1 {
 		ErrorAndExit("Could not find any objects for " + strings.Join(metadataTypes, ", ") + ". (Is the metadata type correct?)")
 	}
-	for name, data := range files {
+	for name, data := range retrieved {
 		if !existingPackage || name != "package.xml" {
 			fmt.Println("Need to figure out where to unpack", name)
-			file := filepath.Join(root, name)
+			sourcePath, err := pb.SourcePath(name)
+			var file string
+			if err == nil {
+				file = sourcePath
+				fmt.Println("Got source path from packagebuilder:", file)
+			} else if err == SourcePathNotFoundError {
+				file = filepath.Join(root, name)
+				fmt.Println("Using root for path:", file)
+			} else {
+				ErrorAndExit(err.Error())
+			}
 			dir := filepath.Dir(file)
 			if err := os.MkdirAll(dir, 0755); err != nil {
 				ErrorAndExit(err.Error())
 			}
-			if err := ioutil.WriteFile(filepath.Join(root, name), data, 0644); err != nil {
+			if err := ioutil.WriteFile(file, data, 0644); err != nil {
 				ErrorAndExit(err.Error())
 			}
 			isResource := strings.HasSuffix(file, ".resource-meta.xml")
@@ -278,7 +290,7 @@ func buildPackageAndFetch(paths []string) {
 	for _, problem := range problems {
 		fmt.Fprintln(os.Stderr, problem)
 	}
-	unpackFiles(files)
+	unpackFiles(files, pb)
 }
 
 func unpackResources(resourceMap map[string]string) {

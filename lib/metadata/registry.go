@@ -16,6 +16,7 @@ type FetchableMetadata interface {
 // destructiveChanges.xml is deployable, but is not metadata
 type Deployable interface {
 	Files() (ForceMetadataFiles, error)
+	Paths() ForceMetadataFilePaths
 	UniqueId() string
 }
 
