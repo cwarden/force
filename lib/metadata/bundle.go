@@ -15,7 +15,7 @@ func (t *BundledMetadata) Files() (ForceMetadataFiles, error) {
 	return allFilesInFolder(t)
 }
 
-func (t *BundledMetadata) FilePaths() ForceMetadataFilePaths {
+func (t *BundledMetadata) Paths() ForceMetadataFilePaths {
 	paths := make(ForceMetadataFilePaths)
 	dir := filepath.Dir(t.Path())
 	contents, err := ioutil.ReadDir(dir)
