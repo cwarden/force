@@ -2,9 +2,10 @@ package lib
 
 import (
 	"encoding/json"
-	. "github.com/ForceCLI/force/error"
 	"os"
 	"os/exec"
+
+	. "github.com/ForceCLI/force/error"
 )
 
 type SFDXAuth struct {

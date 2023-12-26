@@ -200,6 +200,7 @@ func unpackFiles(retrieved ForceMetadataFiles, pb PackageBuilder) {
 			if err := os.MkdirAll(dir, 0755); err != nil {
 				ErrorAndExit(err.Error())
 			}
+			// TODO: figure out if we need to add "-meta.xml"
 			if err := ioutil.WriteFile(file, data, 0644); err != nil {
 				ErrorAndExit(err.Error())
 			}

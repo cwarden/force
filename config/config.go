@@ -1,6 +1,10 @@
 package config
 
 import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -48,6 +52,9 @@ func GetSourceDir() (dir string, err error) {
 	// past the actual root, we should drop to the next section of code
 	for dir != filepath.Dir(dir) {
 		dir = filepath.Dir(dir)
+		if isSFDXProject(dir) {
+			return getRootFromSFDXProject(dir)
+		}
 		for _, src := range sourceDirs {
 			adir := filepath.Join(dir, src)
 			if IsSourceDir(adir) {
@@ -65,4 +72,44 @@ func GetSourceDir() (dir string, err error) {
 	os.Symlink(dir, symlink)
 	dir = symlink
 	return
+}
+
+func isSFDXProject(dir string) bool {
+	file := filepath.Join(dir, "sfdx-project.json")
+	if _, err := os.Stat(file); err == nil {
+		return true
+	}
+	return false
+}
+
+func getRootFromSFDXProject(dir string) (string, error) {
+	if !isSFDXProject(dir) {
+		return "", errors.New("no sfdx-project.json file found")
+	}
+	path := filepath.Join(dir, "sfdx-project.json")
+	file, err := ioutil.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("Unable to read file: %w", err)
+	}
+	var project SFDXProject
+	err = json.Unmarshal(file, &project)
+	if err != nil {
+		return "", fmt.Errorf("Unable to parse file: %w", err)
+	}
+	for _, p := range project.PackageDirectories {
+		if p.Default {
+			packageDir := filepath.Join(dir, p.Path)
+			defaultDir := filepath.Join(packageDir, "main", "default")
+			fmt.Println("will check", packageDir)
+			fmt.Println("will check", defaultDir)
+			if _, err := os.Stat(defaultDir); err == nil {
+				return defaultDir, nil
+			} else if _, err := os.Stat(packageDir); err == nil {
+				return packageDir, nil
+			} else {
+				return "", fmt.Errorf("could not find package directory")
+			}
+		}
+	}
+	return "", errors.New("no default directory found")
 }
