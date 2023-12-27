@@ -170,8 +170,9 @@ func unpackFiles(retrieved ForceMetadataFiles, pb PackageBuilder) {
 	resourcesMap := make(map[string]string)
 
 	root := targetDirectory
+	format := config.MetadataFormat
 	if root == "" {
-		root, err = config.GetSourceDir()
+		root, format, err = config.GetSourceDirWithFormat()
 	}
 	if err != nil {
 		fmt.Printf("Error obtaining root directory\n")
@@ -192,6 +193,9 @@ func unpackFiles(retrieved ForceMetadataFiles, pb PackageBuilder) {
 				fmt.Println("Got source path from packagebuilder:", file)
 			} else if err == SourcePathNotFoundError {
 				file = filepath.Join(root, name)
+				if format == config.SourceFormat {
+					file = file + "-meta.xml"
+				}
 				fmt.Println("Using root for path:", file)
 			} else {
 				ErrorAndExit(err.Error())
@@ -200,7 +204,6 @@ func unpackFiles(retrieved ForceMetadataFiles, pb PackageBuilder) {
 			if err := os.MkdirAll(dir, 0755); err != nil {
 				ErrorAndExit(err.Error())
 			}
-			// TODO: figure out if we need to add "-meta.xml"
 			if err := ioutil.WriteFile(file, data, 0644); err != nil {
 				ErrorAndExit(err.Error())
 			}

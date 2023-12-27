@@ -18,6 +18,13 @@ var sourceDirs = []string{
 	"metadata",
 }
 
+type FileFormat int
+
+const (
+	MetadataFormat FileFormat = iota
+	SourceFormat
+)
+
 // IsSourceDir returns a boolean indicating that dir is actually a Salesforce
 // source directory.
 func IsSourceDir(dir string) bool {
@@ -27,11 +34,7 @@ func IsSourceDir(dir string) bool {
 	return false
 }
 
-// GetSourceDir returns a rooted path name of the Salesforce source directory,
-// relative to the current directory. GetSourceDir will look for a source
-// directory in the nearest subdirectory. If no such directory exists, it will
-// look at its parents, assuming that it is within a source directory already.
-func GetSourceDir() (dir string, err error) {
+func GetSourceDirWithFormat() (dir string, format FileFormat, err error) {
 	base, err := os.Getwd()
 	if err != nil {
 		return
@@ -42,7 +45,7 @@ func GetSourceDir() (dir string, err error) {
 		if len(src) > 0 {
 			dir = filepath.Join(base, src)
 			if IsSourceDir(dir) {
-				return
+				return dir, MetadataFormat, nil
 			}
 		}
 	}
@@ -53,13 +56,14 @@ func GetSourceDir() (dir string, err error) {
 	for dir != filepath.Dir(dir) {
 		dir = filepath.Dir(dir)
 		if isSFDXProject(dir) {
-			return getRootFromSFDXProject(dir)
+			dir, err = getRootFromSFDXProject(dir)
+			return dir, SourceFormat, err
 		}
 		for _, src := range sourceDirs {
 			adir := filepath.Join(dir, src)
 			if IsSourceDir(adir) {
 				dir = adir
-				return
+				return dir, MetadataFormat, nil
 			}
 		}
 	}
@@ -68,10 +72,16 @@ func GetSourceDir() (dir string, err error) {
 	// directory for backward compatibility and return that.
 	dir = filepath.Join(base, "src")
 	err = os.Mkdir(dir, 0777)
-	symlink := filepath.Join(base, "metadata")
-	os.Symlink(dir, symlink)
-	dir = symlink
-	return
+	return dir, MetadataFormat, nil
+}
+
+// GetSourceDir returns a rooted path name of the Salesforce source directory,
+// relative to the current directory. GetSourceDir will look for a source
+// directory in the nearest subdirectory. If no such directory exists, it will
+// look at its parents, assuming that it is within a source directory already.
+func GetSourceDir() (dir string, err error) {
+	dir, _, err = GetSourceDirWithFormat()
+	return dir, err
 }
 
 func isSFDXProject(dir string) bool {
