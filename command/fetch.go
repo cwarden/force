@@ -14,6 +14,7 @@ import (
 	"github.com/ForceCLI/force/config"
 	. "github.com/ForceCLI/force/error"
 	. "github.com/ForceCLI/force/lib"
+	"github.com/ForceCLI/force/lib/metadata"
 	"github.com/spf13/cobra"
 )
 
@@ -178,60 +179,67 @@ func unpackFiles(retrieved ForceMetadataFiles, pb PackageBuilder) {
 		fmt.Printf("Error obtaining root directory\n")
 		ErrorAndExit(err.Error())
 	}
-	existingPackage, _ := pathExists(filepath.Join(root, "package.xml"))
 
 	if len(retrieved) == 1 {
 		ErrorAndExit("Could not find any objects for " + strings.Join(metadataTypes, ", ") + ". (Is the metadata type correct?)")
 	}
 	for name, data := range retrieved {
-		if !existingPackage || name != "package.xml" {
-			fmt.Println("Need to figure out where to unpack", name)
-			sourcePath, err := pb.SourcePath(name)
-			var file string
-			if err == nil {
-				file = sourcePath
-				fmt.Println("Got source path from packagebuilder:", file)
-			} else if err == SourcePathNotFoundError {
-				file = filepath.Join(root, name)
-				if format == config.SourceFormat {
+		if name == "package.xml" {
+			continue
+		}
+		fmt.Println("Need to figure out where to unpack", name)
+		sourcePath, err := pb.SourcePath(name)
+		var file string
+		if err == nil {
+			file = sourcePath
+			fmt.Println("Got source path from packagebuilder:", file)
+		} else if err == SourcePathNotFoundError {
+			file = filepath.Join(root, name)
+			if format == config.SourceFormat {
+				if !strings.HasSuffix(file, "-meta.xml") {
 					file = file + "-meta.xml"
 				}
-				fmt.Println("Using root for path:", file)
-			} else {
-				ErrorAndExit(err.Error())
-			}
-			dir := filepath.Dir(file)
-			if err := os.MkdirAll(dir, 0755); err != nil {
-				ErrorAndExit(err.Error())
-			}
-			if err := ioutil.WriteFile(file, data, 0644); err != nil {
-				ErrorAndExit(err.Error())
-			}
-			isResource := strings.HasSuffix(file, ".resource-meta.xml")
-			//Handle expanding static resources into a "bundle" folder
-			if isResource && expandResources {
-				if string(os.PathSeparator) != "/" {
-					name = strings.Replace(name, "/", string(os.PathSeparator), -1)
+				typeName, _ := metadata.RootElementName(data)
+				switch typeName {
+				case "ReportFolder", "EmailFolder", "DashboardFolder", "DocumentFolder":
+					file = fmt.Sprintf("%s.%s-meta.xml", strings.TrimSuffix(file, "-meta.xml"), strings.ToLower(typeName[0:1])+typeName[1:])
 				}
-				pathParts := strings.Split(name, string(os.PathSeparator))
-				resourceName := pathParts[cap(pathParts)-1]
-				resourceExt := strings.Split(resourceName, ".")[1]
-				resourceName = strings.Split(resourceName, ".")[0]
+			}
+			fmt.Println("Using root for path:", file)
+		} else {
+			ErrorAndExit(err.Error())
+		}
+		dir := filepath.Dir(file)
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			ErrorAndExit(err.Error())
+		}
+		if err := ioutil.WriteFile(file, data, 0644); err != nil {
+			ErrorAndExit(err.Error())
+		}
+		isResource := strings.HasSuffix(file, ".resource-meta.xml")
+		//Handle expanding static resources into a "bundle" folder
+		if isResource && expandResources {
+			if string(os.PathSeparator) != "/" {
+				name = strings.Replace(name, "/", string(os.PathSeparator), -1)
+			}
+			pathParts := strings.Split(name, string(os.PathSeparator))
+			resourceName := pathParts[cap(pathParts)-1]
+			resourceExt := strings.Split(resourceName, ".")[1]
+			resourceName = strings.Split(resourceName, ".")[0]
 
-				if resourceExt == "resource-meta" {
-					//Check the xml to determine the mime type of the resource
-					// We are looking for application/zip
-					var meta struct {
-						CacheControl string `xml:"cacheControl"`
-						ContentType  string `xml:"contentType"`
-					}
-					if err = xml.Unmarshal([]byte(data), &meta); err != nil {
-						//return
-					}
-					if meta.ContentType == "application/zip" {
-						// this is the meat for a zip file, so add the map
-						resourcesMap[resourceName] = filepath.Join(filepath.Dir(file), resourceName+".resource")
-					}
+			if resourceExt == "resource-meta" {
+				//Check the xml to determine the mime type of the resource
+				// We are looking for application/zip
+				var meta struct {
+					CacheControl string `xml:"cacheControl"`
+					ContentType  string `xml:"contentType"`
+				}
+				if err = xml.Unmarshal([]byte(data), &meta); err != nil {
+					//return
+				}
+				if meta.ContentType == "application/zip" {
+					// this is the meat for a zip file, so add the map
+					resourcesMap[resourceName] = filepath.Join(filepath.Dir(file), resourceName+".resource")
 				}
 			}
 		}

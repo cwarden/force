@@ -105,12 +105,7 @@ func IsDeployable(path string) bool {
 	return false
 }
 
-func getRootElementName(file string) (string, error) {
-	xmlData, err := ioutil.ReadFile(file)
-	if err != nil {
-		return "", fmt.Errorf("Could not read XML file: %w", err)
-	}
-
+func RootElementName(xmlData []byte) (string, error) {
 	decoder := xml.NewDecoder(io.NopCloser(bytes.NewReader(xmlData)))
 
 	foundXML := false
@@ -138,4 +133,13 @@ func getRootElementName(file string) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("%w: No XML elements found", NotXMLError)
+}
+
+func getRootElementName(file string) (string, error) {
+	xmlData, err := ioutil.ReadFile(file)
+	if err != nil {
+		return "", fmt.Errorf("Could not read XML file: %w", err)
+	}
+
+	return RootElementName(xmlData)
 }
