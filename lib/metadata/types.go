@@ -136,4 +136,5 @@ func init() {
 
 	// TODO:
 	// Unzipped Static Resources
+	// Settings: Each has its own top-level element
 }
