@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 var NotXMLError = errors.New("Could not parse as XML")
@@ -16,6 +17,8 @@ var MetadataFileNotFound = errors.New("Could not identify metadata type")
 
 type FilePath = string
 type ForceMetadataFiles map[FilePath][]byte
+
+// Map relative paths to filesystem paths
 type ForceMetadataFilePaths map[FilePath]FilePath
 
 type MetadataType string
@@ -28,6 +31,11 @@ func metadataFileFromPath(path string) (string, error) {
 	}
 	if IsDeployable(path + "-meta.xml") {
 		return path + "-meta.xml", nil
+	}
+	// Static Resources in Source Format
+	resourceMetadata := strings.TrimSuffix(path, filepath.Ext(path)) + ".resource-meta.xml"
+	if IsDeployable(resourceMetadata) {
+		return resourceMetadata, nil
 	}
 	if m := metadataFileInSameFolder(path); m != "" && IsDeployable(m) {
 		return m, nil

@@ -145,40 +145,115 @@ public class Group_Test {
 	})
 
 	Context("Files With Separate Metadata", func() {
-		It("should identify classes", func() {
-			os.MkdirAll(tempDir+"/src/classes", 0755)
-			classPath := tempDir + "/src/classes/MyClass.cls"
-			classContents := `
+		Context("In Metadata Format", func() {
+			It("should identify classes", func() {
+				os.MkdirAll(tempDir+"/src/classes", 0755)
+				classPath := tempDir + "/src/classes/MyClass.cls"
+				classContents := `
 public class MyClass {}
 `
-			classMetaPath := tempDir + "/src/classes/MyClass.cls-meta.xml"
-			classMetaContents := `
+				classMetaPath := tempDir + "/src/classes/MyClass.cls-meta.xml"
+				classMetaContents := `
 <?xml version="1.0" encoding="UTF-8"?>
 <ApexClass xmlns="http://soap.sforce.com/2006/04/metadata">
 	 <apiVersion>59.0</apiVersion>
 	 <status>Active</status>
 </ApexClass>
 `
-			ioutil.WriteFile(classPath, []byte(classContents), 0644)
-			ioutil.WriteFile(classMetaPath, []byte(classMetaContents), 0644)
+				ioutil.WriteFile(classPath, []byte(classContents), 0644)
+				ioutil.WriteFile(classMetaPath, []byte(classMetaContents), 0644)
 
-			Expect(IsDeployable(classPath)).To(Equal(false))
-			Expect(IsDeployable(classMetaPath)).To(Equal(true))
+				Expect(IsDeployable(classPath)).To(Equal(false))
+				Expect(IsDeployable(classMetaPath)).To(Equal(true))
 
-			m, err := MetadataFromPath(classPath)
-			Expect(err).To(BeNil())
-			Expect(m).To(BeAssignableToTypeOf(&ContentMetadata{}))
-			m, err = MetadataFromPath(classMetaPath)
-			Expect(err).To(BeNil())
-			Expect(m).To(BeAssignableToTypeOf(&ContentMetadata{}))
+				m, err := MetadataFromPath(classPath)
+				Expect(err).To(BeNil())
+				Expect(m).To(BeAssignableToTypeOf(&ContentMetadata{}))
+				m, err = MetadataFromPath(classMetaPath)
+				Expect(err).To(BeNil())
+				Expect(m).To(BeAssignableToTypeOf(&ContentMetadata{}))
 
-			Expect(m.Name()).To(Equal("MyClass"))
-			Expect(m.DeployedType()).To(Equal("ApexClass"))
+				Expect(m.Name()).To(Equal("MyClass"))
+				Expect(m.DeployedType()).To(Equal("ApexClass"))
 
-			expectedMap := make(ForceMetadataFiles)
-			expectedMap["classes/MyClass.cls"] = []byte(classContents)
-			expectedMap["classes/MyClass.cls-meta.xml"] = []byte(classMetaContents)
-			Expect(m.Files()).To(Equal(expectedMap))
+				expectedMap := make(ForceMetadataFiles)
+				expectedMap["classes/MyClass.cls"] = []byte(classContents)
+				expectedMap["classes/MyClass.cls-meta.xml"] = []byte(classMetaContents)
+				Expect(m.Files()).To(Equal(expectedMap))
+			})
+
+			It("should identify static resources", func() {
+				os.MkdirAll(tempDir+"/src/staticresources", 0755)
+				resourcePath := tempDir + "/src/staticresources/MyText.resource"
+				resourceContents := `
+MyText File
+`
+				resourceMetaPath := tempDir + "/src/staticresources/MyText.resource-meta.xml"
+				resourceMetaContents := `
+<?xml version="1.0" encoding="UTF-8"?>
+<StaticResource xmlns="http://soap.sforce.com/2006/04/metadata">
+	 <cacheControl>Private</cacheControl>
+	 <contentType>text/plain</contentType>
+</StaticResource>
+`
+				ioutil.WriteFile(resourcePath, []byte(resourceContents), 0644)
+				ioutil.WriteFile(resourceMetaPath, []byte(resourceMetaContents), 0644)
+
+				Expect(IsDeployable(resourcePath)).To(Equal(false))
+				Expect(IsDeployable(resourceMetaPath)).To(Equal(true))
+
+				m, err := MetadataFromPath(resourcePath)
+				Expect(err).To(BeNil())
+				Expect(m).To(BeAssignableToTypeOf(&ContentMetadata{}))
+				m, err = MetadataFromPath(resourceMetaPath)
+				Expect(err).To(BeNil())
+				Expect(m).To(BeAssignableToTypeOf(&ContentMetadata{}))
+
+				Expect(m.Name()).To(Equal("MyText"))
+				Expect(m.DeployedType()).To(Equal("StaticResource"))
+
+				expectedMap := make(ForceMetadataFiles)
+				expectedMap["staticresources/MyText.resource"] = []byte(resourceContents)
+				expectedMap["staticresources/MyText.resource-meta.xml"] = []byte(resourceMetaContents)
+				Expect(m.Files()).To(Equal(expectedMap))
+			})
+		})
+		Context("In Source Format", func() {
+			It("should identify static resources", func() {
+				os.MkdirAll(tempDir+"/sfdx/main/default/staticresources", 0755)
+				resourcePath := tempDir + "/sfdx/main/default/staticresources/MyText.txt"
+				resourceContents := `
+MyText File
+`
+				resourceMetaPath := tempDir + "/sfdx/main/default/staticresources/MyText.resource-meta.xml"
+				resourceMetaContents := `
+<?xml version="1.0" encoding="UTF-8"?>
+<StaticResource xmlns="http://soap.sforce.com/2006/04/metadata">
+	 <cacheControl>Private</cacheControl>
+	 <contentType>text/plain</contentType>
+</StaticResource>
+`
+				ioutil.WriteFile(resourcePath, []byte(resourceContents), 0644)
+				ioutil.WriteFile(resourceMetaPath, []byte(resourceMetaContents), 0644)
+
+				Expect(IsDeployable(resourcePath)).To(Equal(false))
+				Expect(IsDeployable(resourceMetaPath)).To(Equal(true))
+
+				m, err := MetadataFromPath(resourcePath)
+				Expect(err).To(BeNil())
+				Expect(m).To(BeAssignableToTypeOf(&ContentMetadata{}))
+				m, err = MetadataFromPath(resourceMetaPath)
+				Expect(err).To(BeNil())
+				Expect(m).To(BeAssignableToTypeOf(&ContentMetadata{}))
+
+				Expect(m.Name()).To(Equal("MyText"))
+				Expect(m.DeployedType()).To(Equal("StaticResource"))
+
+				expectedMap := make(ForceMetadataFiles)
+				expectedMap["staticresources/MyText.resource-meta.xml"] = []byte(resourceMetaContents)
+				expectedMap["staticresources/MyText.resource"] = []byte(resourceContents)
+				Expect(m.Files()).To(Equal(expectedMap))
+			})
 		})
 	})
 

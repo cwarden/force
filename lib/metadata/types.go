@@ -25,6 +25,7 @@ func init() {
 	Registry.RegisterContentType("ApexComponent", "components")
 	Registry.RegisterContentType("WaveDataflow", "wave")
 	Registry.RegisterContentType("WaveRecipe", "wave")
+	Registry.RegisterContentType("StaticResource", "staticresources")
 
 	// Types stored within folders
 	Registry.RegisterFolderedType("Dashboard", "dashboards")
@@ -127,7 +128,6 @@ func init() {
 	Registry.RegisterBaseType("SharingRules", "sharingRules")
 	Registry.RegisterBaseType("SiteDotCom", "siteDotComSites")
 	Registry.RegisterBaseType("StandardValueSet", "standardValueSets")
-	Registry.RegisterBaseType("StaticResource", "staticresources")
 	Registry.RegisterBaseType("SynonymDictionary", "synonymDictionaries")
 	Registry.RegisterBaseType("Translations", "translations")
 	Registry.RegisterBaseType("WaveApplication", "wave")

@@ -45,18 +45,13 @@ func metadataOnlyFile(m DeployableMetadata) (ForceMetadataFiles, error) {
 
 func metadataAndContentFiles(m DeployableMetadata) (ForceMetadataFiles, error) {
 	files := make(ForceMetadataFiles)
-	fileContent, err := ioutil.ReadFile(m.Path())
-	if err != nil {
-		return nil, fmt.Errorf("Could not read metadata: %w", err)
+	for relative, fullPath := range m.Paths() {
+		fileContent, err := ioutil.ReadFile(fullPath)
+		if err != nil {
+			return nil, fmt.Errorf("Could not read file %s: %w", fullPath, err)
+		}
+		files[relative] = fileContent
 	}
-	files[RelativePath(m.Path(), m.Dir())] = fileContent
-
-	class := strings.TrimSuffix(m.Path(), "-meta.xml")
-	fileContent, err = ioutil.ReadFile(class)
-	if err != nil {
-		return nil, fmt.Errorf("Could not read metadata: %w", err)
-	}
-	files[RelativePath(class, m.Dir())] = fileContent
 	return files, nil
 }
 
