@@ -279,7 +279,7 @@ MyText File
 			Expect(IsDeployable(folderPath)).To(Equal(false))
 			m, err := MetadataFromPath(folderMetaPath)
 			Expect(err).To(BeNil())
-			Expect(m).To(BeAssignableToTypeOf(&FolderedMetadata{}))
+			Expect(m).To(BeAssignableToTypeOf(&FolderMetadata{}))
 
 			Expect(m.Name()).To(Equal("MyFolder"))
 			Expect(m.DeployedType()).To(Equal("Report"))
@@ -309,7 +309,7 @@ MyText File
 			Expect(IsDeployable(folderPath)).To(Equal(false))
 			m, err := MetadataFromPath(folderMetaPath)
 			Expect(err).To(BeNil())
-			Expect(m).To(BeAssignableToTypeOf(&FolderedMetadata{}))
+			Expect(m).To(BeAssignableToTypeOf(&FolderMetadata{}))
 
 			Expect(m.Name()).To(Equal("MyFolder/MySubfolder"))
 			Expect(m.DeployedType()).To(Equal("Report"))
@@ -317,6 +317,68 @@ MyText File
 			expectedMap := make(ForceMetadataFiles)
 			expectedMap["reports/MyFolder/MySubfolder-meta.xml"] = []byte(folderMetaContents)
 			Expect(m.Files()).To(Equal(expectedMap))
+		})
+		Context("In Source Format", func() {
+			It("should identify folders", func() {
+				folderPath := tempDir + "/sfdx/main/default/reports/MyFolder"
+				os.MkdirAll(folderPath, 0755)
+				folderMetaPath := tempDir + "/sfdx/main/default/reports/MyFolder.reportFolder-meta.xml"
+				folderMetaContents := `
+<?xml version="1.0" encoding="UTF-8"?>
+<ReportFolder xmlns="http://soap.sforce.com/2006/04/metadata">
+	<folderShares>
+		<accessLevel>Manage</accessLevel>
+		<sharedTo>System_Administrator</sharedTo>
+		<sharedToType>Role</sharedToType>
+	</folderShares>
+	<name>My Folder</name>
+</ReportFolder>
+`
+				ioutil.WriteFile(folderMetaPath, []byte(folderMetaContents), 0644)
+
+				Expect(IsDeployable(folderMetaPath)).To(Equal(true))
+				Expect(IsDeployable(folderPath)).To(Equal(false))
+				m, err := MetadataFromPath(folderMetaPath)
+				Expect(err).To(BeNil())
+				Expect(m).To(BeAssignableToTypeOf(&FolderMetadata{}))
+
+				Expect(m.Name()).To(Equal("MyFolder"))
+				Expect(m.DeployedType()).To(Equal("Report"))
+
+				expectedMap := make(ForceMetadataFiles)
+				expectedMap["reports/MyFolder-meta.xml"] = []byte(folderMetaContents)
+				Expect(m.Files()).To(Equal(expectedMap))
+			})
+			It("should support nested folders", func() {
+				folderPath := tempDir + "/sfdx/main/default/reports/MyFolder/MySubfolder"
+				os.MkdirAll(folderPath, 0755)
+				folderMetaPath := tempDir + "/sfdx/main/default/reports/MyFolder/MySubfolder.reportFolder-meta.xml"
+				folderMetaContents := `
+<?xml version="1.0" encoding="UTF-8"?>
+<ReportFolder xmlns="http://soap.sforce.com/2006/04/metadata">
+	<folderShares>
+		<accessLevel>Manage</accessLevel>
+		<sharedTo>System_Administrator</sharedTo>
+		<sharedToType>Role</sharedToType>
+	</folderShares>
+	<name>My Folder</name>
+</ReportFolder>
+`
+				ioutil.WriteFile(folderMetaPath, []byte(folderMetaContents), 0644)
+
+				Expect(IsDeployable(folderMetaPath)).To(Equal(true))
+				Expect(IsDeployable(folderPath)).To(Equal(false))
+				m, err := MetadataFromPath(folderMetaPath)
+				Expect(err).To(BeNil())
+				Expect(m).To(BeAssignableToTypeOf(&FolderMetadata{}))
+
+				Expect(m.Name()).To(Equal("MyFolder/MySubfolder"))
+				Expect(m.DeployedType()).To(Equal("Report"))
+
+				expectedMap := make(ForceMetadataFiles)
+				expectedMap["reports/MyFolder/MySubfolder-meta.xml"] = []byte(folderMetaContents)
+				Expect(m.Files()).To(Equal(expectedMap))
+			})
 		})
 	})
 
