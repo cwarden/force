@@ -149,6 +149,7 @@ func (pb *PackageBuilder) AddMetadata(m metadata.Deployable) {
 func (pb *PackageBuilder) SourcePath(relativePath string) (string, error) {
 	for _, d := range pb.metadata {
 		for relative, full := range d.Paths() {
+			fmt.Println("checking", relativePath, "against", relative)
 			if relative == relativePath {
 				return full, nil
 			}
