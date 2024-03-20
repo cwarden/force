@@ -107,6 +107,7 @@ func init() {
 	Registry.RegisterBaseType("NotificationTypeConfig", "notificationTypeConfig")
 	Registry.RegisterBaseType("OmniDataTransform", "omniDataTransforms")
 	Registry.RegisterBaseType("OmniIntegrationProcedure", "omniIntegrationProcedures")
+	Registry.RegisterBaseType("OmniInteractionConfig", "OmniInteractionConfig")
 	Registry.RegisterBaseType("OmniScript", "omniScripts")
 	Registry.RegisterBaseType("OmniUiCard", "omniUiCard")
 	Registry.RegisterBaseType("PathAssistant", "pathAssistants")
