@@ -43,6 +43,9 @@ func init() {
 	Registry.RegisterBundledType("AuraDefinitionBundle", "aura")
 	Registry.RegisterBundledType("LightningComponentBundle", "lwc")
 
+	// Experience Bundles have a directory and a metadata type at the same level
+	Registry.Register("ExperienceBundle", NewExperienceBundle)
+
 	// Normal single-file types
 	Registry.RegisterBaseType("ActionLinkGroupTemplate", "actionLinkGroupTemplates")
 	Registry.RegisterBaseType("AnalyticSnapshot", "analyticSnapshots")
@@ -80,7 +83,6 @@ func init() {
 	Registry.RegisterBaseType("DuplicateRule", "duplicateRules")
 	Registry.RegisterBaseType("EmbeddedServiceConfig", "EmbeddedServiceConfig")
 	Registry.RegisterBaseType("EscalationRules", "escalationRules")
-	Registry.RegisterBaseType("ExperienceBundle", "experiences")
 	Registry.RegisterBaseType("ExternalCredential", "externalCredentials")
 	Registry.RegisterBaseType("ExternalDataSource", "dataSources")
 	Registry.RegisterBaseType("FlexiPage", "flexipages")

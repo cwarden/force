@@ -20,7 +20,7 @@ func TestRelativePath(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		got := RelativePath(tc.fullPath, tc.relativeTo)
+		got := MakeRelativePath(tc.fullPath, tc.relativeTo)
 		if got != tc.want {
 			t.Errorf("RelativePath(%q, %q) = %q, want %q", tc.fullPath, tc.relativeTo, got, tc.want)
 		}

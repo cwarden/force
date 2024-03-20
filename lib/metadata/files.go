@@ -17,7 +17,7 @@ func ComponentName(path string) string {
 	return strings.TrimSuffix(filepath.Base(name), filepath.Ext(name))
 }
 
-func RelativePath(fullpath, relativeTo string) string {
+func MakeRelativePath(fullpath, relativeTo string) string {
 	// Normalize the path to use forward slashes
 	normalizedPath := filepath.ToSlash(fullpath)
 
@@ -82,7 +82,7 @@ func allFilesInFolder(m DeployableMetadata) (ForceMetadataFiles, error) {
 		if err != nil {
 			return nil, fmt.Errorf("Could not read metadata: %w", err)
 		}
-		files[RelativePath(filePath, m.Dir())] = fileContent
+		files[MakeRelativePath(filePath, m.Dir())] = fileContent
 
 	}
 	return files, nil

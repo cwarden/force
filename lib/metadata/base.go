@@ -32,6 +32,6 @@ func (b *BaseMetadata) Files() (ForceMetadataFiles, error) {
 
 func (b *BaseMetadata) Paths() ForceMetadataFilePaths {
 	paths := make(ForceMetadataFilePaths)
-	paths[RelativePath(b.Path(), b.Dir())] = b.Path()
+	paths[MakeRelativePath(b.Path(), b.Dir())] = b.Path()
 	return paths
 }

@@ -288,6 +288,49 @@ MyText File
 			expectedMap["reports/MyFolder-meta.xml"] = []byte(folderMetaContents)
 			Expect(m.Files()).To(Equal(expectedMap))
 		})
+		It("should support Experience Bundles", func() {
+			folderPath := tempDir + "/src/experiences/MySite/config"
+			os.MkdirAll(folderPath, 0755)
+			siteMetaPath := tempDir + "/src/experiences/MySite.site-meta.xml"
+			siteMetaContents := `
+<?xml version="1.0" encoding="UTF-8"?>
+<ExperienceBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+	<label>Customer Portal</label>
+	<type>ChatterNetworkPicasso</type>
+	<urlPathPrefix>clientportal/s</urlPathPrefix>
+</ExperienceBundle>
+`
+			ioutil.WriteFile(siteMetaPath, []byte(siteMetaContents), 0644)
+
+			siteJsonPath := tempDir + "/src/experiences/MySite/config/mainAppPage.json"
+			siteJsonContents := `
+{
+  "cmsSettings" : { },
+  "currentThemeId" : "af44fe06-c9ac-4965-9d78-9c9626ee82ae",
+  "headMarkup" : null,
+  "id" : "7759c282-d59e-4f84-badc-8c28a419b5fe",
+  "isLockerServiceEnabled" : true,
+  "isRelaxedCSPLevel" : false,
+  "label" : "main",
+  "templateName" : "CPT Community Template",
+  "type" : "appPage"
+}
+`
+			ioutil.WriteFile(siteJsonPath, []byte(siteJsonContents), 0644)
+
+			Expect(IsDeployable(siteMetaPath)).To(Equal(true))
+			Expect(IsDeployable(folderPath)).To(Equal(false))
+			m, err := MetadataFromPath(siteMetaPath)
+			Expect(err).To(BeNil())
+			Expect(m).To(BeAssignableToTypeOf(&ExperienceBundleMetadata{}))
+
+			Expect(m.Name()).To(Equal("MySite"))
+
+			expectedMap := make(ForceMetadataFiles)
+			expectedMap["experiences/MySite.site-meta.xml"] = []byte(siteMetaContents)
+			expectedMap["experiences/MySite/config/mainAppPage.json"] = []byte(siteJsonContents)
+			Expect(m.Files()).To(Equal(expectedMap))
+		})
 		It("should support nested folders", func() {
 			folderPath := tempDir + "/src/reports/MyFolder/MySubfolder"
 			os.MkdirAll(folderPath, 0755)

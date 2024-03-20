@@ -15,11 +15,12 @@ import (
 var NotXMLError = errors.New("Could not parse as XML")
 var MetadataFileNotFound = errors.New("Could not identify metadata type")
 
-type FilePath = string
-type ForceMetadataFiles map[FilePath][]byte
+type RelativePath = string
+type AbsolutePath = string
+type ForceMetadataFiles map[RelativePath][]byte
 
 // Map relative paths to filesystem paths
-type ForceMetadataFilePaths map[FilePath]FilePath
+type ForceMetadataFilePaths map[RelativePath]AbsolutePath
 
 type MetadataType string
 

@@ -33,6 +33,7 @@ func NewPackage(path string) Deployable {
 		path: path,
 	}
 }
+
 func (p *Package) Paths() ForceMetadataFilePaths {
 	paths := make(ForceMetadataFilePaths)
 	paths[filepath.Base(p.Path())] = p.Path()

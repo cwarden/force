@@ -220,7 +220,7 @@ type ForceMetadataQueryElement struct {
 
 type ForceMetadataQuery []ForceMetadataQueryElement
 
-type FilePath = metadata.FilePath
+type RelativePath = metadata.RelativePath
 
 type ForceMetadataFiles = metadata.ForceMetadataFiles
 
@@ -812,12 +812,12 @@ func (fm *ForceMetadata) CheckRetrieveStatus(id string) (files ForceMetadataFile
 	if err != nil {
 		return
 	}
-	files = make(map[FilePath][]byte)
+	files = make(map[RelativePath][]byte)
 	for _, file := range zipfiles.File {
 		fd, _ := file.Open()
 		defer fd.Close()
 		data, _ := ioutil.ReadAll(fd)
-		files[FilePath(file.Name)] = data
+		files[RelativePath(file.Name)] = data
 	}
 	return
 }
@@ -1197,9 +1197,9 @@ func (fm *ForceMetadata) MakeZipWithOptions(files ForceMetadataFiles, options Fo
 	zipfile := new(bytes.Buffer)
 	zipper := zip.NewWriter(zipfile)
 	for name, data := range files {
-		name = FilePath(filepath.ToSlash(name))
+		name = RelativePath(filepath.ToSlash(name))
 		if !options.SinglePackage {
-			name = FilePath(fmt.Sprintf("unpackaged/%s", name))
+			name = RelativePath(fmt.Sprintf("unpackaged/%s", name))
 		}
 		wr, err := zipper.Create(name)
 		if err != nil {

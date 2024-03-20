@@ -64,7 +64,7 @@ func (m *CustomObjectTranslationComponent) Files() (ForceMetadataFiles, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Could not serialize %s: %w", m.Name(), err)
 	}
-	files[RelativePath(dir+".objectTranslation", m.Dir())] = objectTranslationData
+	files[MakeRelativePath(dir+".objectTranslation", m.Dir())] = objectTranslationData
 	return files, nil
 }
 

@@ -18,9 +18,9 @@ func (t *EmailTemplateMetadata) Files() (ForceMetadataFiles, error) {
 
 func (b *EmailTemplateMetadata) Paths() ForceMetadataFilePaths {
 	paths := make(ForceMetadataFilePaths)
-	paths[RelativePath(b.Path(), b.Dir())] = b.Path()
+	paths[MakeRelativePath(b.Path(), b.Dir())] = b.Path()
 	content := strings.TrimSuffix(b.Path(), "-meta.xml")
-	paths[RelativePath(content, b.Dir())] = content
+	paths[MakeRelativePath(content, b.Dir())] = content
 	return paths
 }
 

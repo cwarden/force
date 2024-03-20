@@ -38,7 +38,7 @@ func (t *BundledMetadata) Paths() ForceMetadataFilePaths {
 		}
 
 		filePath := dir + string(os.PathSeparator) + f.Name()
-		paths[RelativePath(filePath, t.Dir())] = filePath
+		paths[MakeRelativePath(filePath, t.Dir())] = filePath
 
 	}
 	return paths
