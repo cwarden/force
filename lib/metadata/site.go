@@ -14,8 +14,9 @@ type ExperienceBundleMetadata struct {
 func NewExperienceBundle(path string) Deployable {
 	return &ExperienceBundleMetadata{
 		BaseMetadata: BaseMetadata{
-			path: path,
-			dir:  "experiences",
+			path:         path,
+			dir:          "experiences",
+			deployedType: "ExperienceBundle",
 		},
 	}
 }

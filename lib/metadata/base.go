@@ -27,7 +27,7 @@ func (b *BaseMetadata) UniqueId() string {
 }
 
 func (b *BaseMetadata) Files() (ForceMetadataFiles, error) {
-	return metadataOnlyFile(b)
+	return metadataAndContentFiles(b)
 }
 
 func (b *BaseMetadata) Paths() ForceMetadataFilePaths {

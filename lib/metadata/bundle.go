@@ -12,7 +12,7 @@ type BundledMetadata struct {
 }
 
 func (t *BundledMetadata) Files() (ForceMetadataFiles, error) {
-	return allFilesInFolder(t)
+	return metadataAndContentFiles(t)
 }
 
 func (t *BundledMetadata) Paths() ForceMetadataFilePaths {
