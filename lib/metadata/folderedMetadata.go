@@ -1,6 +1,7 @@
 package metadata
 
 import (
+	"fmt"
 	"path/filepath"
 	"strings"
 )
@@ -61,4 +62,12 @@ func (b *FolderMetadata) Files() (ForceMetadataFiles, error) {
 
 func (b *FolderedMetadata) Name() string {
 	return FolderedComponentName(b.path, b.dir)
+}
+
+func (b *FolderedMetadata) Paths() ForceMetadataFilePaths {
+	fcn := FolderedComponentName(b.path, b.dir)
+	fmt.Println("FolderedComponentName", fcn)
+	paths := make(ForceMetadataFilePaths)
+	paths[b.DeployedName()] = b.Path()
+	return paths
 }

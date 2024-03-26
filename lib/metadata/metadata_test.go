@@ -70,7 +70,7 @@ var _ = Describe("Metadata", func() {
 			Expect(m.DeployedType()).To(Equal("CustomTab"))
 
 			expectedMap := make(ForceMetadataFiles)
-			expectedMap["tabs/MyTab.tab-meta.xml"] = []byte(tabContents)
+			expectedMap["tabs/MyTab.tab"] = []byte(tabContents)
 			Expect(m.Files()).To(Equal(expectedMap))
 		})
 

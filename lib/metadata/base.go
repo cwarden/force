@@ -1,5 +1,10 @@
 package metadata
 
+import (
+	"path/filepath"
+	"strings"
+)
+
 type BaseMetadata struct {
 	path         string
 	deployedType string
@@ -30,8 +35,14 @@ func (b *BaseMetadata) Files() (ForceMetadataFiles, error) {
 	return metadataAndContentFiles(b)
 }
 
+func (b *BaseMetadata) DeployedName() string {
+	name := strings.TrimSuffix(b.Path(), "-meta.xml")
+	deployedName := b.Dir() + "/" + filepath.Base(name)
+	return deployedName
+}
+
 func (b *BaseMetadata) Paths() ForceMetadataFilePaths {
 	paths := make(ForceMetadataFilePaths)
-	paths[MakeRelativePath(b.Path(), b.Dir())] = b.Path()
+	paths[b.DeployedName()] = b.Path()
 	return paths
 }
