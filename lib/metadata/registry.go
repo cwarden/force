@@ -58,6 +58,10 @@ func (r *deployableTypeRegistry) RegisterBundledType(metadataType, dir string) {
 	r.Register(metadataType, createBundledMetadataFunc(metadataType, dir))
 }
 
+func (r *deployableTypeRegistry) RegisterSettingsType(metadataType, dir string) {
+	r.Register(metadataType, createBaseMetadataFunc("Settings", dir))
+}
+
 // Folder types are have their own metadata type, e.g. ReportFolder, but are
 // deployed as the type of their contents, e.g. Report
 func (r *deployableTypeRegistry) RegisterFolderType(metadataType, deployedType, dir string) {
