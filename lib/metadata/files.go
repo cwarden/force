@@ -2,7 +2,7 @@ package metadata
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -39,7 +39,7 @@ func metadataOnlyFile(m DeployableMetadata) (ForceMetadataFiles, error) {
 func metadataAndContentFiles(m DeployableMetadata) (ForceMetadataFiles, error) {
 	files := make(ForceMetadataFiles)
 	for relative, fullPath := range m.Paths() {
-		fileContent, err := ioutil.ReadFile(fullPath)
+		fileContent, err := os.ReadFile(fullPath)
 		if err != nil {
 			return nil, fmt.Errorf("Could not read file %s: %w", fullPath, err)
 		}

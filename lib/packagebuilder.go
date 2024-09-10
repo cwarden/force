@@ -4,7 +4,6 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -206,7 +205,7 @@ func (pb *PackageBuilder) AddFile(fpath string) error {
 
 // AddDirectory Recursively add files contained in provided directory
 func (pb *PackageBuilder) AddDirectory(fpath string) error {
-	files, err := ioutil.ReadDir(fpath)
+	files, err := os.ReadDir(fpath)
 	if err != nil {
 		return err
 	}

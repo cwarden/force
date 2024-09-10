@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -145,7 +144,7 @@ func RootElementName(xmlData []byte) (string, error) {
 }
 
 func getRootElementName(file string) (string, error) {
-	xmlData, err := ioutil.ReadFile(file)
+	xmlData, err := os.ReadFile(file)
 	if err != nil {
 		return "", fmt.Errorf("Could not read XML file: %w", err)
 	}

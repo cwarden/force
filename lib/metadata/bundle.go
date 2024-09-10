@@ -1,12 +1,12 @@
 package metadata
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
 )
 
+// Aura and LWC metadata that is made up of a bundle of files
 type BundledMetadata struct {
 	BaseMetadata
 }
@@ -18,7 +18,7 @@ func (t *BundledMetadata) Files() (ForceMetadataFiles, error) {
 func (t *BundledMetadata) Paths() ForceMetadataFilePaths {
 	paths := make(ForceMetadataFilePaths)
 	dir := filepath.Dir(t.Path())
-	contents, err := ioutil.ReadDir(dir)
+	contents, err := os.ReadDir(dir)
 	if err != nil {
 		return paths
 	}
