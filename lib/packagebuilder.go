@@ -168,7 +168,7 @@ func (pb *PackageBuilder) AddMetadataType(metadataType string) error {
 func (pb *PackageBuilder) AddMetadataItem(metadataType string, name string) error {
 	metaFolder, err := pb.MetadataDir(metadataType)
 	if err != nil {
-		return fmt.Errorf("Could not get metadata directry: %w", err)
+		return fmt.Errorf("Could not get metadata directory: %w", err)
 	}
 	if filePath, err := findMetadataPath(metaFolder, name); err != nil {
 		return fmt.Errorf("Could not find path for %s of type %s: %w", name, metadataType, err)
