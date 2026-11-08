@@ -778,7 +778,21 @@ func collectSFDXUsernames(root string, usernames map[string]struct{}) {
 	}
 }
 
+// CompleteSFDXSession fills in the session defaults and fetches the user id,
+// profile id and org namespace if the SFDX auth file didn't provide them.
 func CompleteSFDXSession(creds *ForceSession, aliasHint string) error {
+	return completeSFDXSession(creds, aliasHint, sessionNeedsUserInfo)
+}
+
+// CompleteSFDXSessionLazy is CompleteSFDXSession without the three API calls
+// for the user id, profile id and org namespace. It only fetches if the user
+// name is unknown. Anything that reads those fields must call
+// EnsureSessionUserInfo first.
+func CompleteSFDXSessionLazy(creds *ForceSession, aliasHint string) error {
+	return completeSFDXSession(creds, aliasHint, sessionLacksUserName)
+}
+
+func completeSFDXSession(creds *ForceSession, aliasHint string, needsFetch func(*ForceSession) bool) error {
 	if creds == nil {
 		return fmt.Errorf("nil force session")
 	}
@@ -796,11 +810,7 @@ func CompleteSFDXSession(creds *ForceSession, aliasHint string) error {
 	}
 	creds.SessionOptions.RefreshMethod = RefreshSFDX
 
-	// The rest of the user info (user id, profile id, namespace) costs three
-	// API calls, and most commands never read it, so it is loaded on demand by
-	// EnsureSessionUserInfo. Only fetch now if we don't even know who the user
-	// is.
-	if creds.UserInfo == nil || strings.TrimSpace(creds.UserInfo.UserName) == "" {
+	if needsFetch(creds) {
 		if err := loadSessionUserInfo(creds); err != nil {
 			return err
 		}
@@ -837,9 +847,14 @@ func sessionNeedsUserInfo(creds *ForceSession) bool {
 	return creds.UserInfo == nil || creds.UserInfo.UserId == "" || creds.UserInfo.OrgId == ""
 }
 
+func sessionLacksUserName(creds *ForceSession) bool {
+	return creds.UserInfo == nil || strings.TrimSpace(creds.UserInfo.UserName) == ""
+}
+
 // EnsureSessionUserInfo fetches the user id, profile id and org namespace for
-// sessions that don't have them yet, such as SFDX sessions whose auth file
-// has no userId. It does nothing when they are already known.
+// sessions that have no user id or org id, such as SFDX sessions whose auth
+// file has no userId. It does nothing when both ids are known, so the profile
+// id can still be empty afterward.
 func EnsureSessionUserInfo(creds *ForceSession) error {
 	if creds == nil {
 		return fmt.Errorf("nil force session")
@@ -864,6 +879,10 @@ func loadSessionUserInfo(creds *ForceSession) error {
 	}
 	if strings.TrimSpace(userInfo.OrgId) == "" {
 		userInfo.OrgId = firstNonEmpty(known.OrgId, creds.Id)
+	}
+	// getUserInfoFn returns an empty namespace if the Organization query fails.
+	if strings.TrimSpace(userInfo.OrgNamespace) == "" {
+		userInfo.OrgNamespace = known.OrgNamespace
 	}
 	creds.UserInfo = &userInfo
 	return nil

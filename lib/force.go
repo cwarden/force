@@ -1055,8 +1055,12 @@ func (f *Force) CreateRecord(sobject string, attrs map[string]string, requestOpt
 }
 
 func (f *Force) QueryProfile(fields ...string) (results ForceQueryResult, err error) {
-	if err = f.EnsureUserInfo(); err != nil {
-		return
+	// EnsureUserInfo isn't enough here: an SFDX auth file can have a userId,
+	// but it never has a profile id.
+	if f.Credentials.UserInfo == nil || f.Credentials.UserInfo.ProfileId == "" {
+		if err = loadSessionUserInfo(f.Credentials); err != nil {
+			return
+		}
 	}
 
 	url := fmt.Sprintf("%s/services/data/%s/tooling/query?q=Select+%s+From+Profile+Where+Id='%s'",
