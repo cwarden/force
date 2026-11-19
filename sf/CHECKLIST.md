@@ -184,7 +184,7 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 
 163 commands of sf 2.138.6 and its bundled and install-on-first-use plugins. `docs/sf-compatibility.md` says what each needs. Commands under "dev" and most under "CLI management" manage the Node.js CLI and its plugins and do not apply to force.
 
-### org (6 open, 21 done)
+### org (3 open, 24 done)
 
 - [x] `org assign permset` (follows the sf plugin source)
 - [x] `org assign permsetlicense` (follows the sf plugin source)
@@ -192,7 +192,7 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [x] `org auth show-sfdx-auth-url`
 - [x] `org auth show-user-password` (follows the sf plugin source)
 - [ ] `org create agent-user`
-- [ ] `org create sandbox`
+- [x] `org create sandbox` (follows the sf plugin source and sf core; not compared with sf)
 - [x] `org create shape` (follows the sf plugin source)
 - [ ] `org create snapshot`
 - [x] `org create user` (compared with sf against a scratch org; an org authorized with the JWT flow is refused)
@@ -210,8 +210,8 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [x] `org list users` (compared with sf against a scratch org)
 - [x] `org login sfdx-url` (follows the sf plugin source)
 - [ ] `org open agent`
-- [ ] `org refresh sandbox`
-- [ ] `org resume sandbox`
+- [x] `org refresh sandbox` (follows the sf plugin source and sf core; not compared with sf)
+- [x] `org resume sandbox` (follows the sf plugin source and sf core; not compared with sf)
 - [x] `org resume scratch` (the output follows a transcript of sf; not run against a Dev Hub; an org that is not ready follows the plugin source)
 
 ### project (6 open, 7 done)

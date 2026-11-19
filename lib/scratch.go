@@ -905,3 +905,44 @@ func (f *Force) CreateScratchOrgWithDuration(username string, features []string,
 	}
 	return
 }
+
+// SessionFromAuthCode exchanges an authorization code that Salesforce
+// issued for a new sandbox for a session.  The code is sent to the token
+// endpoint of loginURL with the client Id and the redirect URI the code was
+// requested with.
+func SessionFromAuthCode(loginURL, authCode, clientId, redirectURI string) (session ForceSession, err error) {
+	attrs := url.Values{}
+	attrs.Set("grant_type", "authorization_code")
+	attrs.Set("code", authCode)
+	attrs.Set("client_id", clientId)
+	attrs.Set("redirect_uri", redirectURI)
+	req, err := httpRequest("POST", tokenURL(strings.TrimRight(loginURL, "/")), bytes.NewReader([]byte(attrs.Encode())))
+	if err != nil {
+		return
+	}
+	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+	res, err := doRequest(req)
+	if err != nil {
+		return
+	}
+	defer res.Body.Close()
+	body, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		return
+	}
+	if res.StatusCode != 200 {
+		var oauthError OAuthError
+		json.Unmarshal(body, &oauthError)
+		err = errors.New("Unable to exchange the authorization code: " + oauthError.ErrorDescription)
+		return
+	}
+	var authSession AuthCodeSession
+	if err = json.Unmarshal(body, &authSession); err != nil {
+		return
+	}
+	session = authSession.ForceSession
+	session.RefreshToken = authSession.RefreshToken
+	session.ClientId = clientId
+	session.SessionOptions = &SessionOptions{RefreshMethod: RefreshOauth}
+	return session, nil
+}

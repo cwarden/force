@@ -38,7 +38,7 @@ func newOrgCmd() *cobra.Command {
 			newOrgAuthShowCmd("show-user-password", "Display the locally stored password of an org user.", "OrgAuthShowUserPassword"),
 		),
 		newGroup("assign", "Assign permission sets and licenses.", newOrgAssignPermsetCmd(), newOrgAssignPermsetLicenseCmd()),
-		newGroup("create", "Create scratch orgs, users and org shapes.", newOrgCreateScratchCmd(), newOrgCreateUserCmd(), newOrgCreateShapeCmd()),
+		newGroup("create", "Create scratch orgs, sandboxes, users and org shapes.", newOrgCreateScratchCmd(), newOrgCreateUserCmd(), newOrgCreateShapeCmd(), newOrgCreateSandboxCmd()),
 		newGroup("delete", "Delete scratch orgs, sandboxes, snapshots and org shapes.", newOrgDeleteScratchCmd(), newOrgDeleteSnapshotCmd(), newOrgDeleteShapeCmd(), newOrgDeleteSandboxCmd()),
 		newGroup("get", "Get details about a snapshot.", newOrgGetSnapshotCmd()),
 		newGroup("disable", "Disable source tracking.", newOrgTrackingCmd(false)),
@@ -46,7 +46,8 @@ func newOrgCmd() *cobra.Command {
 		newGroup("generate", "Generate a password.", newOrgGeneratePasswordCmd()),
 		newOrgLoginCmd(),
 		newOrgLogoutCmd(),
-		newGroup("resume", "Resume an org creation.", newOrgResumeScratchCmd()),
+		newGroup("resume", "Resume an org creation.", newOrgResumeScratchCmd(), newOrgResumeSandboxCmd()),
+		newGroup("refresh", "Refresh a sandbox.", newOrgRefreshSandboxCmd()),
 	)
 }
 

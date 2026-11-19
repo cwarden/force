@@ -588,6 +588,9 @@ func writeStageFrame(w io.Writer, title, subtitle string, messageBlock bool, sta
 			fmt.Fprintf(w, " ✘ %s %s\n", s.label, formatElapsed(s.elapsed))
 		case "skipped":
 			fmt.Fprintf(w, " ◯ %s - Skipped\n", s.label)
+		case "async":
+			// A stage that goes on after the command ends.
+			fmt.Fprintf(w, " ▶ %s %s\n", s.label, formatElapsed(s.elapsed))
 		default:
 			fmt.Fprintf(w, " ◼ %s\n", s.label)
 		}

@@ -109,7 +109,10 @@ The files written by the `template generate` commands come from the salesforcedx
 | `sf org auth show-access-token` | none |  | Compared with sf |
 | `sf org auth show-sfdx-auth-url` | none |  | Error output compared with sf; the URL format follows the sf source |
 | `sf org auth show-user-password` | none | No command of this mode stores a password, so it finds one only in an authorization file that sf wrote. | Compared with sf |
+| `sf org create sandbox` | none | Not compared with sf: it needs a production org with sandbox licenses. The progress display is printed once, when the command ends. | Follows the sf plugin source |
 | `sf org create scratch` | `force login scratch` | `--client-id`, `--no-ancestors`, `--source-org`, `--snapshot`; definition file key `objectSettings`. The `--async` output follows a transcript of `sf`; this mode was not run against a Dev Hub. | Follows the sf plugin source |
+| `sf org refresh sandbox` | none | Not compared with sf: it needs a production org with sandbox licenses. The progress display is printed once, when the command ends. | Follows the sf plugin source |
+| `sf org resume sandbox` | none | Not compared with sf: it needs a production org with sandbox licenses. The progress display is printed once, when the command ends. | Follows the sf plugin source |
 | `sf org resume scratch` | none; reads `~/.sf/scratch-create-cache.json` and finishes the request as `force login scratch` does | The output follows a transcript of `sf`; this mode was not run against a Dev Hub. The case of an org that is not ready follows the plugin source. | Follows the sf plugin source |
 | `sf org create shape` | none |  | Follows the sf plugin source |
 | `sf org create user` | none; creates the user with the SCIM API and writes its authorization file | An org that was authorized with the JWT flow. | Compared with sf |
@@ -262,18 +265,15 @@ A flag listed as unsupported returns an error that names the flag.
 
 ## sf Commands Not Implemented
 
-94 of the 239 commands of `sf` 2.138.6 and its bundled and install-on-first-use plugins are not implemented. Third-party plugins and the retired Functions plugin are not counted. Running one of these commands prints the message `sf` prints for an unknown command and exits with status 127.
+91 of the 239 commands of `sf` 2.138.6 and its bundled and install-on-first-use plugins are not implemented. Third-party plugins and the retired Functions plugin are not counted. Running one of these commands prints the message `sf` prints for an unknown command and exits with status 127.
 
 ### org
 
 | sf command | Summary | What is required |
 |---|---|---|
 | `sf org create agent-user` | Create the default Salesforce user that is used to run an agent. | Create an agent User record and assign permission sets. |
-| `sf org create sandbox` | Create a sandbox org. | Create a SandboxInfo record through the Tooling API and poll SandboxProcess; no force code exists. |
 | `sf org create snapshot` | Create a snapshot of a scratch org. | Create an OrgSnapshot record in the Dev Hub. |
 | `sf org open agent` | Open an agent in your org's Agentforce Builder UI in a browser. | Build the Agentforce Builder URL for an agent and open it as `org open` does. |
-| `sf org refresh sandbox` | Refresh a sandbox org using the sandbox name. | As `org create sandbox`. |
-| `sf org resume sandbox` | Check the status of a sandbox creation, and log in to it if it's ready. | As `org create sandbox`. |
 
 ### project
 
