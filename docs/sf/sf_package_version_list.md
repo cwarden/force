@@ -17,7 +17,7 @@ sf package version list [flags]
       --json                     Format output as json.
   -m, --modified-last-days int   Number of days since the items were modified, starting at 00:00:00 of first day to now.
   -o, --order-by string          Package version fields used to order the list.
-  -p, --packages stringArray     Comma-delimited list of packages (aliases or 0Ho IDs) to list.
+  -p, --packages string          Comma-delimited list of packages (aliases or 0Ho IDs) to list.
   -r, --released                 Display released versions only (IsReleased=true).
       --show-conversions-only    Filter the list output to display only converted package version.
   -v, --target-dev-hub string    Username or alias of the Dev Hub org.

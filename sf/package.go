@@ -644,7 +644,14 @@ func newPackageVersionListCmd() *cobra.Command {
 				return err
 			}
 			conditions := []string{"IsDeprecated != true"}
-			if packages := splitList(cmd, "packages"); len(packages) > 0 {
+			var packages []string
+			list, _ := cmd.Flags().GetString("packages")
+			for _, item := range strings.Split(list, ",") {
+				if item = strings.TrimSpace(item); item != "" {
+					packages = append(packages, item)
+				}
+			}
+			if len(packages) > 0 {
 				ids := make([]string, len(packages))
 				for i, name := range packages {
 					ids[i] = packageID(name)
@@ -719,7 +726,7 @@ func newPackageVersionListCmd() *cobra.Command {
 	cmd.Flags().Bool("concise", false, "Display limited package version details.")
 	cmd.Flags().Bool("show-conversions-only", false, "Filter the list output to display only converted package version.")
 	cmd.Flags().IntP("modified-last-days", "m", 0, "Number of days since the items were modified, starting at 00:00:00 of first day to now.")
-	cmd.Flags().StringArrayP("packages", "p", nil, "Comma-delimited list of packages (aliases or 0Ho IDs) to list.")
+	cmd.Flags().StringP("packages", "p", "", "Comma-delimited list of packages (aliases or 0Ho IDs) to list.")
 	cmd.Flags().BoolP("released", "r", false, "Display released versions only (IsReleased=true).")
 	cmd.Flags().StringP("branch", "b", "", "Branch in source control repository on which the package version is based.")
 	cmd.Flags().StringP("order-by", "o", "", "Package version fields used to order the list.")

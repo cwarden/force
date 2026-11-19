@@ -9,7 +9,7 @@ Reference: `sf` 2.138.6. Update this file as each item is finished.
 - [x] Deprecation warning when a legacy command id is used (`force:org:list`)
 - [x] Legacy flag names of each command (`--classname`, `--outputdir`, ...; 488 names in `sf/flagaliases.go`) and their deprecation warnings
 - [x] Suggestion of the closest username or alias when an org name has no authorization
-- [ ] Error when a flag that takes one value is given twice (`Flag --name can only be specified once`); the last value is used
+- [x] Error when a flag that takes one value is given twice (`Flag --name can only be specified once`)
 - [x] `--json` envelope, error envelope, human error format, table renderer
 - [x] `ErrorAndExit` handler hook
 - [x] `version`, `commands`

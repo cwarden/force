@@ -76,6 +76,11 @@ func Run(args []string, out, errOut io.Writer) int {
 			fmt.Fprintf(errOut, "%s %s\n", paint(errOut, styleBoldYellow, "Warning:"), deprecation)
 		}
 	}
+	if cmd, err := repeatedFlag(root, args); err != nil {
+		state.flagDeprecations = nil
+		cmd.SetContext(root.Context())
+		return writeError(out, errOut, cmd, err, jsonOutput)
+	}
 	// With --json the flag warnings are part of the envelope.  Otherwise
 	// they are printed before the first output of the command.
 	reportFlagDeprecations := func() {
@@ -298,6 +303,75 @@ func rewriteLegacyID(args []string) ([]string, string, string) {
 	return append(words, rest...), "", ""
 }
 
+// repeatedFlag returns the error sf reports when a flag that takes one value
+// is given more than once, with the command the arguments name.  A boolean
+// flag and a flag that takes several values can be repeated.
+func repeatedFlag(root *cobra.Command, args []string) (*cobra.Command, error) {
+	positional := 0
+	for positional < len(args) && !strings.HasPrefix(args[positional], "-") {
+		positional++
+	}
+	cmd, _, err := root.Find(args[:positional])
+	if err != nil || cmd == root {
+		return nil, nil
+	}
+	seen := map[string]bool{}
+	// record counts a flag and reports whether it takes a value.
+	record := func(flag *pflag.Flag) (bool, error) {
+		switch flag.Value.Type() {
+		case "bool":
+			return false, nil
+		case "stringArray", "stringSlice", "intSlice":
+			return true, nil
+		}
+		if seen[flag.Name] {
+			return true, &Error{Message: fmt.Sprintf("Flag --%s can only be specified once", flag.Name), ExitCode: 1}
+		}
+		seen[flag.Name] = true
+		return true, nil
+	}
+	for i := positional; i < len(args); i++ {
+		arg := args[i]
+		switch {
+		case arg == "--":
+			return cmd, nil
+		case strings.HasPrefix(arg, "--"):
+			name, _, hasValue := strings.Cut(arg[2:], "=")
+			flag := cmd.Flags().Lookup(name)
+			if flag == nil {
+				continue
+			}
+			takesValue, err := record(flag)
+			if err != nil {
+				return cmd, err
+			}
+			if takesValue && !hasValue {
+				i++
+			}
+		case len(arg) > 1 && arg[0] == '-':
+			// Short flags can be combined; the first one that takes a
+			// value uses the rest of the argument, or the next argument.
+			for j := 1; j < len(arg); j++ {
+				flag := cmd.Flags().ShorthandLookup(arg[j : j+1])
+				if flag == nil {
+					break
+				}
+				takesValue, err := record(flag)
+				if err != nil {
+					return cmd, err
+				}
+				if takesValue {
+					if j == len(arg)-1 {
+						i++
+					}
+					break
+				}
+			}
+		}
+	}
+	return cmd, nil
+}
+
 // isParseError reports whether sf raises the error while it parses the
 // command line: an unknown flag, a missing required flag, a flag value that
 // fails its check, or a target org that cannot be resolved.
@@ -309,7 +383,7 @@ func isParseError(err error) bool {
 		return true
 	}
 	e := asError(err)
-	return strings.HasSuffix(e.Message, "See more help with --help") || e.Name == "NoDefaultEnvError" || e.Name == "NoDefaultDevHubError"
+	return strings.HasSuffix(e.Message, "See more help with --help") || strings.HasSuffix(e.Message, "can only be specified once") || e.Name == "NoDefaultEnvError" || e.Name == "NoDefaultDevHubError"
 }
 
 // rewriteLegacyFlags replaces the legacy flag names of the command that

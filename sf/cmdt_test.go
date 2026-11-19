@@ -499,3 +499,39 @@ func TestTemplateGenerateApexChecksTheName(t *testing.T) {
 		}
 	}
 }
+
+func TestFlagGivenTwice(t *testing.T) {
+	home := useTempHome(t)
+	want := "Error (1): Flag --name can only be specified once\n\n\n"
+	for _, args := range [][]string{
+		{"template", "generate", "apex", "class", "-n", "A1", "--name", "A2"},
+		{"template", "generate", "apex", "class", "-n", "A1", "-nA2"},
+		{"template", "generate", "apex", "class", "--name=A1", "--name=A2"},
+		// A legacy name counts as the flag it stands for, and the error
+		// replaces its deprecation warning.
+		{"template", "generate", "apex", "class", "-n", "A3", "--classname", "A4"},
+	} {
+		if out, errOut, status := run(args...); status != 1 || out != "" || errOut != want {
+			t.Errorf("%v: status %d, stdout %q, stderr %q", args, status, out, errOut)
+		}
+	}
+	out, _, status := run("template", "generate", "apex", "class", "--name=A1", "--name=A2", "--json")
+	if status != 1 || !strings.Contains(out, `"message": "Flag --name can only be specified once"`) || !strings.Contains(out, `"context": "ApexClass"`) {
+		t.Errorf("json: status %d, %s", status, out)
+	}
+	if entries, _ := os.ReadDir(home); len(entries) != 1 {
+		// Only the secret-tool stub of the test home directory.
+		t.Errorf("files were generated: %v", entries)
+	}
+	// A boolean flag, a flag that takes several values, and a value that
+	// equals a flag name can be repeated.
+	if _, errOut, status := run("alias", "list", "--json", "--json"); status != 0 {
+		t.Errorf("repeated --json: status %d %s", status, errOut)
+	}
+	if _, errOut, status := run("template", "generate", "project", "-n", "pp", "-x", "-x"); status != 0 {
+		t.Errorf("repeated -x: status %d %s", status, errOut)
+	}
+	if _, errOut, status := run("template", "generate", "apex", "class", "-n", "Twice", "-d", "-n"); status != 0 {
+		t.Errorf("a value that looks like a flag: status %d %s", status, errOut)
+	}
+}
