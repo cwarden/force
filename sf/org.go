@@ -43,6 +43,7 @@ func newOrgCmd() *cobra.Command {
 		newGroup("generate", "Generate a password.", newOrgGeneratePasswordCmd()),
 		newOrgLoginCmd(),
 		newOrgLogoutCmd(),
+		newGroup("resume", "Resume an org creation.", newOrgResumeScratchCmd()),
 	)
 }
 

@@ -560,6 +560,14 @@ func wrapLine(text string, width int) []string {
 // deploy and retrieve.  sf redraws the frame while it waits; this prints it
 // once.
 func writeStages(w io.Writer, title, subtitle string, stages []stage, info [][2]string) {
+	writeStageFrame(w, title, subtitle, true, stages, info)
+}
+
+// writeStageFrame is writeStages for a display with or without the message
+// block between the title and the stages.  The deploy and retrieve displays
+// have one, which takes a line also when it is empty; the scratch org
+// displays have none.
+func writeStageFrame(w io.Writer, title, subtitle string, messageBlock bool, stages []stage, info [][2]string) {
 	const width = 50
 	side := (width - len([]rune(title)) - 2) / 2
 	rule := strings.Repeat("─", side)
@@ -569,7 +577,9 @@ func writeStages(w io.Writer, title, subtitle string, stages []stage, info [][2]
 			fmt.Fprintf(w, " %s\n", line)
 		}
 	}
-	fmt.Fprintln(w)
+	if messageBlock {
+		fmt.Fprintln(w)
+	}
 	for _, s := range stages {
 		switch s.state {
 		case "done":
@@ -589,6 +599,33 @@ func writeStages(w io.Writer, title, subtitle string, stages []stage, info [][2]
 	for _, item := range info {
 		if 1+len(item[0])+2+len(item[1]) <= 80 {
 			fmt.Fprintf(w, " %s: %s\n", item[0], item[1])
+			continue
+		}
+		if strings.Contains(item[1], " ") {
+			// A value of several words continues on the next line,
+			// under the start of the value.
+			indent := strings.Repeat(" ", len(item[0])+3)
+			line := ""
+			first := true
+			flush := func() {
+				if first {
+					fmt.Fprintf(w, " %s: %s\n", item[0], line)
+					first = false
+				} else {
+					fmt.Fprintf(w, "%s%s\n", indent, line)
+				}
+			}
+			for _, word := range strings.Split(item[1], " ") {
+				if line != "" && len(indent)+len(line)+1+len(word) > 80 {
+					flush()
+					line = word
+				} else if line == "" {
+					line = word
+				} else {
+					line += " " + word
+				}
+			}
+			flush()
 			continue
 		}
 		// A value that does not fit on the line follows its label, cut

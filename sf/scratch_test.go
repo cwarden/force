@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -196,8 +197,158 @@ func TestOrgCreateScratchValidation(t *testing.T) {
 	if status != 1 || !strings.Contains(errOut, `The scratch org definition key "objectSettings" is not supported`) {
 		t.Errorf("unsupported key: status %d, stderr %q", status, errOut)
 	}
-	_, errOut, status = run("org", "create", "scratch", "-e", "developer", "--async")
-	if status != 1 || !strings.Contains(errOut, "The --async flag is not supported") {
-		t.Errorf("--async: status %d, stderr %q", status, errOut)
+	_, errOut, status = run("org", "create", "scratch", "-e", "developer", "--snapshot", "snap")
+	if status != 1 || !strings.Contains(errOut, "The --snapshot flag is not supported") {
+		t.Errorf("--snapshot: status %d, stderr %q", status, errOut)
+	}
+}
+
+func TestOrgCreateScratchAsyncAndResume(t *testing.T) {
+	org := devHubSetup(t)
+	home := os.Getenv("HOME")
+	cachePath := filepath.Join(home, ".sf", "scratch-create-cache.json")
+	org.handlers["/services/data/v67.0/sobjects/ScratchOrgInfo"] = func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusCreated)
+		io.WriteString(w, `{"id":"2SR000000000001AAA","success":true,"errors":[]}`)
+	}
+	requestStatus := "New"
+	org.handlers["/services/data/v67.0/sobjects/ScratchOrgInfo/2SR000000000001AAA"] = func(w http.ResponseWriter, r *http.Request) {
+		if requestStatus == "Active" {
+			// The scratch org answers as a different user from here on.
+			org.username = "test-scratch@example.com"
+		}
+		io.WriteString(w, `{"attributes":{"type":"ScratchOrgInfo"},"Id":"2SR000000000001AAA","Status":"`+requestStatus+`","SignupUsername":"test-scratch@example.com","LoginUrl":"`+org.URL+`","AuthCode":"auth-code","ScratchOrg":"00D000000000000","ExpirationDate":"2026-12-31","SignupInstance":"CS99","Edition":"Developer"}`)
+	}
+
+	// Nothing to resume yet.
+	_, errOut, status := run("org", "resume", "scratch", "--use-most-recent")
+	if status != 1 || errOut != "Error (NoRecentJobIdError): There are no recent job IDs (ScratchOrgInfo requests) in your cache. Maybe it completed or already resumed?\n\n\n" {
+		t.Errorf("empty cache: status %d, stderr %q", status, errOut)
+	}
+	for _, c := range []struct {
+		args []string
+		want string
+	}{
+		{nil, "Error (2): The following error occurred:\n  Exactly one of the following must be provided: --use-most-recent, --job-id\nSee more help with --help\n\n\n"},
+		{[]string{"-i", "0Af000000000001AAA"}, "Error (InvalidPrefixError): Parsing --job-id \n\tThe id must begin with 2SR.\nSee more help with --help\n\n\n"},
+	} {
+		if _, errOut, status := run(append([]string{"org", "resume", "scratch"}, c.args...)...); status != 2 || errOut != c.want {
+			t.Errorf("%v: status %d, stderr %q", c.args, status, errOut)
+		}
+	}
+
+	out, errOut, status := run("org", "create", "scratch", "-e", "developer", "-a", "later", "--async")
+	if status != 0 {
+		t.Fatalf("async: status %d, stderr %s\n%s", status, errOut, out)
+	}
+	want := `
+ ────────── Creating Scratch Org (async) ──────────
+
+ ✔ Prepare Request T
+ ✔ Send Request T
+ ✔ Done T
+
+ Request Id: 2SR000000000001AAA (HUB/2SR000000000001AAA)
+ OrgId: 00D000000000000
+ Username: test-scratch@example.com
+ Alias: later
+ Elapsed Time: T
+
+Resume scratch org creation by running "sf org resume scratch --job-id 2SR000000000001AAA"
+`
+	if got := strings.ReplaceAll(durationPattern.ReplaceAllString(out, "T"), org.URL, "HUB"); got != want {
+		t.Errorf("async output =\n%s\nwant\n%s", got, want)
+	}
+	cache := regexp.MustCompile(`"timestamp": "[^"]+"`).ReplaceAllString(readFile(t, cachePath), `"timestamp": "T"`)
+	wantCache := `{
+  "2SR000000000001AAA": {
+    "hubUsername": "me@example.com",
+    "hubBaseUrl": "` + org.URL + `",
+    "definitionjson": {
+      "edition": "developer"
+    },
+    "alias": "later",
+    "setDefault": false,
+    "tracksSource": true,
+    "timestamp": "T"
+  }
+}`
+	if cache != wantCache {
+		t.Errorf("cache =\n%s\nwant\n%s", cache, wantCache)
+	}
+	if _, err := lib.ReadSFDXAuthFields("test-scratch@example.com"); err == nil {
+		t.Error("an async create authorized the org")
+	}
+
+	// The org is not ready, and the command does not wait by default.
+	out, errOut, status = run("org", "resume", "scratch", "-i", "2SR000000000001AAA")
+	if status != 1 || errOut != "Error (StillInProgressError): The scratch org isn't ready yet (Status = New).\n\n\nTry this:\n\nIncrease the --wait time because creating a scratch org can take a while.\n\n" ||
+		!strings.Contains(out, " ✘ Send Request ") || !strings.Contains(out, " Request Id: ✘\n OrgId: ✘\n Username: ✘\n") {
+		t.Errorf("not ready: status %d, stderr %q\n%s", status, errOut, out)
+	}
+	// A job id that is not in the cache.
+	_, errOut, status = run("org", "resume", "scratch", "-i", "2SR000000000009AAA")
+	if status != 1 || errOut != "Error (JobIdMismatchError): There are no recent job IDs (ScratchOrgInfo requests) in your cache that match 2SR000000000009AAA. Maybe it completed?\n\n\n" {
+		t.Errorf("other id: status %d, stderr %q", status, errOut)
+	}
+
+	requestStatus = "Active"
+	out, errOut, status = run("org", "resume", "scratch", "--use-most-recent")
+	if status != 0 {
+		t.Fatalf("resume: status %d, stderr %s\n%s", status, errOut, out)
+	}
+	want = `
+ ────────────── Resuming Scratch Org ──────────────
+
+ ◯ Prepare Request - Skipped
+ ✔ Send Request T
+ ◯ Wait For Org - Skipped
+ ✔ Available T
+ ✔ Authenticate T
+ ✔ Deploy Settings T
+ ✔ Done T
+
+ Request Id: 2SR000000000001AAA (HUB/2SR000000000001AAA)
+ OrgId: 00D000000000000
+ Username: test-scratch@example.com
+ Alias: later
+ Elapsed Time: T
+
+
+Your scratch org is ready.
+`
+	if got := strings.ReplaceAll(durationPattern.ReplaceAllString(out, "T"), org.URL, "HUB"); got != want {
+		t.Errorf("resume output =\n%s\nwant\n%s", got, want)
+	}
+	fields, err := lib.ReadSFDXAuthFields("test-scratch@example.com")
+	if err != nil || fields.String("devHubUsername") != "me@example.com" || !fields.Bool("isScratch") || fields["tracksSource"] != true {
+		t.Errorf("scratch auth fields = %v, err %v", fields, err)
+	}
+	if lib.ResolveSFDXUsername("later") != "test-scratch@example.com" {
+		t.Error("the alias was not set")
+	}
+	if got := readFile(t, cachePath); got != "{}" {
+		t.Errorf("cache after resume = %s", got)
+	}
+}
+
+func TestStageFrameWrapsALongValueUnderItsStart(t *testing.T) {
+	var b strings.Builder
+	writeStageFrame(&b, "Resuming Scratch Org", "", false, []stage{{label: "Done", state: "done"}}, [][2]string{
+		{"Request Id", "2SRRp000000FepxOAC (https://example-dev-hub-domain.my.salesforce.com/2SRRp000000FepxOAC)"},
+		{"OrgId", "00DEc00000qjY7d"},
+	})
+	want := `
+ ────────────── Resuming Scratch Org ──────────────
+
+ ✔ Done 0ms
+
+ Request Id: 2SRRp000000FepxOAC
+             (https://example-dev-hub-domain.my.salesforce.com/2SRRp000000FepxOAC)
+ OrgId: 00DEc00000qjY7d
+
+`
+	if b.String() != want {
+		t.Errorf("frame =\n%s\nwant\n%s", b.String(), want)
 	}
 }

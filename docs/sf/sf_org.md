@@ -27,4 +27,5 @@ sf org [flags]
 * [sf org login](sf_org_login.md)	 - Authorize an org for use with Salesforce CLI.
 * [sf org logout](sf_org_logout.md)	 - Log out of a Salesforce org.
 * [sf org open](sf_org_open.md)	 - Open your default scratch org, or another specified org, in a browser.
+* [sf org resume](sf_org_resume.md)	 - Resume an org creation.
 

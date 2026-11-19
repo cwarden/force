@@ -83,7 +83,8 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [x] `api request rest`: `--file` (the `formdata` body mode is not supported)
 - [ ] `commands`: `--columns`, `--deprecated`, `--extended`, `--hidden`, `--no-truncate`, `--sort`, `--tree` (not defined)
 - [ ] `data delete resume`, `data upsert resume`: `--target-org` (not defined; the org comes from the job cache)
-- [ ] `org create scratch`: `--async`, `--client-id`, `--no-ancestors`, `--track-source`, `--source-org`, `--snapshot`
+- [x] `org create scratch`: `--async`, `--track-source` (the output follows a transcript of sf; not run against a Dev Hub)
+- [ ] `org create scratch`: `--client-id`, `--no-ancestors`, `--source-org`, `--snapshot`
 - [ ] `org login web`: `--browser`, `--client-app`, `--username`, `--scopes`
 - [ ] `org open`: `--private`, `--browser`, `--source-file`
 - [ ] `package create`: `--no-namespace`, `--org-dependent`, `--error-notification-username`
@@ -176,7 +177,7 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 
 163 commands of sf 2.138.6 and its bundled and install-on-first-use plugins. `docs/sf-compatibility.md` says what each needs. Commands under "dev" and most under "CLI management" manage the Node.js CLI and its plugins and do not apply to force.
 
-### org (14 open, 13 done)
+### org (13 open, 14 done)
 
 - [x] `org assign permset` (follows the sf plugin source)
 - [x] `org assign permsetlicense` (follows the sf plugin source)
@@ -204,7 +205,7 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [ ] `org open agent`
 - [ ] `org refresh sandbox`
 - [ ] `org resume sandbox`
-- [ ] `org resume scratch`
+- [x] `org resume scratch` (the output follows a transcript of sf; not run against a Dev Hub; an org that is not ready follows the plugin source)
 
 ### project (6 open, 7 done)
 

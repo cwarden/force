@@ -108,7 +108,8 @@ The files written by the `template generate` commands come from the salesforcedx
 | `sf org auth show-access-token` | none |  | Compared with sf |
 | `sf org auth show-sfdx-auth-url` | none |  | Error output compared with sf; the URL format follows the sf source |
 | `sf org auth show-user-password` | none | No command of this mode stores a password, so it finds one only in an authorization file that sf wrote. | Follows the sf plugin source |
-| `sf org create scratch` | `force login scratch` | `--async`, `--client-id`, `--no-ancestors`, `--track-source`, `--source-org`, `--snapshot`; definition file key `objectSettings`. | Follows the sf plugin source |
+| `sf org create scratch` | `force login scratch` | `--client-id`, `--no-ancestors`, `--source-org`, `--snapshot`; definition file key `objectSettings`. The `--async` output follows a transcript of `sf`; this mode was not run against a Dev Hub. | Follows the sf plugin source |
+| `sf org resume scratch` | none; reads `~/.sf/scratch-create-cache.json` and finishes the request as `force login scratch` does | The output follows a transcript of `sf`; this mode was not run against a Dev Hub. The case of an org that is not ready follows the plugin source. | Follows the sf plugin source |
 | `sf org create user` | none; creates the user with the SCIM API and writes its authorization file | An org that was authorized with the JWT flow. | Compared with sf |
 | `sf org delete scratch` | none |  | Follows the sf plugin source |
 | `sf org display` | `force whoami`, `force active` | An HTML response from the org, such as the one an expired scratch org gives, is reported in other words than in `sf`. | Compared with sf |
@@ -243,7 +244,7 @@ A flag listed as unsupported returns an error that names the flag.
 
 ## sf Commands Not Implemented
 
-113 of the 239 commands of `sf` 2.138.6 and its bundled and install-on-first-use plugins are not implemented. Third-party plugins and the retired Functions plugin are not counted. Running one of these commands prints the message `sf` prints for an unknown command and exits with status 127.
+112 of the 239 commands of `sf` 2.138.6 and its bundled and install-on-first-use plugins are not implemented. Third-party plugins and the retired Functions plugin are not counted. Running one of these commands prints the message `sf` prints for an unknown command and exits with status 127.
 
 ### org
 
@@ -262,7 +263,6 @@ A flag listed as unsupported returns an error that names the flag.
 | `sf org open agent` | Open an agent in your org's Agentforce Builder UI in a browser. | Build the Agentforce Builder URL for an agent and open it as `org open` does. |
 | `sf org refresh sandbox` | Refresh a sandbox org using the sandbox name. | As `org create sandbox`. |
 | `sf org resume sandbox` | Check the status of a sandbox creation, and log in to it if it's ready. | As `org create sandbox`. |
-| `sf org resume scratch` | Resume the creation of an incomplete scratch org. | Poll a ScratchOrgInfo by Id and finish as `org create scratch` does; needs `~/.sf/scratch-create-cache.json`. |
 
 ### project
 
