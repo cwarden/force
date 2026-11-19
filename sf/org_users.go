@@ -274,28 +274,8 @@ func newOrgAssignPermsetCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			escape := func(value string) string { return strings.ReplaceAll(value, "'", `\'`) }
 			successes, failures, err := assignTo(cmd, org,
-				func(name string) (string, error) {
-					// A name of the form ns__Name is a permission set in
-					// the namespace ns.
-					soql := fmt.Sprintf("SELECT Id FROM PermissionSet WHERE Name='%s'", escape(name))
-					namespace, base, namespaced := strings.Cut(name, "__")
-					if namespaced {
-						soql = fmt.Sprintf("SELECT Id FROM PermissionSet WHERE Name='%s' AND NamespacePrefix='%s'", escape(base), escape(namespace))
-					}
-					id, found, err := firstRecordID(org, soql)
-					if err != nil {
-						return "", err
-					}
-					if !found {
-						if namespaced {
-							return "", fmt.Errorf("Permission set \"%s\" for namespace \"%s\" not found in target org. Do you need to push source or install the package?", base, namespace)
-						}
-						return "", fmt.Errorf("Permission set \"%s\" not found in target org. Do you need to push source?", name)
-					}
-					return id, nil
-				},
+				func(name string) (string, error) { return permissionSetID(org, name) },
 				func(userID, permissionSetID string) error {
 					fields := newOrderedMap()
 					fields.Set("AssigneeId", userID)
@@ -351,28 +331,56 @@ func newOrgAssignPermsetLicenseCmd() *cobra.Command {
 	return cmd
 }
 
-// passwordCharacters are the character sets sf uses for each password
-// complexity from 0 to 5.
-var passwordCharacters = []string{
-	"abcdefghijklmnopqrstuvwxyz",
-	"abcdefghijklmnopqrstuvwxyz0123456789",
-	"abcdefghijklmnopqrstuvwxyz!@#$%^&*()[]|-",
-	"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
-	"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!@#$%^&*()[]|-",
-	"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()[]|-",
+// The character classes of a generated password, and the classes each
+// complexity level uses besides lower case letters.
+const (
+	passwordLower   = "abcdefghijklmnopqrstuvwxyz"
+	passwordUpper   = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	passwordNumbers = "1234567890"
+	passwordSymbols = "!@#$%^&*()_[]|-"
+)
+
+var passwordClasses = [][]string{
+	{},
+	{passwordNumbers},
+	{passwordSymbols},
+	{passwordNumbers, passwordUpper},
+	{passwordSymbols, passwordUpper},
+	{passwordSymbols, passwordNumbers, passwordUpper},
 }
 
+// generatePassword builds a password the way sf does: one character of
+// each class of the complexity level, lower case letters for the rest, in
+// a random order.
 func generatePassword(length, complexity int) (string, error) {
-	characters := passwordCharacters[complexity]
-	var b strings.Builder
-	for b.Len() < length {
+	pick := func(characters string) (byte, error) {
 		index, err := rand.Int(rand.Reader, big.NewInt(int64(len(characters))))
+		if err != nil {
+			return 0, err
+		}
+		return characters[index.Int64()], nil
+	}
+	classes := append(append([]string{}, passwordClasses[complexity]...), passwordLower)
+	password := make([]byte, 0, length)
+	for i := 0; len(password) < length; i++ {
+		class := passwordLower
+		if i < len(classes) {
+			class = classes[i]
+		}
+		character, err := pick(class)
 		if err != nil {
 			return "", err
 		}
-		b.WriteByte(characters[index.Int64()])
+		password = append(password, character)
 	}
-	return b.String(), nil
+	for i := len(password) - 1; i > 0; i-- {
+		index, err := rand.Int(rand.Reader, big.NewInt(int64(i+1)))
+		if err != nil {
+			return "", err
+		}
+		password[i], password[index.Int64()] = password[index.Int64()], password[i]
+	}
+	return string(password), nil
 }
 
 func newOrgGeneratePasswordCmd() *cobra.Command {

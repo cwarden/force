@@ -109,6 +109,7 @@ The files written by the `template generate` commands come from the salesforcedx
 | `sf org auth show-sfdx-auth-url` | none |  | Error output compared with sf; the URL format follows the sf source |
 | `sf org auth show-user-password` | none | No command of this mode stores a password, so it finds one only in an authorization file that sf wrote. | Follows the sf plugin source |
 | `sf org create scratch` | `force login scratch` | `--async`, `--client-id`, `--no-ancestors`, `--track-source`, `--source-org`, `--snapshot`; definition file key `objectSettings`. | Follows the sf plugin source |
+| `sf org create user` | none; creates the user with the SCIM API and writes its authorization file | An org that was authorized with the JWT flow. | Compared with sf |
 | `sf org delete scratch` | none |  | Follows the sf plugin source |
 | `sf org display` | `force whoami`, `force active` | An HTML response from the org, such as the one an expired scratch org gives, is reported in other words than in `sf`. | Compared with sf |
 | `sf org display user` | `force whoami` |  | Compared with sf |
@@ -242,7 +243,7 @@ A flag listed as unsupported returns an error that names the flag.
 
 ## sf Commands Not Implemented
 
-114 of the 239 commands of `sf` 2.138.6 and its bundled and install-on-first-use plugins are not implemented. Third-party plugins and the retired Functions plugin are not counted. Running one of these commands prints the message `sf` prints for an unknown command and exits with status 127.
+113 of the 239 commands of `sf` 2.138.6 and its bundled and install-on-first-use plugins are not implemented. Third-party plugins and the retired Functions plugin are not counted. Running one of these commands prints the message `sf` prints for an unknown command and exits with status 127.
 
 ### org
 
@@ -252,7 +253,6 @@ A flag listed as unsupported returns an error that names the flag.
 | `sf org create sandbox` | Create a sandbox org. | Create a SandboxInfo record through the Tooling API and poll SandboxProcess; no force code exists. |
 | `sf org create shape` | Create a scratch org configuration (shape) based on the specified source org. | Create a ShapeRepresentation record. |
 | `sf org create snapshot` | Create a snapshot of a scratch org. | Create an OrgSnapshot record in the Dev Hub. |
-| `sf org create user` | Create a user for a scratch org. | Create a User from a definition file, set its password and write an authorization file. |
 | `sf org delete sandbox` | Delete a sandbox. | Delete the SandboxInfo record and remove the authorization file. |
 | `sf org delete shape` | Delete all org shapes for a target org. | Delete ShapeRepresentation records. |
 | `sf org delete snapshot` | Delete a scratch org snapshot. | Delete an OrgSnapshot record. |

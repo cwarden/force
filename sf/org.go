@@ -36,7 +36,7 @@ func newOrgCmd() *cobra.Command {
 			newOrgAuthShowCmd("show-user-password", "Display the locally stored password of an org user.", "OrgAuthShowUserPassword"),
 		),
 		newGroup("assign", "Assign permission sets and licenses.", newOrgAssignPermsetCmd(), newOrgAssignPermsetLicenseCmd()),
-		newGroup("create", "Create scratch orgs.", newOrgCreateScratchCmd()),
+		newGroup("create", "Create scratch orgs and users.", newOrgCreateScratchCmd(), newOrgCreateUserCmd()),
 		newGroup("delete", "Delete scratch orgs.", newOrgDeleteScratchCmd()),
 		newGroup("disable", "Disable source tracking.", newOrgTrackingCmd(false)),
 		newGroup("enable", "Enable source tracking.", newOrgTrackingCmd(true)),

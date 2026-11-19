@@ -140,6 +140,24 @@ func TestGeneratePasswordUsesTheCharacterSet(t *testing.T) {
 	if err != nil || len(password) != 40 || strings.ToLower(password) != password || strings.ContainsAny(password, "0123456789!@#") {
 		t.Errorf("complexity 0 password = %q, err %v", password, err)
 	}
+	// A password of the highest complexity has a character of every
+	// class, as an org requires, and lower case letters otherwise.
+	for i := 0; i < 50; i++ {
+		password, err := generatePassword(13, 5)
+		if err != nil || len(password) != 13 || !strings.ContainsAny(password, passwordSymbols) || !strings.ContainsAny(password, passwordNumbers) ||
+			!strings.ContainsAny(password, passwordUpper) || !strings.ContainsAny(password, passwordLower) {
+			t.Fatalf("complexity 5 password = %q, err %v", password, err)
+		}
+		other := 0
+		for _, character := range password {
+			if !strings.ContainsRune(passwordLower, character) {
+				other++
+			}
+		}
+		if other != 3 {
+			t.Fatalf("complexity 5 password %q has %d characters that are not lower case letters", password, other)
+		}
+	}
 }
 
 func TestOrgDeleteScratch(t *testing.T) {
