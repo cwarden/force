@@ -3,6 +3,8 @@ package sf
 import (
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -92,5 +94,77 @@ func TestPackagePushUpgradeCommands(t *testing.T) {
 	}
 	if _, errOut, code = run("package", "push-upgrade", "abort", "-i", "033000000000001AAA"); code == 0 || !strings.Contains(errOut, "The id must begin with 0DV.") {
 		t.Errorf("abort with another id: status %d, stderr %q", code, errOut)
+	}
+}
+
+func TestPackagePushUpgradeSchedule(t *testing.T) {
+	org := devHubSetup(t)
+	bulk := serveBulk(org)
+	var requests []string
+	org.handlers["/services/data/v67.0/sobjects/packagepushrequest/"] = func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		requests = append(requests, r.Method+" "+string(body))
+		w.WriteHeader(http.StatusCreated)
+		io.WriteString(w, `{"id":"0DV000000000001AAA","success":true,"errors":[]}`)
+	}
+	org.handlers["/services/data/v67.0/sobjects/packagepushrequest/0DV000000000001AAA"] = func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		requests = append(requests, r.Method+" "+string(body))
+		w.WriteHeader(http.StatusNoContent)
+	}
+	org.handlers["/services/data/v67.0/jobs/ingest/750000000000001AAA/failedResults"] = func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, "\"sf__Id\",\"sf__Error\",PackagePushRequestId,SubscriberOrganizationKey\n")
+	}
+
+	expectRun(t, 0, "Push upgrade has been scheduled. To check the status of this push upgrade, use push upgrade request ID [0DV000000000001AAA] with either \"package push-upgrade list\" or \"package push-upgrade report\".\n"+
+		"Orgs scheduled for push upgrade: {00D000000000001, 00D000000000002}\n",
+		"package", "push-upgrade", "schedule", "-p", "04t000000000001AAA", "-l", "00D000000000001, 00D000000000002", "-t", "2026-12-01T00:00:00Z", "--migrate-to-2gp")
+	if len(requests) != 2 || requests[0] != `POST {"PackageVersionId":"04t000000000001AAA","ScheduledStartTime":"2026-12-01T00:00:00Z","IsMigration":true}` || requests[1] != `PATCH {"Status":"Pending"}` {
+		t.Errorf("requests = %q", requests)
+	}
+	if bulk.created["object"] != "PackagePushJob" || bulk.created["operation"] != "insert" ||
+		bulk.uploaded != "PackagePushRequestId,SubscriberOrganizationKey\n0DV000000000001AAA,00D000000000001\n0DV000000000001AAA,00D000000000002\n" {
+		t.Errorf("bulk job %v, data %q", bulk.created, bulk.uploaded)
+	}
+
+	// An org file keeps the lines that are 15 character org Ids.
+	file := filepath.Join(t.TempDir(), "orgs.csv")
+	os.WriteFile(file, []byte("00D000000000003\r\nnot an org\n\n00D000000000004AAA\n"), 0o644)
+	out, _, status := run("package", "push-upgrade", "schedule", "-p", "04t000000000001AAA", "-f", file, "--json")
+	if status != 0 || !strings.Contains(out, "\"PushRequestId\": \"0DV000000000001AAA\",\n    \"Status\": \"Pending\"") || !strings.HasSuffix(bulk.uploaded, "\n0DV000000000001AAA,00D000000000003\n") {
+		t.Errorf("org file: status %d, data %q\n%s", status, bulk.uploaded, out)
+	}
+
+	_, errOut, status := run("package", "push-upgrade", "schedule", "-p", "04t000000000001AAA")
+	if status != 1 || !strings.HasPrefix(errOut, "Error (SfError): Can’t schedule the package push upgrade. You must specify either a list of orgs, or a file") {
+		t.Errorf("no orgs: status %d, stderr %q", status, errOut)
+	}
+	_, errOut, status = run("package", "push-upgrade", "schedule", "-p", "04t000000000001AAA", "-l", "00D000000000001", "-f", file)
+	if status != 2 || !strings.Contains(errOut, "--org-list=00D000000000001 cannot also be provided when using --org-file") {
+		t.Errorf("both: status %d, stderr %q", status, errOut)
+	}
+
+	// A job with failed rows fails the command and leaves a log file.
+	project, _ := os.Getwd()
+	org.handlers["/services/data/v67.0/jobs/ingest/750000000000001AAA/failedResults"] = func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, "\"sf__Id\",\"sf__Error\",PackagePushRequestId,SubscriberOrganizationKey\n\"\",\"INVALID_OPERATION:The org is not a subscriber\",0DV000000000001AAA,00D000000000001\n")
+	}
+	deleted := false
+	previous := org.handlers["/services/data/v67.0/jobs/ingest/750000000000001AAA"]
+	org.handlers["/services/data/v67.0/jobs/ingest/750000000000001AAA"] = func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "DELETE" {
+			deleted = true
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		previous(w, r)
+	}
+	log := filepath.Join(project, "job_errors", "push_request_0DV000000000001AAA_errors.log")
+	_, errOut, status = run("package", "push-upgrade", "schedule", "-p", "04t000000000001AAA", "-l", "00D000000000001")
+	if status != 1 || errOut != "Error (SfError): Push upgrade failed, job errors have been written to file: "+log+"\n\n\n" || !deleted {
+		t.Errorf("failed job: status %d, deleted %v, stderr %q", status, deleted, errOut)
+	}
+	if data, _ := os.ReadFile(log); string(data) != `Job 1 Error:"INVALID_OPERATION:The org is not a subscriber"` {
+		t.Errorf("log = %q", data)
 	}
 }

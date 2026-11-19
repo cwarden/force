@@ -276,7 +276,7 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [x] `template generate static-resource`
 - [ ] `template generate ui-bundle`
 
-### package (2 open, 14 done)
+### package (1 open, 15 done)
 
 - [ ] `package convert`
 - [x] `package delete` (follows the sf plugin source)
@@ -284,7 +284,7 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [x] `package push-upgrade abort` (follows the sf plugin source)
 - [x] `package push-upgrade list` (follows the sf plugin source; the output for a package without requests was compared with sf)
 - [x] `package push-upgrade report` (follows the sf plugin source)
-- [ ] `package push-upgrade schedule`
+- [x] `package push-upgrade schedule` (follows the sf plugin source; not compared with sf)
 - [x] `package uninstall report` (follows the sf plugin source)
 - [x] `package update` (follows the sf plugin source)
 - [x] `package version create list` (compared with sf against a Dev Hub)

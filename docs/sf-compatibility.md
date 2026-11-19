@@ -146,6 +146,7 @@ The files written by the `template generate` commands come from the salesforcedx
 | `sf package push-upgrade abort` | none |  | Follows the sf plugin source |
 | `sf package push-upgrade list` | none | Only the output for a package without push upgrade requests was compared with sf. | Follows the sf plugin source |
 | `sf package push-upgrade report` | none |  | Follows the sf plugin source |
+| `sf package push-upgrade schedule` | none | Not compared with sf: it upgrades a package in subscriber orgs. | Follows the sf plugin source |
 | `sf package uninstall` | `force package uninstall` |  | Follows the sf plugin source |
 | `sf package uninstall report` | none |  | Follows the sf plugin source |
 | `sf package update` | none | `--skip-ancestor-check` | Follows the sf plugin source |
@@ -260,7 +261,7 @@ A flag listed as unsupported returns an error that names the flag.
 
 ## sf Commands Not Implemented
 
-96 of the 239 commands of `sf` 2.138.6 and its bundled and install-on-first-use plugins are not implemented. Third-party plugins and the retired Functions plugin are not counted. Running one of these commands prints the message `sf` prints for an unknown command and exits with status 127.
+95 of the 239 commands of `sf` 2.138.6 and its bundled and install-on-first-use plugins are not implemented. Third-party plugins and the retired Functions plugin are not counted. Running one of these commands prints the message `sf` prints for an unknown command and exits with status 127.
 
 ### org
 
@@ -319,7 +320,6 @@ A flag listed as unsupported returns an error that names the flag.
 | sf command | Summary | What is required |
 |---|---|---|
 | `sf package convert` | Convert a managed-released first-generation managed package into a second-generation managed package. | Create a Package2VersionCreateRequest for a first-generation package. |
-| `sf package push-upgrade schedule` | Schedule a package push upgrade. | PackagePushRequest and PackagePushJob records; no force code exists. |
 
 ### community
 
