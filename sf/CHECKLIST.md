@@ -63,9 +63,9 @@ Reference: `sf` 2.138.6. Update this file as each item is finished.
 - [x] `project convert source`, `project convert mdapi`
 
 ## Step 7: package
-- [x] `package create`, `package list` (follows the sf plugin source; not compared with sf against a Dev Hub)
+- [x] `package create` (follows the sf plugin source; not compared with sf against a Dev Hub), `package list` (compared with sf against a Dev Hub)
 - [x] `package install`, `package installed list`, `package uninstall` (follows the sf plugin source; not compared with sf against a Dev Hub)
-- [x] `package version create`, `package version list`, `package version report`, `package version promote` (follows the sf plugin source; not compared with sf against a Dev Hub)
+- [x] `package version create`, `package version report`, `package version promote` (follow the sf plugin source; for the report, only the error for a missing version was compared with sf), `package version list` (compared with sf against a Dev Hub, including `--concise`, `--verbose` and `--released`)
 
 ## Step 8: Documentation And Build
 - [x] `docs/sf-compatibility.md` (mapping both directions, missing commands); `TestCompatibilityDocumentListsEveryCommand` fails when a command has no row
@@ -135,7 +135,7 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [ ] `project convert source`: the order of elements in a composed custom object (sf writes the fields and other child components after the elements of the object file; this mode writes all elements in alphabetical order)
 - [ ] `project convert mdapi --metadata`, `--manifest`: a child component named on its own, such as `CustomField:Invoice__c.Amount__c` (only whole objects are selected)
 - [ ] Unknown metadata type name: the "Did you mean one of the following types?" line (needs sf's list of all type names)
-- [ ] `package version list`: ancestor version numbers and code coverage
+- [x] `package version list`: ancestor version numbers and code coverage (code coverage compared with sf; the Dev Hub used for the comparison had no version with an ancestor, so that lookup follows the plugin source)
 - [ ] `force data bulk delete`, `force data bulk upsert`: batches of 10,000 records (the file is sent as one batch)
 - [x] `project retrieve start`: `fileProperties`, `id` and `messages` in the JSON result, failed entries in `files` and the Warnings table for components the org does not have (compared with sf against a scratch org)
 - [ ] `api request rest --include`: headers in the order received
@@ -287,8 +287,8 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [ ] `package push-upgrade schedule`
 - [x] `package uninstall report` (follows the sf plugin source)
 - [x] `package update` (follows the sf plugin source)
-- [x] `package version create list` (follows the sf plugin source)
-- [x] `package version create report` (follows the sf plugin source)
+- [x] `package version create list` (compared with sf against a Dev Hub)
+- [x] `package version create report` (follows the sf plugin source; the error for a missing request was compared with sf)
 - [x] `package version delete` (follows the sf plugin source)
 - [ ] `package version displayancestry`
 - [ ] `package version displaydependencies`

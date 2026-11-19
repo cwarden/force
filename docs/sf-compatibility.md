@@ -139,17 +139,17 @@ The files written by the `template generate` commands come from the salesforcedx
 | `sf package install` | `force package install` | `--publish-wait`, `--skip-handlers`. Does not prompt about remote site settings; they are enabled. | Follows the sf plugin source |
 | `sf package install report` | none |  | Follows the sf plugin source |
 | `sf package installed list` | `force package installed` |  | Follows the sf plugin source |
-| `sf package list` | `force package list` |  | Follows the sf plugin source |
+| `sf package list` | `force package list` |  | Compared with sf |
 | `sf package uninstall` | `force package uninstall` |  | Follows the sf plugin source |
 | `sf package uninstall report` | none |  | Follows the sf plugin source |
 | `sf package update` | none | `--skip-ancestor-check` | Follows the sf plugin source |
 | `sf package version create` | `force package version create` | `--installation-key`, `--definition-file`, `--branch`, `--post-install-script`, `--post-install-url`, `--releasenotes-url`, `--uninstall-script`, `--language`, `--generate-pkg-zip`, `--skip-ancestor-check`, `--verbose`. `--wait` is accepted; the command always waits. | Follows the sf plugin source |
-| `sf package version create list` | none | `--show-conversions-only`, `--verbose` | Follows the sf plugin source |
-| `sf package version create report` | none |  | Follows the sf plugin source |
+| `sf package version create list` | none | `--show-conversions-only`, `--verbose` | Compared with sf |
+| `sf package version create report` | none | Only the error for a request that does not exist was compared with sf. | Follows the sf plugin source |
 | `sf package version delete` | none |  | Follows the sf plugin source |
-| `sf package version list` | `force package version list` | `--show-conversions-only`. Ancestor version numbers and code coverage are not looked up. | Follows the sf plugin source |
+| `sf package version list` | `force package version list` | `--show-conversions-only`. The Dev Hub used for the comparison had no version with an ancestor, so the ancestor version number follows the plugin source. | Compared with sf |
 | `sf package version promote` | `force package version release` |  | Follows the sf plugin source |
-| `sf package version report` | `force package version get` | `--verbose` is accepted and adds nothing. | Follows the sf plugin source |
+| `sf package version report` | `force package version get` | `--verbose` is accepted and adds nothing. Only the error for a version that does not exist was compared with sf. | Follows the sf plugin source |
 | `sf package version update` | none |  | Follows the sf plugin source |
 | `sf package1 version display` | none; queries MetadataPackageVersion with the Tooling API | The table of a result follows the plugin source; the org used for the comparison had no first-generation package. | Compared with sf |
 | `sf package1 version list` | none; queries MetadataPackageVersion with the Tooling API | The table of a result follows the plugin source; the org used for the comparison had no first-generation package. | Compared with sf |
