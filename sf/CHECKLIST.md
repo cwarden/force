@@ -198,11 +198,11 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [ ] `project reset tracking`
 - [ ] `project retrieve preview`
 
-### data (3 open, 0 done)
+### data (0 open, 3 done)
 
-- [ ] `data create file`
-- [ ] `data export tree`
-- [ ] `data import tree`
+- [x] `data create file` (follows the sf plugin source)
+- [x] `data export tree`
+- [x] `data import tree` (follows the sf plugin source)
 
 ### apex (1 open, 1 done)
 

@@ -70,15 +70,18 @@ Logins, aliases and config values written by this mode were read by `sf` 2.138.6
 | `sf config set` | `force active <account>` (for `target-org`) | An unknown config name is reported as a failure; sf asks whether a similar name was meant. | Compared with sf |
 | `sf config unset` | none |  | Compared with sf |
 | `sf data bulk results` | `force bulk2 results` |  | Follows the sf plugin source |
+| `sf data create file` | none | Uploads the file as base64 in a JSON request; sf sends a multipart request. | Follows the sf plugin source |
 | `sf data create record` | `force record create` |  | Compared with sf |
 | `sf data delete bulk` | `force bulk2 delete`, `force bulk2 hardDelete` | Prints the last frame of the progress display once. | Compared with sf |
 | `sf data delete record` | `force record delete` |  | Compared with sf |
 | `sf data delete resume` | `force bulk2 job` |  | Follows the sf plugin source |
 | `sf data export bulk` | `force bulk2 query` | Prints the last frame of the progress display once. | Compared with sf |
 | `sf data export resume` | `force bulk2 job` |  | Follows the sf plugin source |
+| `sf data export tree` | none | With several `--query` values each file is named after the object type of its query; sf names it after the query text. | Compared with sf |
 | `sf data get record` | `force record get` |  | Compared with sf |
 | `sf data import bulk` | `force bulk2 insert` | Prints the last frame of the progress display once. | Compared with sf |
 | `sf data import resume` | `force bulk2 job` |  | Follows the sf plugin source |
+| `sf data import tree` | none |  | Follows the sf plugin source |
 | `sf data query` | `force query` | Child records from a subquery are printed as JSON in a table cell. | Compared with sf |
 | `sf data resume` | `force bulk job`, `force bulk batch` |  | Follows the sf plugin source |
 | `sf data search` | `force search` |  | Follows the sf plugin source |
@@ -210,7 +213,7 @@ A flag listed as unsupported returns an error that names the flag.
 
 ## sf Commands Not Implemented
 
-141 of the 239 commands of `sf` 2.138.6 and its bundled and install-on-first-use plugins are not implemented. Third-party plugins and the retired Functions plugin are not counted. Running one of these commands prints the message `sf` prints for an unknown command and exits with status 127.
+138 of the 239 commands of `sf` 2.138.6 and its bundled and install-on-first-use plugins are not implemented. Third-party plugins and the retired Functions plugin are not counted. Running one of these commands prints the message `sf` prints for an unknown command and exits with status 127.
 
 ### org
 
@@ -250,14 +253,6 @@ A flag listed as unsupported returns an error that names the flag.
 | `sf project deploy preview` | Preview a deployment to see what will deploy to the org, the potential conflicts, and the ignored files. | Source tracking is not implemented. |
 | `sf project reset tracking` | Reset local and remote source tracking. | Source tracking is not implemented. |
 | `sf project retrieve preview` | Preview a retrieval to see what will be retrieved from the org, the potential conflicts, and the ignored files. | Source tracking is not implemented. |
-
-### data
-
-| sf command | Summary | What is required |
-|---|---|---|
-| `sf data create file` | Upload a local file to an org. | Upload a ContentVersion and, with `--parent-id`, create a ContentDocumentLink. |
-| `sf data export tree` | Export data from an org into one or more JSON files. | Query records and write sObject tree JSON files with reference ids. |
-| `sf data import tree` | Import data from one or more JSON files into an org. | Post sObject tree files to the composite tree resource and resolve references between files. |
 
 ### apex
 

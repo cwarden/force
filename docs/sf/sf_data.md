@@ -16,7 +16,7 @@ sf data [flags]
 
 * [sf](sf.md)	 - sf-compatible mode of the force CLI
 * [sf data bulk](sf_data_bulk.md)	 - Get the results of bulk jobs.
-* [sf data create](sf_data_create.md)	 - Create a record.
+* [sf data create](sf_data_create.md)	 - Create a record or upload a file.
 * [sf data delete](sf_data_delete.md)	 - Delete records.
 * [sf data export](sf_data_export.md)	 - Export records.
 * [sf data get](sf_data_get.md)	 - Retrieve a record.

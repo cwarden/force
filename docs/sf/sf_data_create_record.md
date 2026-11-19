@@ -20,5 +20,5 @@ sf data create record [flags]
 
 ### SEE ALSO
 
-* [sf data create](sf_data_create.md)	 - Create a record.
+* [sf data create](sf_data_create.md)	 - Create a record or upload a file.
 
