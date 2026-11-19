@@ -642,6 +642,7 @@ func newPackage1VersionDisplayCmd() *cobra.Command {
 
 func newPackage1Cmd() *cobra.Command {
 	return newGroup("package1", "Commands to develop first-generation managed and unmanaged packages.",
-		newGroup("version", "Commands for first-generation package versions.", newPackage1VersionListCmd(), newPackage1VersionDisplayCmd()),
+		newGroup("version", "Commands for first-generation package versions.", newPackage1VersionListCmd(), newPackage1VersionDisplayCmd(),
+			withSubcommands(newPackage1VersionCreateCmd(), newPackage1VersionCreateGetCmd())),
 	)
 }
