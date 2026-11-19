@@ -1,0 +1,198 @@
+// Package sf implements the command tree used when the force binary is
+// invoked under the name sf.  Commands accept the names and flags of the
+// Salesforce sf CLI and print output in its format.
+package sf
+
+import (
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
+
+	forceerror "github.com/ForceCLI/force/error"
+)
+
+// CompatVersion is the sf release whose commands, flags and output this
+// package reproduces.
+const CompatVersion = "2.138.6"
+
+// InvokedAsSf reports whether argv0 names the binary sf.
+func InvokedAsSf(argv0 string) bool {
+	name := filepath.Base(strings.ReplaceAll(argv0, "\\", "/"))
+	if len(name) > 4 && strings.EqualFold(name[len(name)-4:], ".exe") {
+		name = name[:len(name)-4]
+	}
+	return name == "sf"
+}
+
+// Execute runs the sf command tree with the process arguments and exits.
+func Execute() {
+	os.Exit(Run(os.Args[1:], os.Stdout, os.Stderr))
+}
+
+// Run executes the sf command tree and returns the exit status.
+func Run(args []string, out, errOut io.Writer) int {
+	args = normalizeArgs(args)
+	jsonOutput := hasJSONFlag(args)
+	root := NewRootCmd()
+	root.SetArgs(args)
+	root.SetOut(out)
+	root.SetErr(errOut)
+
+	// lib reports some failures by calling ErrorAndExit.  Print those in
+	// sf's format.  ErrorAndExit exits with status 1 after the handler.
+	previous := forceerror.ExitHandler
+	forceerror.ExitHandler = func(message string) {
+		writeError(out, errOut, nil, &Error{Message: message, ExitCode: 1}, jsonOutput)
+	}
+	defer func() { forceerror.ExitHandler = previous }()
+
+	cmd, err := root.ExecuteC()
+	if err != nil {
+		return writeError(out, errOut, cmd, err, jsonOutput)
+	}
+	return 0
+}
+
+// NewRootCmd builds a new sf command tree.  Each call returns independent
+// commands and flag values.
+func NewRootCmd() *cobra.Command {
+	root := &cobra.Command{
+		Use:           "sf",
+		Short:         "sf-compatible mode of the force CLI",
+		Args:          cobra.ArbitraryArgs,
+		SilenceErrors: true,
+		SilenceUsage:  true,
+		Version:       versionString(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) > 0 {
+				return &unknownCommandError{id: args[0]}
+			}
+			return cmd.Help()
+		},
+	}
+	root.SetVersionTemplate("{{.Version}}\n")
+	root.Flags().BoolP("version", "v", false, "Show the version")
+	root.SetGlobalNormalizationFunc(normalizeFlagName)
+	root.AddCommand(newVersionCmd())
+	return root
+}
+
+// newGroup returns a command that only holds subcommands, such as "org" or
+// "org login".
+func newGroup(use, short string, children ...*cobra.Command) *cobra.Command {
+	group := &cobra.Command{
+		Use:   use,
+		Short: short,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) > 0 {
+				id := strings.Join(append(strings.Fields(cmd.CommandPath())[1:], args[0]), ":")
+				return &unknownCommandError{id: id}
+			}
+			return cmd.Help()
+		},
+	}
+	group.AddCommand(children...)
+	return group
+}
+
+// legacyFlagNames maps flag names from sfdx to the sf names.
+var legacyFlagNames = map[string]string{
+	"targetusername":       "target-org",
+	"targetdevhubusername": "target-dev-hub",
+	"target-hub-org":       "target-dev-hub",
+	"apiversion":           "api-version",
+}
+
+func normalizeFlagName(f *pflag.FlagSet, name string) pflag.NormalizedName {
+	if current, ok := legacyFlagNames[name]; ok {
+		return pflag.NormalizedName(current)
+	}
+	return pflag.NormalizedName(name)
+}
+
+// normalizeArgs converts the colon form of a command id ("org:login:web") to
+// separate words and replaces legacy ids ("force:org:list", "deploy
+// metadata") with the current id.
+func normalizeArgs(args []string) []string {
+	if len(args) == 0 || strings.HasPrefix(args[0], "-") {
+		return args
+	}
+	words := strings.Split(args[0], ":")
+	rest := args[1:]
+	// The words of an id can also be given as separate arguments.
+	positional := 0
+	for positional < len(rest) && !strings.HasPrefix(rest[positional], "-") {
+		positional++
+	}
+	candidates := append(append([]string{}, words...), rest[:positional]...)
+	for n := len(candidates); n >= 1; n-- {
+		if n < len(words) {
+			break
+		}
+		if current, ok := legacyCommandIds[strings.Join(candidates[:n], ":")]; ok {
+			result := strings.Split(current, ":")
+			result = append(result, candidates[n:]...)
+			return append(result, rest[positional:]...)
+		}
+	}
+	return append(words, rest...)
+}
+
+func hasJSONFlag(args []string) bool {
+	for _, arg := range args {
+		if arg == "--" {
+			return false
+		}
+		if arg == "--json" || arg == "--json=true" {
+			return true
+		}
+	}
+	return false
+}
+
+// Shared flag helpers.  Commands read the values with cmd.Flags().
+
+func addJSONFlag(cmd *cobra.Command) {
+	cmd.Flags().Bool("json", false, "Format output as json.")
+}
+
+// addTargetOrgFlag adds --target-org/-o.  It also accepts the sfdx short
+// flag -u when the command does not use -u for another flag, so call it
+// after defining the command's own flags.
+func addTargetOrgFlag(cmd *cobra.Command) {
+	cmd.Flags().StringP("target-org", "o", "", "Username or alias of the target org.")
+	if cmd.Flags().ShorthandLookup("u") == nil {
+		cmd.Flags().StringP("targetusername-short", "u", "", "")
+		cmd.Flags().MarkHidden("targetusername-short")
+	}
+}
+
+func addTargetDevHubFlag(cmd *cobra.Command) {
+	cmd.Flags().StringP("target-dev-hub", "v", "", "Username or alias of the Dev Hub org.")
+}
+
+func addAPIVersionFlag(cmd *cobra.Command) {
+	cmd.Flags().String("api-version", "", "Override the api version used for api requests made by this command")
+}
+
+// targetOrgFlag returns the value of --target-org, or of -u when only the
+// sfdx short flag was given.
+func targetOrgFlag(cmd *cobra.Command) string {
+	if value, _ := cmd.Flags().GetString("target-org"); value != "" {
+		return value
+	}
+	if cmd.Flags().Lookup("targetusername-short") != nil {
+		value, _ := cmd.Flags().GetString("targetusername-short")
+		return value
+	}
+	return ""
+}
+
+func versionString() string {
+	return fmt.Sprintf("@salesforce/cli/%s %s force-%s", CompatVersion, platform(), forceVersion())
+}
