@@ -318,17 +318,23 @@ func TestSandboxProgressDisplayColors(t *testing.T) {
 func TestSuggestedCommandsNameTheBinaryThatWasStarted(t *testing.T) {
 	previous := binName
 	t.Cleanup(func() { binName = previous })
-	for argv0, want := range map[string]string{
-		"/usr/local/bin/force": "force --sf",
-		`C:\tools\force.exe`:   "force --sf",
-		"./my force":           "force --sf",
-		"/tmp/go-build1/main":  "main --sf",
+	for _, c := range []struct {
+		argv0    string
+		modeFlag bool
+		want     string
+	}{
+		{"sf", false, "sf"},
+		{"/tmp/sf", false, "/tmp/sf"},
+		{"force", true, "force --sf"},
+		{"./force", true, "./force --sf"},
+		{"/opt/my tools/sf", false, "sf"},
+		{"./my force", true, "force --sf"},
 	} {
-		if SetInvocation(argv0); binName != want {
-			t.Errorf("SetInvocation(%q): binName = %q, want %q", argv0, binName, want)
+		if SetInvocation(c.argv0, c.modeFlag); binName != c.want {
+			t.Errorf("SetInvocation(%q, %v): binName = %q, want %q", c.argv0, c.modeFlag, binName, c.want)
 		}
 	}
-	SetInvocation("/usr/local/bin/force")
+	SetInvocation("force", true)
 
 	org := newSandboxOrg(t)
 	org.processes = []string{sandboxProcessJSON("Pending", 0, false)}

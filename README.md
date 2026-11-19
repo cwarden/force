@@ -37,7 +37,7 @@ values of `sf` (`~/.sfdx` and `~/.sf`), and prints output in the format of
     force --sf org list # the same mode without the symlink
 
 Commands that the mode suggests in its messages are written the way the program was started:
-`sf ...` under the name `sf`, and `force --sf ...` when started with the flag.
+`sf ...` for `sf` on the PATH, `/tmp/sf ...` for that path, and `force --sf ...` with the flag.
 
 148 `sf` commands are implemented.
 [docs/sf-compatibility.md](docs/sf-compatibility.md) lists them with the

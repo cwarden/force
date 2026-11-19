@@ -8,7 +8,7 @@ This document lists the `sf` commands the mode implements, the `force` command e
 
 The mode is selected by the base name of the program (`sf`, or `sf.exe` on Windows) or by the `--sf` flag of `force`: `force --sf org list` runs the same command as `sf org list`. `--sf` can be anywhere on the command line before a `--` argument. Without either, `force` runs as before.
 
-Messages that suggest a command name the program as it was started. Started as `sf`, the mode prints `Run "sf org resume sandbox ..."`, as sf does. Started as `force --sf`, it prints `Run "force --sf org resume sandbox ..."`, so that the suggested command runs this program and not another `sf` on the PATH. This also applies to the `[REDACTED] Use ...` text that replaces secrets in results. Help and usage text name `sf` in both cases.
+Messages that suggest a command write the program the way it was started. Started as `sf` from the PATH, the mode prints `Run "sf org resume sandbox ..."`, as sf does. Started as `/tmp/sf`, it prints `Run "/tmp/sf org resume sandbox ..."`, and started as `force --sf`, it prints `Run "force --sf org resume sandbox ..."`, so that the suggested command runs this program and not another `sf` on the PATH. This also applies to the `[REDACTED] Use ...` text that replaces secrets in results. A path with spaces, quotes or a percent sign is replaced by `sf` or `force`. Help and usage text name `sf` in every case.
 
 ```
 make install-sf        # install force and create an sf symlink next to it
