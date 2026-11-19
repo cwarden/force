@@ -94,7 +94,7 @@ func TestOrgCreateSandboxAsyncAndResume(t *testing.T) {
 	}
 	for _, want := range []string{
 		"─ Sandbox Create (async) ─", " ▶ Creating new sandbox ", "   ▸ Name: dev1\n   ▸ ID: 0GR000000000001AAA\n", " ◼ Refreshing org\n ◼ Authenticating\n",
-		" Status: Pending\n Copy progress: 0%\n",
+		" Status: Pending\n Copy progress: 0%\n Elapsed Time: ",
 		"Run \"sf org resume sandbox --job-id 0GR000000000001AAA -o me@example.com\" to check for status.\nIf the org is ready, checking the status also authorizes the org for use with Salesforce CLI.\n",
 	} {
 		if !strings.Contains(out, want) {
@@ -129,7 +129,7 @@ func TestOrgCreateSandboxAsyncAndResume(t *testing.T) {
 	if status != 0 {
 		t.Fatalf("resume: status %d, stderr %q\n%s", status, errOut, out)
 	}
-	for _, want := range []string{"─ Resume Sandbox ─", " ✔ Creating new sandbox ", " ✔ Authenticating ", " Status: Completed\n Copy progress: 100%\n",
+	for _, want := range []string{"─ Resume Sandbox ─", " ✔ Creating new sandbox ", " ✔ Authenticating ", " Status: Completed\n Copy progress: 100%\n Elapsed Time: ",
 		"Your sandbox is ready.\nYou can open it by running \"sf org open -o me@example.com.dev1\"\n"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("resume lacks %q:\n%s", want, out)

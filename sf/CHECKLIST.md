@@ -192,7 +192,7 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [x] `org auth show-sfdx-auth-url`
 - [x] `org auth show-user-password` (follows the sf plugin source)
 - [ ] `org create agent-user`
-- [x] `org create sandbox` (follows the sf plugin source and sf core; not compared with sf)
+- [x] `org create sandbox` (`--async` output compared with sf; waiting and the login to the sandbox follow the source)
 - [x] `org create shape` (follows the sf plugin source)
 - [ ] `org create snapshot`
 - [x] `org create user` (compared with sf against a scratch org; an org authorized with the JWT flow is refused)
@@ -211,7 +211,7 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [x] `org login sfdx-url` (follows the sf plugin source)
 - [ ] `org open agent`
 - [x] `org refresh sandbox` (follows the sf plugin source and sf core; not compared with sf)
-- [x] `org resume sandbox` (follows the sf plugin source and sf core; not compared with sf)
+- [x] `org resume sandbox` (output for a pending sandbox compared with sf; the login to a finished sandbox follows the source)
 - [x] `org resume scratch` (the output follows a transcript of sf; not run against a Dev Hub; an org that is not ready follows the plugin source)
 
 ### project (6 open, 7 done)

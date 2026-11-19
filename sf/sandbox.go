@@ -17,8 +17,9 @@ import (
 )
 
 // The sandbox commands follow the sf plugin source and the sf core library.
-// They were not compared with sf, which needs a production org with sandbox
-// licenses.
+// The output of "org create sandbox --async" and of "org resume sandbox"
+// for a pending sandbox was compared with sf.  The login to a finished
+// sandbox, the refresh and the deletion were not.
 
 const sandboxProcessFields = "Id,Status,SandboxName,SandboxInfoId,LicenseType,CreatedDate,CopyProgress,SandboxOrganization,SourceId,Description,EndDate,Features"
 
@@ -346,7 +347,7 @@ func (r *sandboxRun) frame(final string) {
 			progress = displayValue(r.latest.values["CopyProgress"])
 		}
 	}
-	info = append(info, [2]string{"Copy progress", progress + "%"})
+	info = append(info, [2]string{"Copy progress", progress + "%"}, [2]string{"Elapsed Time", formatElapsed(elapsed)})
 	writeStageFrame(r.cmd.OutOrStdout(), r.title, "", false, stages, info)
 }
 

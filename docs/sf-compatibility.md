@@ -109,10 +109,10 @@ The files written by the `template generate` commands come from the salesforcedx
 | `sf org auth show-access-token` | none |  | Compared with sf |
 | `sf org auth show-sfdx-auth-url` | none |  | Error output compared with sf; the URL format follows the sf source |
 | `sf org auth show-user-password` | none | No command of this mode stores a password, so it finds one only in an authorization file that sf wrote. | Compared with sf |
-| `sf org create sandbox` | none | Not compared with sf: it needs a production org with sandbox licenses. The progress display is printed once, when the command ends. | Follows the sf plugin source |
+| `sf org create sandbox` | none | The output of `--async` was compared with sf. Waiting for the sandbox and logging in to it were not. The progress display is printed once, when the command ends, and the confirmation prompt is a plain question. | Compared with sf |
 | `sf org create scratch` | `force login scratch` | `--client-id`, `--no-ancestors`, `--source-org`, `--snapshot`; definition file key `objectSettings`. The `--async` output follows a transcript of `sf`; this mode was not run against a Dev Hub. | Follows the sf plugin source |
 | `sf org refresh sandbox` | none | Not compared with sf: it needs a production org with sandbox licenses. The progress display is printed once, when the command ends. | Follows the sf plugin source |
-| `sf org resume sandbox` | none | Not compared with sf: it needs a production org with sandbox licenses. The progress display is printed once, when the command ends. | Follows the sf plugin source |
+| `sf org resume sandbox` | none | The output for a sandbox that is not ready was compared with sf. Logging in to a finished sandbox was not. The progress display is printed once, when the command ends. | Compared with sf |
 | `sf org resume scratch` | none; reads `~/.sf/scratch-create-cache.json` and finishes the request as `force login scratch` does | The output follows a transcript of `sf`; this mode was not run against a Dev Hub. The case of an org that is not ready follows the plugin source. | Follows the sf plugin source |
 | `sf org create shape` | none |  | Follows the sf plugin source |
 | `sf org create user` | none; creates the user with the SCIM API and writes its authorization file | An org that was authorized with the JWT flow. | Compared with sf |
