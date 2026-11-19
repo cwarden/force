@@ -83,6 +83,8 @@ func (o *fakeOrg) serve(w http.ResponseWriter, r *http.Request) {
 			{"label": "Earlier", "url": "/services/data/v66.0", "version": "66.0"},
 			{"label": "Latest", "url": "/services/data/v67.0", "version": "67.0"},
 		})
+	case r.URL.Path == "/services/data/v67.0":
+		json.NewEncoder(w).Encode(map[string]string{"sobjects": "/services/data/v67.0/sobjects"})
 	case r.URL.Path == "/services/oauth2/userinfo":
 		json.NewEncoder(w).Encode(map[string]string{
 			"preferred_username": "me@example.com",

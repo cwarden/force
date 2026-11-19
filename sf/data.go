@@ -16,6 +16,7 @@ import (
 func newDataCmd() *cobra.Command {
 	return newGroup("data", "Manage records in your org.",
 		newDataQueryCmd(),
+		newDataSearchCmd(),
 		newGroup("create", "Create a record.", newDataCreateRecordCmd()),
 		newGroup("get", "Retrieve a record.", newDataGetRecordCmd()),
 		newGroup("update", "Update records.", newDataUpdateRecordCmd()),
@@ -675,5 +676,107 @@ func newDataDeleteRecordCmd() *cobra.Command {
 		},
 	}
 	addRecordFlags(cmd, true, false)
+	return cmd
+}
+
+func newDataSearchCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:         "search",
+		Short:       "Execute a SOSL text-based search query.",
+		Args:        cobra.NoArgs,
+		Annotations: map[string]string{commandNameAnnotation: "DataSearchCommand"},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			sosl, err := queryText(cmd)
+			if err != nil {
+				return err
+			}
+			format, _ := cmd.Flags().GetString("result-format")
+			if format != "human" && format != "csv" && format != "json" {
+				return &Error{Message: fmt.Sprintf("Expected --result-format=%s to be one of: human, csv, json\nSee more help with --help", format), ExitCode: 2}
+			}
+			org, err := resolveTargetOrg(cmd)
+			if err != nil {
+				return err
+			}
+			stop := func(string) {}
+			if format != "json" {
+				stop = startSpinner(cmd, "Querying Data")
+			}
+			body, err := org.Force.GetREST("/search?q=" + url.QueryEscape(sosl))
+			stop("done")
+			if err != nil {
+				return queryError(err)
+			}
+			result, err := parseOrderedJSON([]byte(body))
+			if err != nil {
+				return err
+			}
+			if jsonRequested(cmd) {
+				return emit(cmd, result, nil)
+			}
+			out := cmd.OutOrStdout()
+			if format == "json" {
+				return writeJSON(out, result)
+			}
+			// Records are grouped by object type, in the order the types
+			// first appear.
+			var types []string
+			byType := map[string][]*orderedMap{}
+			if object, ok := result.(*orderedMap); ok {
+				records, _ := object.values["searchRecords"].([]interface{})
+				for _, item := range records {
+					record, ok := item.(*orderedMap)
+					if !ok {
+						continue
+					}
+					objectType := ""
+					if attributes, ok := record.values["attributes"].(*orderedMap); ok {
+						objectType = text(attributes.values["type"])
+					}
+					record.Delete("attributes")
+					if _, seen := byType[objectType]; !seen {
+						types = append(types, objectType)
+					}
+					byType[objectType] = append(byType[objectType], record)
+				}
+			}
+			if len(types) == 0 {
+				fmt.Fprintln(out, "No Records Found")
+				return nil
+			}
+			for _, objectType := range types {
+				records := byType[objectType]
+				columns := records[0].keys
+				rows := make([][]string, 0, len(records))
+				for _, record := range records {
+					row := make([]string, len(columns))
+					for i, column := range columns {
+						row[i] = displayValue(record.values[column])
+					}
+					rows = append(rows, row)
+				}
+				if format == "csv" {
+					fmt.Fprintf(out, "Written to %s.csv\n", objectType)
+					lines := []string{strings.Join(columns, ",")}
+					for _, row := range rows {
+						lines = append(lines, strings.Join(row, ","))
+					}
+					if err := os.WriteFile(objectType+".csv", []byte(strings.Join(lines, "\n")), 0o644); err != nil {
+						return err
+					}
+					continue
+				}
+				printTable(out, objectType, columns, rows)
+				fmt.Fprintln(out)
+			}
+			return nil
+		},
+	}
+	addJSONFlag(cmd)
+	cmd.Flags().StringP("query", "q", "", "SOSL query to execute.")
+	cmd.Flags().StringP("file", "f", "", "File that contains the SOSL query.")
+	cmd.Flags().StringP("result-format", "r", "human", "Format to display the results, or to write to disk if you specify \"csv\".")
+	addAPIVersionFlag(cmd)
+	addTargetOrgFlag(cmd)
 	return cmd
 }

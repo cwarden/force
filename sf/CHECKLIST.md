@@ -33,7 +33,7 @@ Reference: `sf` 2.138.6. Update this file as each item is finished.
 
 ## Step 4: data
 - [x] `data query`
-- [ ] `data search`
+- [x] `data search` (format taken from the sf plugin source; the local test server has no search resource)
 - [x] `data get record`, `data create record`, `data update record`, `data delete record`
 - [ ] `data import bulk`, `data update bulk`, `data upsert bulk`, `data delete bulk`, `data export bulk`
 - [ ] `data import resume`, `data update resume`, `data upsert resume`, `data delete resume`, `data export resume`
@@ -42,14 +42,14 @@ Reference: `sf` 2.138.6. Update this file as each item is finished.
 - [ ] `force data bulk delete`, `force data bulk upsert`, `force data bulk status`
 
 ## Step 5: apex, sobject, api, template
-- [ ] `apex run`
-- [ ] `apex run test`
-- [ ] `apex get log`, `apex list log`, `apex tail log`
-- [ ] `apex trace create`, `apex trace list`, `apex trace delete`
-- [ ] `sobject describe`, `sobject list`
-- [ ] `api request rest`
-- [ ] `template generate apex class`, `template generate apex trigger`
-- [ ] `template generate visualforce page`, `template generate visualforce component`
+- [x] `apex run`
+- [x] `apex run test` (`--output-dir` and `--detailed-coverage` are not supported)
+- [x] `apex get log`, `apex list log`, `apex tail log` (formats taken from the sf plugin source; `apex tail log` is not exercised by a test)
+- [x] `apex trace create`, `apex trace list`, `apex trace delete` (these exist in plugin-apex versions newer than the one bundled with sf 2.138.6)
+- [x] `sobject describe`, `sobject list`
+- [x] `api request rest`
+- [x] `template generate apex class`, `template generate apex trigger`
+- [x] `template generate visualforce page`, `template generate visualforce component`
 
 ## Step 6: project
 - [ ] Move deploy and fetch helpers from `command/` to `lib`

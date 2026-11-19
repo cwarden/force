@@ -85,8 +85,13 @@ func writeError(out, errOut io.Writer, cmd *cobra.Command, err error, jsonOutput
 		return int(status)
 	}
 	if unknown, ok := err.(*unknownCommandError); ok {
+		// For a command inside a topic, sf names the topic in the hint.
+		help := "sf help"
+		if words := strings.Fields(unknown.id); len(words) > 1 {
+			help += " " + words[0]
+		}
 		fmt.Fprintf(errOut, " ›   Warning: %s is not a sf command.\n", unknown.id)
-		fmt.Fprintf(errOut, " ›   Error: Run sf help for a list of available commands.\n")
+		fmt.Fprintf(errOut, " ›   Error: Run %s for a list of available commands.\n", help)
 		return 127
 	}
 	e := asError(err)

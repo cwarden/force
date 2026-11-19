@@ -82,9 +82,13 @@ func NewRootCmd() *cobra.Command {
 	root.SetGlobalNormalizationFunc(normalizeFlagName)
 	root.AddCommand(
 		newAliasCmd(),
+		newApexCmd(),
+		newApiCmd(),
 		newConfigCmd(),
 		newDataCmd(),
 		newOrgCmd(),
+		newSobjectCmd(),
+		newTemplateCmd(),
 		newVersionCmd(),
 	)
 	return root
@@ -98,7 +102,7 @@ func newGroup(use, short string, children ...*cobra.Command) *cobra.Command {
 		Short: short,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 {
-				id := strings.Join(append(strings.Fields(cmd.CommandPath())[1:], args[0]), ":")
+				id := strings.Join(append(strings.Fields(cmd.CommandPath())[1:], args...), " ")
 				return &unknownCommandError{id: id}
 			}
 			return cmd.Help()

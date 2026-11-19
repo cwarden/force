@@ -1,0 +1,936 @@
+package sf
+
+import (
+	"encoding/json"
+	"encoding/xml"
+	"fmt"
+	"io"
+	"math"
+	"sort"
+	"strings"
+	"time"
+
+	"github.com/spf13/cobra"
+)
+
+// apexTest is one test method result, with the fields sf reports.
+type apexTest struct {
+	Id              string
+	QueueItemId     string
+	StackTrace      interface{}
+	Message         interface{}
+	AsyncApexJobId  string
+	MethodName      string
+	Outcome         string
+	ClassId         string
+	ClassName       string
+	NamespacePrefix interface{}
+	RunTime         int
+	FullName        string
+}
+
+func (t apexTest) json() *orderedMap {
+	class := newOrderedMap()
+	class.Set("Id", t.ClassId)
+	class.Set("Name", t.ClassName)
+	class.Set("NamespacePrefix", t.NamespacePrefix)
+	result := newOrderedMap()
+	result.Set("Id", t.Id)
+	result.Set("QueueItemId", t.QueueItemId)
+	result.Set("StackTrace", t.StackTrace)
+	result.Set("Message", t.Message)
+	result.Set("AsyncApexJobId", t.AsyncApexJobId)
+	result.Set("MethodName", t.MethodName)
+	result.Set("Outcome", t.Outcome)
+	result.Set("ApexClass", class)
+	result.Set("RunTime", t.RunTime)
+	result.Set("FullName", t.FullName)
+	return result
+}
+
+func text(value interface{}) string {
+	s, _ := value.(string)
+	return s
+}
+
+// apexTestRun is the outcome of a test run.
+type apexTestRun struct {
+	TestRunId       string
+	StartTime       string
+	UserId          string
+	ExecutionTimeMs int
+	SetupTimeMs     int
+	Tests           []apexTest
+	Coverage        *apexCoverage
+}
+
+type apexClassCoverage struct {
+	Id             string
+	Name           string
+	Covered        []int
+	Uncovered      []int
+	CoveredPercent int
+}
+
+type apexCoverage struct {
+	Classes         []apexClassCoverage
+	Records         []*orderedMap
+	OrgWideCoverage string
+	TestRunCoverage string
+	TotalLines      int
+	CoveredLines    int
+}
+
+func percent(part, total int) string {
+	if total == 0 {
+		return "0%"
+	}
+	return fmt.Sprintf("%d%%", int(math.Round(float64(part)*100/float64(total))))
+}
+
+func (r *apexTestRun) counts() (passing, failing, skipped int) {
+	for _, test := range r.Tests {
+		switch test.Outcome {
+		case "Pass":
+			passing++
+		case "Skip":
+			skipped++
+		default:
+			failing++
+		}
+	}
+	return
+}
+
+func (r *apexTestRun) outcome() string {
+	passing, failing, skipped := r.counts()
+	switch {
+	case failing > 0:
+		return "Failed"
+	case passing == 0 && skipped > 0:
+		return "Skipped"
+	}
+	return "Passed"
+}
+
+// apexTestRequest builds the request body for runTestsAsynchronous and
+// runTestsSynchronous from --class-names, --suite-names, --tests and
+// --test-level.
+func apexTestRequest(cmd *cobra.Command) (*orderedMap, error) {
+	classNames := splitList(cmd, "class-names")
+	suiteNames := splitList(cmd, "suite-names")
+	tests := splitList(cmd, "tests")
+	testLevel, _ := cmd.Flags().GetString("test-level")
+	codeCoverage, _ := cmd.Flags().GetBool("code-coverage")
+	specified := 0
+	for _, list := range [][]string{classNames, suiteNames, tests} {
+		if len(list) > 0 {
+			specified++
+		}
+	}
+	if specified > 1 {
+		return nil, &Error{Message: "--class-names=" + strings.Join(classNames, ",") + " cannot also be provided when using --suite-names or --tests\nSee more help with --help", ExitCode: 2}
+	}
+	if testLevel == "" {
+		testLevel = "RunLocalTests"
+		if specified > 0 {
+			testLevel = "RunSpecifiedTests"
+		}
+	}
+	switch testLevel {
+	case "RunLocalTests", "RunAllTestsInOrg", "RunSpecifiedTests":
+	default:
+		return nil, &Error{Message: fmt.Sprintf("Expected --test-level=%s to be one of: RunLocalTests, RunAllTestsInOrg, RunSpecifiedTests\nSee more help with --help", testLevel), ExitCode: 2}
+	}
+	request := newOrderedMap()
+	classItem := func(name string) *orderedMap {
+		item := newOrderedMap()
+		if strings.HasPrefix(name, "01p") && (len(name) == 15 || len(name) == 18) {
+			item.Set("classId", name)
+			return item
+		}
+		if namespace, class, ok := strings.Cut(name, "."); ok {
+			item.Set("namespace", namespace)
+			name = class
+		}
+		item.Set("className", name)
+		return item
+	}
+	switch {
+	case len(classNames) > 0:
+		items := make([]interface{}, 0, len(classNames))
+		for _, name := range classNames {
+			items = append(items, classItem(name))
+		}
+		request.Set("tests", items)
+	case len(suiteNames) > 0:
+		request.Set("suiteNames", strings.Join(suiteNames, ","))
+	case len(tests) > 0:
+		var order []string
+		methods := map[string][]string{}
+		for _, test := range tests {
+			class, method := test, ""
+			if index := strings.LastIndex(test, "."); index >= 0 {
+				class, method = test[:index], test[index+1:]
+			}
+			if _, ok := methods[class]; !ok {
+				order = append(order, class)
+			}
+			if method != "" {
+				methods[class] = append(methods[class], method)
+			} else if methods[class] == nil {
+				methods[class] = []string{}
+			}
+		}
+		items := make([]interface{}, 0, len(order))
+		for _, class := range order {
+			item := classItem(class)
+			if len(methods[class]) > 0 {
+				item.Set("testMethods", methods[class])
+			}
+			items = append(items, item)
+		}
+		request.Set("tests", items)
+	}
+	request.Set("testLevel", testLevel)
+	request.Set("skipCodeCoverage", !codeCoverage)
+	return request, nil
+}
+
+// splitList returns the values of a repeatable flag, splitting each value
+// on commas.
+func splitList(cmd *cobra.Command, name string) []string {
+	values, _ := cmd.Flags().GetStringArray(name)
+	var result []string
+	for _, value := range values {
+		for _, part := range strings.Split(value, ",") {
+			if part = strings.TrimSpace(part); part != "" {
+				result = append(result, part)
+			}
+		}
+	}
+	return result
+}
+
+func quoteIds(ids []string) string {
+	quoted := make([]string, len(ids))
+	for i, id := range ids {
+		quoted[i] = "'" + id + "'"
+	}
+	return strings.Join(quoted, ",")
+}
+
+func toolingRecords(org *targetOrg, soql string) ([]*orderedMap, error) {
+	result, err := runQuery(org, "/tooling", "query", soql)
+	if err != nil {
+		return nil, apiError(err)
+	}
+	items, _ := result.values["records"].([]interface{})
+	records := make([]*orderedMap, 0, len(items))
+	for _, item := range items {
+		if record, ok := item.(*orderedMap); ok {
+			records = append(records, record)
+		}
+	}
+	return records, nil
+}
+
+func intValue(value interface{}) int {
+	switch v := value.(type) {
+	case json.Number:
+		if i, err := v.Int64(); err == nil {
+			return int(i)
+		}
+		if f, err := v.Float64(); err == nil {
+			return int(f)
+		}
+	case float64:
+		return int(v)
+	case int:
+		return v
+	}
+	return 0
+}
+
+// isoTime converts a Salesforce datetime to the form JavaScript's
+// toISOString produces.
+func isoTime(value string) string {
+	for _, layout := range []string{"2006-01-02T15:04:05.000-0700", time.RFC3339Nano, "2006-01-02T15:04:05.000Z0700"} {
+		if parsed, err := time.Parse(layout, value); err == nil {
+			return parsed.UTC().Format("2006-01-02T15:04:05.000Z")
+		}
+	}
+	return value
+}
+
+var testRunDone = map[string]bool{"Completed": true, "Failed": true, "Aborted": true}
+
+// waitForTestRun polls the queue items of a test run until each has
+// finished or the timeout passes.  It returns the queue item ids.
+func waitForTestRun(org *targetOrg, testRunID string, timeout time.Duration, interval time.Duration) ([]string, bool, error) {
+	deadline := time.Now().Add(timeout)
+	for {
+		items, err := toolingRecords(org, fmt.Sprintf("SELECT Id, Status, ApexClassId, TestRunResultId, ParentJobId FROM ApexTestQueueItem WHERE ParentJobId = '%s'", testRunID))
+		if err != nil {
+			return nil, false, err
+		}
+		done := len(items) > 0
+		ids := make([]string, 0, len(items))
+		for _, item := range items {
+			ids = append(ids, text(item.values["Id"]))
+			if !testRunDone[text(item.values["Status"])] {
+				done = false
+			}
+		}
+		if done {
+			return ids, true, nil
+		}
+		if time.Now().After(deadline) {
+			return ids, false, nil
+		}
+		time.Sleep(interval)
+	}
+}
+
+func loadTestRun(org *targetOrg, testRunID string, queueItemIDs []string) (*apexTestRun, error) {
+	run := &apexTestRun{TestRunId: testRunID}
+	summaries, err := toolingRecords(org, fmt.Sprintf("SELECT AsyncApexJobId, Status, ClassesCompleted, ClassesEnqueued, MethodsEnqueued, StartTime, EndTime, TestTime, TestSetupTime, UserId FROM ApexTestRunResult WHERE AsyncApexJobId = '%s'", testRunID))
+	if err != nil {
+		return nil, err
+	}
+	if len(summaries) > 0 {
+		summary := summaries[0]
+		run.StartTime = isoTime(text(summary.values["StartTime"]))
+		run.UserId = text(summary.values["UserId"])
+		run.ExecutionTimeMs = intValue(summary.values["TestTime"])
+		run.SetupTimeMs = intValue(summary.values["TestSetupTime"])
+	}
+	for start := 0; start < len(queueItemIDs); start += 100 {
+		end := start + 100
+		if end > len(queueItemIDs) {
+			end = len(queueItemIDs)
+		}
+		records, err := toolingRecords(org, fmt.Sprintf("SELECT Id, QueueItemId, StackTrace, Message, RunTime, TestTimestamp, AsyncApexJobId, MethodName, Outcome, ApexLogId, IsTestSetup, ApexClass.Id, ApexClass.Name, ApexClass.NamespacePrefix FROM ApexTestResult WHERE QueueItemId IN (%s)", quoteIds(queueItemIDs[start:end])))
+		if err != nil {
+			return nil, err
+		}
+		for _, record := range records {
+			if record.values["IsTestSetup"] == true {
+				continue
+			}
+			test := apexTest{
+				Id:             text(record.values["Id"]),
+				QueueItemId:    text(record.values["QueueItemId"]),
+				StackTrace:     record.values["StackTrace"],
+				Message:        record.values["Message"],
+				AsyncApexJobId: text(record.values["AsyncApexJobId"]),
+				MethodName:     text(record.values["MethodName"]),
+				Outcome:        text(record.values["Outcome"]),
+				RunTime:        intValue(record.values["RunTime"]),
+			}
+			if class, ok := record.values["ApexClass"].(*orderedMap); ok {
+				test.ClassId = text(class.values["Id"])
+				test.ClassName = text(class.values["Name"])
+				test.NamespacePrefix = class.values["NamespacePrefix"]
+			}
+			test.FullName = test.ClassName + "." + test.MethodName
+			if namespace := text(test.NamespacePrefix); namespace != "" {
+				test.FullName = namespace + "." + test.FullName
+			}
+			run.Tests = append(run.Tests, test)
+		}
+	}
+	sort.SliceStable(run.Tests, func(i, j int) bool { return run.Tests[i].FullName < run.Tests[j].FullName })
+	return run, nil
+}
+
+func intList(value interface{}) []int {
+	items, _ := value.([]interface{})
+	result := make([]int, 0, len(items))
+	for _, item := range items {
+		result = append(result, intValue(item))
+	}
+	return result
+}
+
+// loadCoverage reads the code coverage of the classes the tests in run
+// exercised, and the org-wide coverage.
+func loadCoverage(org *targetOrg, run *apexTestRun) error {
+	coverage := &apexCoverage{Records: []*orderedMap{}}
+	run.Coverage = coverage
+	var testClassIDs []string
+	seen := map[string]bool{}
+	testIDs := map[string]string{}
+	for _, test := range run.Tests {
+		if test.ClassId != "" && !seen[test.ClassId] {
+			seen[test.ClassId] = true
+			testClassIDs = append(testClassIDs, test.ClassId)
+		}
+		testIDs[test.ClassId+"."+test.MethodName] = test.Id
+	}
+	var coveredClassIDs []string
+	if len(testClassIDs) > 0 {
+		records, err := toolingRecords(org, fmt.Sprintf("SELECT ApexTestClassId, ApexClassOrTrigger.Id, ApexClassOrTrigger.Name, TestMethodName, NumLinesCovered, NumLinesUncovered, Coverage FROM ApexCodeCoverage WHERE ApexTestClassId IN (%s)", quoteIds(testClassIDs)))
+		if err != nil {
+			return err
+		}
+		classNames := map[string]string{}
+		for _, test := range run.Tests {
+			classNames[test.ClassId] = test.ClassName
+		}
+		seenCovered := map[string]bool{}
+		for _, record := range records {
+			testClassID := text(record.values["ApexTestClassId"])
+			method := text(record.values["TestMethodName"])
+			testClass := newOrderedMap()
+			testClass.Set("Id", testIDs[testClassID+"."+method])
+			testClass.Set("Name", classNames[testClassID])
+			lines := newOrderedMap()
+			if covered, ok := record.values["Coverage"].(*orderedMap); ok {
+				lines.Set("coveredLines", covered.values["coveredLines"])
+				lines.Set("uncoveredLines", covered.values["uncoveredLines"])
+			}
+			target := newOrderedMap()
+			if class, ok := record.values["ApexClassOrTrigger"].(*orderedMap); ok {
+				target.Set("Id", class.values["Id"])
+				target.Set("Name", class.values["Name"])
+				if id := text(class.values["Id"]); id != "" && !seenCovered[id] {
+					seenCovered[id] = true
+					coveredClassIDs = append(coveredClassIDs, id)
+				}
+			}
+			item := newOrderedMap()
+			item.Set("ApexTestClass", testClass)
+			item.Set("Coverage", lines)
+			item.Set("TestMethodName", method)
+			item.Set("NumLinesCovered", record.values["NumLinesCovered"])
+			item.Set("ApexClassOrTrigger", target)
+			item.Set("NumLinesUncovered", record.values["NumLinesUncovered"])
+			coverage.Records = append(coverage.Records, item)
+		}
+	}
+	if len(coveredClassIDs) > 0 {
+		records, err := toolingRecords(org, fmt.Sprintf("SELECT ApexClassOrTrigger.Id, ApexClassOrTrigger.Name, NumLinesCovered, NumLinesUncovered, Coverage FROM ApexCodeCoverageAggregate WHERE ApexClassorTriggerId IN (%s)", quoteIds(coveredClassIDs)))
+		if err != nil {
+			return err
+		}
+		for _, record := range records {
+			class := apexClassCoverage{}
+			if target, ok := record.values["ApexClassOrTrigger"].(*orderedMap); ok {
+				class.Id = text(target.values["Id"])
+				class.Name = text(target.values["Name"])
+			}
+			if lines, ok := record.values["Coverage"].(*orderedMap); ok {
+				class.Covered = intList(lines.values["coveredLines"])
+				class.Uncovered = intList(lines.values["uncoveredLines"])
+			}
+			total := len(class.Covered) + len(class.Uncovered)
+			if total > 0 {
+				class.CoveredPercent = int(math.Round(float64(len(class.Covered)) * 100 / float64(total)))
+			}
+			coverage.TotalLines += total
+			coverage.CoveredLines += len(class.Covered)
+			coverage.Classes = append(coverage.Classes, class)
+		}
+	}
+	coverage.TestRunCoverage = percent(coverage.CoveredLines, coverage.TotalLines)
+	orgWide, err := toolingRecords(org, "SELECT PercentCovered FROM ApexOrgWideCoverage")
+	if err != nil {
+		return err
+	}
+	coverage.OrgWideCoverage = "0%"
+	if len(orgWide) > 0 {
+		coverage.OrgWideCoverage = fmt.Sprintf("%d%%", intValue(orgWide[0].values["PercentCovered"]))
+	}
+	return nil
+}
+
+func (c *apexCoverage) json() *orderedMap {
+	classes := make([]interface{}, 0, len(c.Classes))
+	for _, class := range c.Classes {
+		lines := newOrderedMap()
+		numbers := map[int]int{}
+		var all []int
+		for _, line := range class.Covered {
+			numbers[line] = 1
+			all = append(all, line)
+		}
+		for _, line := range class.Uncovered {
+			numbers[line] = 0
+			all = append(all, line)
+		}
+		sort.Ints(all)
+		for _, line := range all {
+			lines.Set(fmt.Sprintf("%d", line), numbers[line])
+		}
+		item := newOrderedMap()
+		item.Set("id", class.Id)
+		item.Set("name", class.Name)
+		item.Set("totalLines", len(all))
+		item.Set("lines", lines)
+		item.Set("totalCovered", len(class.Covered))
+		item.Set("coveredPercent", class.CoveredPercent)
+		classes = append(classes, item)
+	}
+	summary := newOrderedMap()
+	summary.Set("totalLines", c.TotalLines)
+	summary.Set("coveredLines", c.CoveredLines)
+	summary.Set("orgWideCoverage", c.OrgWideCoverage)
+	summary.Set("testRunCoverage", c.TestRunCoverage)
+	result := newOrderedMap()
+	result.Set("coverage", classes)
+	result.Set("records", c.Records)
+	result.Set("summary", summary)
+	return result
+}
+
+// json returns the result object sf reports for a test run.
+func (r *apexTestRun) json(org *targetOrg, commandTime time.Duration) *orderedMap {
+	passing, failing, skipped := r.counts()
+	total := len(r.Tests)
+	summary := newOrderedMap()
+	summary.Set("failRate", percent(failing, total))
+	summary.Set("failing", failing)
+	summary.Set("hostname", org.Fields.String("instanceUrl"))
+	summary.Set("orgId", org.Fields.String("orgId"))
+	summary.Set("outcome", r.outcome())
+	summary.Set("passRate", percent(passing, total))
+	summary.Set("passing", passing)
+	summary.Set("skipped", skipped)
+	summary.Set("testRunId", r.TestRunId)
+	summary.Set("testStartTime", r.StartTime)
+	summary.Set("testsRan", total)
+	if r.UserId != "" {
+		summary.Set("userId", r.UserId)
+	}
+	summary.Set("username", org.Username)
+	summary.Set("commandTime", fmt.Sprintf("%d ms", commandTime.Milliseconds()))
+	summary.Set("testExecutionTime", fmt.Sprintf("%d ms", r.ExecutionTimeMs))
+	summary.Set("testTotalTime", fmt.Sprintf("%d ms", r.ExecutionTimeMs+r.SetupTimeMs))
+	if r.Coverage != nil {
+		summary.Set("orgWideCoverage", r.Coverage.OrgWideCoverage)
+		summary.Set("testRunCoverage", r.Coverage.TestRunCoverage)
+	}
+	tests := make([]interface{}, 0, total)
+	for _, test := range r.Tests {
+		tests = append(tests, test.json())
+	}
+	result := newOrderedMap()
+	result.Set("summary", summary)
+	result.Set("tests", tests)
+	if r.Coverage != nil {
+		result.Set("coverage", r.Coverage.json())
+	}
+	return result
+}
+
+// textTable formats a table the way the sf Apex test reporter does: a
+// "=== title" line, a header, a line of box-drawing dashes, and rows whose
+// columns are padded to the widest cell and separated by two spaces.  A cell
+// with several lines continues on the following output lines.
+func textTable(title string, headers []string, rows [][]string) string {
+	widths := make([]int, len(headers))
+	for i, header := range headers {
+		widths[i] = len([]rune(header))
+	}
+	for _, row := range rows {
+		for i, cell := range row {
+			for _, line := range strings.Split(cell, "\n") {
+				if length := len([]rune(line)); length > widths[i] {
+					widths[i] = length
+				}
+			}
+		}
+	}
+	fill := func(label string, width int, filler string, last bool) string {
+		filled := label + strings.Repeat(filler, max(0, width-len([]rune(label))))
+		if !last {
+			filled += strings.Repeat(filler, 2)
+		}
+		return filled
+	}
+	var b strings.Builder
+	b.WriteString("=== " + title + "\n")
+	var header, separator string
+	for i, label := range headers {
+		last := i == len(headers)-1
+		header += fill(label, widths[i], " ", last)
+		// The columns of the separator line are joined by two spaces.
+		separator += strings.Repeat("─", widths[i])
+		if !last {
+			separator += "  "
+		}
+	}
+	b.WriteString(header + "\n" + separator + "\n")
+	for _, row := range rows {
+		outputRow := ""
+		for i, cell := range row {
+			last := i == len(row)-1
+			rowWidth := len([]rune(outputRow))
+			for lineIndex, line := range strings.Split(cell, "\n") {
+				if lineIndex == 0 {
+					outputRow += fill(line, widths[i], " ", last)
+				} else {
+					outputRow += "\n" + strings.Repeat(" ", rowWidth) + fill(line, widths[i], " ", last)
+				}
+			}
+		}
+		b.WriteString(outputRow + "\n")
+	}
+	return b.String()
+}
+
+func testMessage(test apexTest) string {
+	if stack := text(test.StackTrace); stack != "" {
+		return text(test.Message) + "\n" + stack
+	}
+	return text(test.Message)
+}
+
+func (r *apexTestRun) human(org *targetOrg, concise bool) string {
+	var sections []string
+	var rows [][]string
+	for _, test := range r.Tests {
+		if concise && test.Outcome != "Fail" && test.Outcome != "CompileFail" {
+			continue
+		}
+		runtime := ""
+		if test.Outcome != "Fail" {
+			runtime = fmt.Sprintf("%d", test.RunTime)
+		}
+		rows = append(rows, []string{test.FullName, test.Outcome, testMessage(test), runtime})
+	}
+	if len(rows) > 0 {
+		sections = append(sections, textTable("Test Results", []string{"TEST NAME", "OUTCOME", "MESSAGE", "RUNTIME (MS)"}, rows))
+	} else {
+		sections = append(sections, "")
+	}
+	if r.Coverage != nil && !concise {
+		var coverageRows [][]string
+		for _, class := range r.Coverage.Classes {
+			uncovered := make([]string, 0, len(class.Uncovered))
+			for i, line := range class.Uncovered {
+				if i == 5 {
+					uncovered = append(uncovered, "...")
+					break
+				}
+				uncovered = append(uncovered, fmt.Sprintf("%d", line))
+			}
+			coverageRows = append(coverageRows, []string{class.Name, fmt.Sprintf("%d%%", class.CoveredPercent), strings.Join(uncovered, ",")})
+		}
+		sections = append(sections, textTable("Apex Code Coverage by Class", []string{"CLASSES", "PERCENT", "UNCOVERED LINES"}, coverageRows))
+	}
+	if !concise {
+		// sf adds an empty section here for test setup methods.
+		sections = append(sections, "")
+	}
+	passing, failing, skipped := r.counts()
+	total := len(r.Tests)
+	summary := [][]string{
+		{"Outcome", r.outcome()},
+		{"Tests Ran", fmt.Sprintf("%d", total)},
+		{"Pass Rate", percent(passing, total)},
+		{"Fail Rate", percent(failing, total)},
+		{"Skip Rate", percent(skipped, total)},
+		{"Test Run Id", r.TestRunId},
+		{"Test Setup Time", fmt.Sprintf("%d ms", r.SetupTimeMs)},
+		{"Test Execution Time", fmt.Sprintf("%d ms", r.ExecutionTimeMs)},
+		{"Test Total Time", fmt.Sprintf("%d ms", r.ExecutionTimeMs+r.SetupTimeMs)},
+		{"Org Id", org.Fields.String("orgId")},
+		{"Username", org.Username},
+	}
+	if r.Coverage != nil {
+		summary = append(summary, []string{"Org Wide Coverage", r.Coverage.OrgWideCoverage})
+	}
+	sections = append(sections, textTable("Test Summary", []string{"NAME", "VALUE"}, summary))
+	return strings.Join(sections, "\n\n")
+}
+
+func (r *apexTestRun) tap(org *targetOrg) string {
+	lines := []string{fmt.Sprintf("1..%d", len(r.Tests))}
+	for i, test := range r.Tests {
+		outcome := "not ok"
+		if test.Outcome == "Pass" {
+			outcome = "ok"
+		}
+		lines = append(lines, fmt.Sprintf("%s %d %s", outcome, i+1, test.FullName))
+		if test.Outcome != "Pass" {
+			for _, value := range []string{text(test.Message), text(test.StackTrace)} {
+				if value == "" {
+					continue
+				}
+				for _, line := range strings.Split(value, "\n") {
+					lines = append(lines, "# "+line)
+				}
+			}
+		}
+	}
+	if r.TestRunId != "" {
+		lines = append(lines, fmt.Sprintf(`# Run "sf apex get test -i %s -o %s --result-format <format>" to retrieve test results in a different format.`, r.TestRunId, org.Username))
+	}
+	return strings.Join(lines, "\n") + "\n"
+}
+
+func xmlEscape(value string) string {
+	var b strings.Builder
+	xml.EscapeText(&b, []byte(value))
+	return b.String()
+}
+
+func seconds(ms int) string {
+	return fmt.Sprintf("%.2f", float64(ms)/1000)
+}
+
+func (r *apexTestRun) junit(org *targetOrg, commandTime time.Duration) string {
+	passing, failing, skipped := r.counts()
+	total := len(r.Tests)
+	start := r.StartTime
+	startText := start
+	if parsed, err := time.Parse("2006-01-02T15:04:05.000Z", start); err == nil {
+		startText = parsed.Local().Format("Mon Jan 02 2006 3:04:05 PM")
+	}
+	var b strings.Builder
+	b.WriteString("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<testsuites>\n")
+	fmt.Fprintf(&b, "    <testsuite name=\"force.apex\" timestamp=\"%s\" hostname=\"%s\" tests=\"%d\" failures=\"%d\"  errors=\"0\"  time=\"%s\">\n",
+		start, xmlEscape(org.Fields.String("instanceUrl")), total, failing, seconds(r.ExecutionTimeMs))
+	b.WriteString("        <properties>\n")
+	properties := [][2]string{
+		{"outcome", r.outcome()},
+		{"testsRan", fmt.Sprintf("%d", total)},
+		{"passing", fmt.Sprintf("%d", passing)},
+		{"failing", fmt.Sprintf("%d", failing)},
+		{"skipped", fmt.Sprintf("%d", skipped)},
+		{"passRate", percent(passing, total)},
+		{"failRate", percent(failing, total)},
+		{"testStartTime", startText},
+		{"testExecutionTime", seconds(r.ExecutionTimeMs) + " s"},
+		{"testTotalTime", seconds(r.ExecutionTimeMs+r.SetupTimeMs) + " s"},
+		{"commandTime", seconds(int(commandTime.Milliseconds())) + " s"},
+		{"hostname", org.Fields.String("instanceUrl")},
+		{"orgId", org.Fields.String("orgId")},
+		{"username", org.Username},
+		{"testRunId", r.TestRunId},
+	}
+	if r.UserId != "" {
+		properties = append(properties, [2]string{"userId", r.UserId})
+	}
+	if r.Coverage != nil {
+		properties = append(properties, [2]string{"orgWideCoverage", r.Coverage.OrgWideCoverage}, [2]string{"testRunCoverage", r.Coverage.TestRunCoverage})
+	}
+	for _, property := range properties {
+		fmt.Fprintf(&b, "            <property name=\"%s\" value=\"%s\"/>\n", property[0], xmlEscape(property[1]))
+	}
+	b.WriteString("        </properties>\n")
+	for _, test := range r.Tests {
+		fmt.Fprintf(&b, "        <testcase name=\"%s\" classname=\"%s\" time=\"%s\">\n", xmlEscape(test.MethodName), xmlEscape(test.ClassName), seconds(test.RunTime))
+		if test.Outcome == "Fail" || test.Outcome == "CompileFail" {
+			fmt.Fprintf(&b, "            <failure message=\"%s\">", xmlEscape(text(test.Message)))
+			if stack := text(test.StackTrace); stack != "" {
+				fmt.Fprintf(&b, "<![CDATA[%s]]>", stack)
+			}
+			b.WriteString("</failure>\n")
+		}
+		b.WriteString("        </testcase>\n")
+	}
+	b.WriteString("    </testsuite>\n</testsuites>\n")
+	return b.String()
+}
+
+// runTestsSynchronously runs tests through runTestsSynchronous, which
+// answers with the results.
+func runTestsSynchronously(org *targetOrg, request *orderedMap) (*apexTestRun, error) {
+	request.Delete("testLevel")
+	content, err := encodeJSON(request)
+	if err != nil {
+		return nil, err
+	}
+	started := time.Now().UTC()
+	body, err := org.Force.PostREST("/tooling/runTestsSynchronous", content)
+	if err != nil {
+		return nil, apiError(err)
+	}
+	var response struct {
+		TotalTime float64 `json:"totalTime"`
+		Successes []struct {
+			Id         string      `json:"id"`
+			MethodName string      `json:"methodName"`
+			Name       string      `json:"name"`
+			Namespace  interface{} `json:"namespace"`
+			Time       float64     `json:"time"`
+		} `json:"successes"`
+		Failures []struct {
+			Id         string      `json:"id"`
+			MethodName string      `json:"methodName"`
+			Name       string      `json:"name"`
+			Namespace  interface{} `json:"namespace"`
+			Time       float64     `json:"time"`
+			Message    string      `json:"message"`
+			StackTrace string      `json:"stackTrace"`
+		} `json:"failures"`
+	}
+	if err := json.Unmarshal([]byte(body), &response); err != nil {
+		return nil, err
+	}
+	run := &apexTestRun{
+		StartTime:       started.Format("2006-01-02T15:04:05.000Z"),
+		ExecutionTimeMs: int(response.TotalTime),
+	}
+	fullName := func(namespace interface{}, class, method string) string {
+		name := class + "." + method
+		if prefix := text(namespace); prefix != "" {
+			name = prefix + "." + name
+		}
+		return name
+	}
+	for _, success := range response.Successes {
+		run.Tests = append(run.Tests, apexTest{
+			StackTrace: "", Message: "", MethodName: success.MethodName, Outcome: "Pass",
+			ClassId: success.Id, ClassName: success.Name, NamespacePrefix: success.Namespace,
+			RunTime: int(success.Time), FullName: fullName(success.Namespace, success.Name, success.MethodName),
+		})
+	}
+	for _, failure := range response.Failures {
+		run.Tests = append(run.Tests, apexTest{
+			StackTrace: failure.StackTrace, Message: failure.Message, MethodName: failure.MethodName, Outcome: "Fail",
+			ClassId: failure.Id, ClassName: failure.Name, NamespacePrefix: failure.Namespace,
+			RunTime: int(failure.Time), FullName: fullName(failure.Namespace, failure.Name, failure.MethodName),
+		})
+	}
+	sort.SliceStable(run.Tests, func(i, j int) bool { return run.Tests[i].FullName < run.Tests[j].FullName })
+	return run, nil
+}
+
+// testPollInterval is the time between checks of a test run.  Tests
+// shorten it.
+var testPollInterval = time.Second
+
+func newApexRunTestCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:         "test",
+		Short:       "Invoke Apex tests in an org.",
+		Args:        cobra.NoArgs,
+		Annotations: map[string]string{commandNameAnnotation: "Test"},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := unsupportedFlags(cmd, "output-dir", "detailed-coverage"); err != nil {
+				return err
+			}
+			format, _ := cmd.Flags().GetString("result-format")
+			switch format {
+			case "human", "tap", "junit", "json":
+			default:
+				return &Error{Message: fmt.Sprintf("Expected --result-format=%s to be one of: human, tap, junit, json\nSee more help with --help", format), ExitCode: 2}
+			}
+			request, err := apexTestRequest(cmd)
+			if err != nil {
+				return err
+			}
+			org, err := resolveTargetOrg(cmd)
+			if err != nil {
+				return err
+			}
+			started := time.Now()
+			synchronous, _ := cmd.Flags().GetBool("synchronous")
+			codeCoverage, _ := cmd.Flags().GetBool("code-coverage")
+			concise, _ := cmd.Flags().GetBool("concise")
+			var run *apexTestRun
+			if synchronous {
+				run, err = runTestsSynchronously(org, request)
+				if err != nil {
+					return err
+				}
+			} else {
+				content, err := encodeJSON(request)
+				if err != nil {
+					return err
+				}
+				body, err := org.Force.PostREST("/tooling/runTestsAsynchronous", content)
+				if err != nil {
+					return apiError(err)
+				}
+				var testRunID string
+				if err := json.Unmarshal([]byte(body), &testRunID); err != nil {
+					testRunID = strings.Trim(strings.TrimSpace(body), `"`)
+				}
+				notWaiting := func() error {
+					result := newOrderedMap()
+					result.Set("testRunId", testRunID)
+					return emit(cmd, result, func(w io.Writer) {
+						fmt.Fprintf(w, "Run \"sf apex get test -i %s -o %s\" to retrieve test results\n", testRunID, org.Username)
+						fmt.Fprintln(w, "Run with --synchronous or increase --wait timeout to wait for results.")
+					})
+				}
+				wait, _ := cmd.Flags().GetInt("wait")
+				if !cmd.Flags().Changed("wait") {
+					return notWaiting()
+				}
+				interval := testPollInterval
+				if seconds, _ := cmd.Flags().GetInt("poll-interval"); seconds > 0 {
+					interval = time.Duration(seconds) * time.Second
+				}
+				queueItemIDs, finished, err := waitForTestRun(org, testRunID, time.Duration(wait)*time.Minute, interval)
+				if err != nil {
+					return err
+				}
+				if !finished {
+					return notWaiting()
+				}
+				run, err = loadTestRun(org, testRunID, queueItemIDs)
+				if err != nil {
+					return err
+				}
+			}
+			if codeCoverage {
+				if err := loadCoverage(org, run); err != nil {
+					return err
+				}
+			}
+			status := 0
+			if run.outcome() == "Failed" {
+				status = 100
+			}
+			elapsed := time.Since(started)
+			out := cmd.OutOrStdout()
+			if jsonRequested(cmd) {
+				if err := emitStatus(cmd, status, run.json(org, elapsed), nil); err != nil {
+					return err
+				}
+			} else {
+				switch format {
+				case "json":
+					envelope := newOrderedMap()
+					envelope.Set("status", status)
+					envelope.Set("result", run.json(org, elapsed))
+					if err := writeJSON(out, envelope); err != nil {
+						return err
+					}
+				case "tap":
+					fmt.Fprintln(out, run.tap(org))
+				case "junit":
+					fmt.Fprintln(out, run.junit(org, elapsed))
+				default:
+					fmt.Fprintln(out, run.human(org, concise))
+				}
+			}
+			if status != 0 {
+				return exitStatus(status)
+			}
+			return nil
+		},
+	}
+	addJSONFlag(cmd)
+	cmd.Flags().BoolP("code-coverage", "c", false, "Retrieve code coverage results.")
+	cmd.Flags().StringP("output-dir", "d", "", "Directory in which to store test run files.")
+	cmd.Flags().StringP("test-level", "l", "", "Level of tests to run; default is RunLocalTests.")
+	cmd.Flags().StringArrayP("class-names", "n", nil, "Apex test class names to run.")
+	cmd.Flags().StringP("result-format", "r", "human", "Format of the test results.")
+	cmd.Flags().StringArrayP("suite-names", "s", nil, "Apex test suite names to run.")
+	cmd.Flags().StringArrayP("tests", "t", nil, "Apex test class names or IDs and, if applicable, test methods to run.")
+	cmd.Flags().IntP("poll-interval", "i", 0, "Number of seconds to wait between retries.")
+	cmd.Flags().IntP("wait", "w", 0, "Sets the streaming client socket timeout in minutes.")
+	cmd.Flags().BoolP("synchronous", "y", false, "Runs test methods from a single Apex class synchronously.")
+	cmd.Flags().BoolP("detailed-coverage", "v", false, "Display detailed code coverage per test.")
+	cmd.Flags().Bool("concise", false, "Display only failed test results; works with human-readable output only.")
+	addAPIVersionFlag(cmd)
+	addTargetOrgFlag(cmd)
+	return cmd
+}
