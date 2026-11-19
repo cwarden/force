@@ -184,7 +184,7 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 
 163 commands of sf 2.138.6 and its bundled and install-on-first-use plugins. `docs/sf-compatibility.md` says what each needs. Commands under "dev" and most under "CLI management" manage the Node.js CLI and its plugins and do not apply to force.
 
-### org (10 open, 17 done)
+### org (7 open, 20 done)
 
 - [x] `org assign permset` (follows the sf plugin source)
 - [x] `org assign permsetlicense` (follows the sf plugin source)
@@ -193,18 +193,18 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [x] `org auth show-user-password` (follows the sf plugin source)
 - [ ] `org create agent-user`
 - [ ] `org create sandbox`
-- [ ] `org create shape`
+- [x] `org create shape` (follows the sf plugin source)
 - [ ] `org create snapshot`
 - [x] `org create user` (compared with sf against a scratch org; an org authorized with the JWT flow is refused)
 - [ ] `org delete sandbox`
 - [x] `org delete scratch` (follows the sf plugin source)
-- [ ] `org delete shape`
+- [x] `org delete shape` (follows the sf plugin source)
 - [x] `org delete snapshot` (the error of a Dev Hub without snapshots was compared with sf; the tables follow the plugin source)
 - [x] `org disable tracking`
 - [x] `org enable tracking`
 - [x] `org generate password` (follows the sf plugin source)
 - [x] `org get snapshot` (the error of a Dev Hub without snapshots was compared with sf; the tables follow the plugin source)
-- [ ] `org list shape`
+- [x] `org list shape` (follows the sf plugin source; the output without org shapes was compared with sf)
 - [x] `org list snapshot` (the error of a Dev Hub without snapshots was compared with sf; the tables follow the plugin source)
 - [x] `org list sobject record-counts` (follows the sf plugin source)
 - [x] `org list users` (compared with sf against a scratch org)

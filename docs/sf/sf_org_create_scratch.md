@@ -35,5 +35,5 @@ sf org create scratch [flags]
 
 ### SEE ALSO
 
-* [sf org create](sf_org_create.md)	 - Create scratch orgs and users.
+* [sf org create](sf_org_create.md)	 - Create scratch orgs, users and org shapes.
 
