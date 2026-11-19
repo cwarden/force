@@ -175,7 +175,8 @@ func TestOrgDeleteScratch(t *testing.T) {
 		deleted = r.Method == "DELETE"
 		w.WriteHeader(http.StatusNoContent)
 	}
-	expectRun(t, 0, "Successfully marked scratch org test-scratch@example.com for deletion.\n", "org", "delete", "scratch", "-o", "scratch", "-p")
+	// sf prints nothing after it deleted the org.
+	expectRun(t, 0, "", "org", "delete", "scratch", "-o", "scratch", "-p")
 	if !deleted {
 		t.Error("the ActiveScratchOrg record was not deleted")
 	}
@@ -187,6 +188,19 @@ func TestOrgDeleteScratch(t *testing.T) {
 	}
 	if _, err := lib.ReadSFDXAuthFields("me@example.com"); err != nil {
 		t.Errorf("the Dev Hub authorization was removed: %v", err)
+	}
+
+	// An org that the Dev Hub no longer has is reported as deleted.
+	writeTestAuth(t, "test-gone@example.com", lib.SFDXAuthFields{"isScratch": true, "devHubUsername": "me@example.com", "instanceUrl": org.URL, "orgId": "00D000000000008"})
+	org.rawQueries["FROM ActiveScratchOrg WHERE SignupUsername='test-gone@example.com'"] = `{"done":true,"totalSize":0,"records":[]}`
+	expectRun(t, 0, "Successfully deleted scratch org test-gone@example.com.\n", "org", "delete", "scratch", "-o", "test-gone@example.com", "-p")
+}
+
+func TestOrgDeleteScratchNeedsAnOrg(t *testing.T) {
+	useTempHome(t)
+	_, errOut, status := run("org", "delete", "scratch")
+	if status != 1 || errOut != "Error (MissingUsernameError): Unable to determine the username of the org to delete. Specify the username with the --target-org | -o flag.\n\n\n" {
+		t.Errorf("status %d, stderr %q", status, errOut)
 	}
 }
 

@@ -111,7 +111,7 @@ The files written by the `template generate` commands come from the salesforcedx
 | `sf org create scratch` | `force login scratch` | `--client-id`, `--no-ancestors`, `--source-org`, `--snapshot`; definition file key `objectSettings`. The `--async` output follows a transcript of `sf`; this mode was not run against a Dev Hub. | Follows the sf plugin source |
 | `sf org resume scratch` | none; reads `~/.sf/scratch-create-cache.json` and finishes the request as `force login scratch` does | The output follows a transcript of `sf`; this mode was not run against a Dev Hub. The case of an org that is not ready follows the plugin source. | Follows the sf plugin source |
 | `sf org create user` | none; creates the user with the SCIM API and writes its authorization file | An org that was authorized with the JWT flow. | Compared with sf |
-| `sf org delete scratch` | none |  | Follows the sf plugin source |
+| `sf org delete scratch` | none | For an org that has expired, `sf` removes the local authorization and reports it as marked for deletion; this mode asks the Dev Hub and reports it as deleted. | Compared with sf |
 | `sf org display` | `force whoami`, `force active` | An HTML response from the org, such as the one an expired scratch org gives, is reported in other words than in `sf`. | Compared with sf |
 | `sf org display user` | `force whoami` |  | Compared with sf |
 | `sf org generate password` | `force password reset` (sets a password the org generates) | The password is stored only for users that have an authorization file. | Follows the sf plugin source |

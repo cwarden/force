@@ -26,6 +26,9 @@ func newOrgDeleteScratchCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			org, err := resolveTargetOrg(cmd)
 			if err != nil {
+				if e, ok := err.(*Error); ok && e.Name == "NoDefaultEnvError" {
+					return newError("MissingUsernameError", "Unable to determine the username of the org to delete. Specify the username with the --target-org | -o flag.")
+				}
 				return err
 			}
 			devHub := org.Fields.String("devHubUsername")
@@ -48,19 +51,23 @@ func newOrgDeleteScratchCmd() *cobra.Command {
 				return apiError(err)
 			}
 			records, _ := active.values["records"].([]interface{})
+			// sf prints nothing after it deleted the org, and a message
+			// when the Dev Hub no longer has the org.
 			message := fmt.Sprintf("Successfully deleted scratch org %s.", org.Username)
 			if len(records) > 0 {
 				record, _ := records[0].(*orderedMap)
 				if _, err := hub.Force.DeleteREST("/sobjects/ActiveScratchOrg/" + text(record.values["Id"])); err != nil {
 					return apiError(err)
 				}
-				message = fmt.Sprintf("Successfully marked scratch org %s for deletion.", org.Username)
+				message = ""
 			}
 			if err := logout(org.Username); err != nil {
 				return err
 			}
 			return emit(cmd, result, func(w io.Writer) {
-				fmt.Fprintln(w, paint(w, styleGreen, message))
+				if message != "" {
+					fmt.Fprintln(w, paint(w, styleGreen, message))
+				}
 			})
 		},
 	}
