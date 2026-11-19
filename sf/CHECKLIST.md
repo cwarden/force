@@ -175,7 +175,7 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 
 163 commands of sf 2.138.6 and its bundled and install-on-first-use plugins. `docs/sf-compatibility.md` says what each needs. Commands under "dev" and most under "CLI management" manage the Node.js CLI and its plugins and do not apply to force.
 
-### org (16 open, 11 done)
+### org (15 open, 12 done)
 
 - [x] `org assign permset` (follows the sf plugin source)
 - [x] `org assign permsetlicense` (follows the sf plugin source)
@@ -198,7 +198,7 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [ ] `org list shape`
 - [ ] `org list snapshot`
 - [x] `org list sobject record-counts` (follows the sf plugin source)
-- [ ] `org list users`
+- [x] `org list users` (compared with sf against a scratch org)
 - [x] `org login sfdx-url` (follows the sf plugin source)
 - [ ] `org open agent`
 - [ ] `org refresh sandbox`

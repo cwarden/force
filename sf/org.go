@@ -24,6 +24,7 @@ func newOrgCmd() *cobra.Command {
 			newOrgListMetadataCmd(),
 			newOrgListMetadataTypesCmd(),
 			newGroup("sobject", "List sObject information.", newOrgListSobjectRecordCountsCmd()),
+			newOrgListUsersCmd(),
 		),
 		newOrgOpenCmd(),
 		withSubcommands(newOrgDisplayCmd(),

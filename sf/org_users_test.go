@@ -171,3 +171,60 @@ func TestOrgDeleteScratch(t *testing.T) {
 		t.Errorf("the Dev Hub authorization was removed: %v", err)
 	}
 }
+
+func TestOrgListUsers(t *testing.T) {
+	home := useTempHome(t)
+	org := newFakeOrg(t)
+	org.login(t, "--alias", "dev", "--set-default")
+	org.queries["SELECT username, profileid, id FROM User"] = []map[string]interface{}{
+		{"Username": "me@example.com", "ProfileId": "00e000000000001AAA", "Id": "005000000000001AAA"},
+		{"Username": "other@example.com", "ProfileId": "00e000000000002AAA", "Id": "005000000000002AAA"},
+	}
+	org.queries["SELECT id, name FROM Profile"] = []map[string]interface{}{
+		{"Id": "00e000000000001AAA", "Name": "System Administrator"},
+		{"Id": "00e000000000002AAA", "Name": "Standard User"},
+	}
+	expectRun(t, 0, `Users in org 00D000000000000
+┌─────────┬───────┬────────────────┬──────────────────────┬────────────────────┐
+│ Default │ Alias │ Username       │ Profile Name         │ User Id            │
+├─────────┼───────┼────────────────┼──────────────────────┼────────────────────┤
+│ (A)     │ dev   │ me@example.com │ System Administrator │ 005000000000001AAA │
+└─────────┴───────┴────────────────┴──────────────────────┴────────────────────┘
+
+`, "org", "list", "users")
+
+	// The users sf created for the org are listed in <orgId>.json.  One
+	// that is not the target org has no marker.
+	fields, err := lib.ReadSFDXAuthFields("me@example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fields["username"] = "other@example.com"
+	if err := lib.WriteSFDXAuthFields(fields); err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(filepath.Join(home, ".sfdx", "00D000000000000.json"), []byte(`{"usernames":["me@example.com","other@example.com"]}`), 0o600)
+	out, errOut, status := run("org", "list", "users", "--json")
+	if status != 0 {
+		t.Fatalf("status %d, stderr %s\n%s", status, errOut, out)
+	}
+	for _, want := range []string{`    {
+      "defaultMarker": "",
+      "alias": "",
+      "username": "other@example.com",
+      "profileName": "Standard User",
+      "orgId": "00D000000000000",
+      "accessToken": "[REDACTED] Use 'sf org auth show-access-token' to view",
+      "instanceUrl": "` + org.Server.URL + `/",
+      "loginUrl": "` + org.Server.URL + `/",
+      "userId": "005000000000002AAA"
+    }`, `"defaultMarker": "(A)",
+      "alias": "dev",`, "Secrets are now hidden from 'sf org list users' command output."} {
+		if !strings.Contains(out, want) {
+			t.Errorf("json lacks %s:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, fakeToken) {
+		t.Error("the access token is in the output")
+	}
+}

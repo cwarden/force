@@ -7,6 +7,8 @@ import (
 	"io"
 	"math/big"
 	"net/url"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -453,6 +455,106 @@ func newOrgGeneratePasswordCmd() *cobra.Command {
 	cmd.Flags().StringArrayP("on-behalf-of", "b", nil, "Comma-separated list of usernames or aliases to assign the password to; must have been created locally with the \"org create user\" command.")
 	cmd.Flags().IntP("length", "l", 20, "Number of characters in the generated password; valid values are between 20 and 100.")
 	cmd.Flags().IntP("complexity", "c", 5, "Level of password complexity or strength; the higher the value, the stronger the password.")
+	addAPIVersionFlag(cmd)
+	addTargetOrgFlag(cmd)
+	return cmd
+}
+
+// orgUsernames returns the usernames sf knows for the org of an
+// authorization: the ones recorded in ~/.sfdx/<orgId>.json, or the username
+// of the authorization when there is no such file.
+func orgUsernames(org *targetOrg) []string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return []string{org.Username}
+	}
+	data, err := os.ReadFile(filepath.Join(home, ".sfdx", org.Fields.String("orgId")+".json"))
+	if err != nil {
+		return []string{org.Username}
+	}
+	var contents struct {
+		Usernames []string `json:"usernames"`
+	}
+	if json.Unmarshal(data, &contents) != nil || contents.Usernames == nil {
+		return []string{org.Username}
+	}
+	return contents.Usernames
+}
+
+func newOrgListUsersCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:         "users",
+		Short:       "List all locally-authenticated users of an org.",
+		Args:        cobra.NoArgs,
+		Annotations: map[string]string{commandNameAnnotation: "ListUsersCommand"},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			org, err := resolveTargetOrg(cmd)
+			if err != nil {
+				return err
+			}
+			users, err := org.Force.Query("SELECT username, profileid, id FROM User")
+			if err != nil {
+				return apiError(err)
+			}
+			profiles, err := org.Force.Query("SELECT id, name FROM Profile")
+			if err != nil {
+				return apiError(err)
+			}
+			profileNames := map[string]string{}
+			for _, record := range profiles.Records {
+				profileNames[text(record["Id"])] = text(record["Name"])
+			}
+			type userInfo struct{ id, profile string }
+			infos := map[string]userInfo{}
+			for _, record := range users.Records {
+				infos[text(record["Username"])] = userInfo{id: text(record["Id"]), profile: text(record["ProfileId"])}
+			}
+			orgID := org.Fields.String("orgId")
+			result := []*orderedMap{}
+			rows := [][]string{}
+			for _, username := range orgUsernames(org) {
+				fields := org.Fields
+				if username != org.Username {
+					other, err := loadOrg(username)
+					if err != nil {
+						return newError("NamedOrgNotFoundError", "No authorization information found for %s.", username)
+					}
+					fields = other.Fields
+				}
+				alias := ""
+				if aliases := aliasesFor(username); len(aliases) > 0 {
+					alias = aliases[0]
+				}
+				marker := ""
+				if username == org.Username {
+					marker = "(A)"
+				}
+				info, known := infos[username]
+				item := newOrderedMap()
+				item.Set("defaultMarker", marker)
+				item.Set("alias", alias)
+				item.Set("username", username)
+				profileName, hasProfile := profileNames[info.profile]
+				if hasProfile {
+					item.Set("profileName", profileName)
+				}
+				item.Set("orgId", orgID)
+				item.Set("accessToken", redactedSecret)
+				item.Set("instanceUrl", fields.String("instanceUrl"))
+				item.Set("loginUrl", fields.String("loginUrl"))
+				if known {
+					item.Set("userId", info.id)
+				}
+				result = append(result, item)
+				rows = append(rows, []string{marker, alias, username, profileName, info.id})
+			}
+			warnJSON(cmd, secretsHiddenWarning("org list users"))
+			return emit(cmd, result, func(w io.Writer) {
+				printTable(w, "Users in org "+orgID, []string{"Default", "Alias", "Username", "Profile Name", "User Id"}, rows)
+			})
+		},
+	}
+	addJSONFlag(cmd)
 	addAPIVersionFlag(cmd)
 	addTargetOrgFlag(cmd)
 	return cmd
