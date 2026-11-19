@@ -44,9 +44,8 @@ generated help for each command.
 
 The file templates of the `sf template generate` commands come from
 [salesforcedx-templates](https://github.com/forcedotcom/salesforcedx-templates)
-(BSD-3-Clause) and are compiled into the binary. Their license is in
-[THIRD-PARTY-LICENSES.txt](THIRD-PARTY-LICENSES.txt), which is included in
-every release zip. `make update-sf-templates SF_TEMPLATES_VERSION=<tag>`
+(BSD-3-Clause) and are compiled into the binary.
+`make update-sf-templates SF_TEMPLATES_VERSION=<tag>`
 rebuilds them from a tag of that repository.
 
 Tab completion simplifies use of the force CLI.
@@ -443,3 +442,15 @@ Starting from Windows 10 Creator Update (version 1703), you now can use force cl
 For ease of use you can add the following simple alias
 
       alias force=force.exe
+
+## Licenses
+
+force is released under the MIT license in [LICENSE](LICENSE).
+[third-party-licenses.txt](third-party-licenses.txt) holds the license of each
+Go module compiled into the binary, followed by the attributions in
+`licenses/` for third-party material that is not a Go module. Both files are
+included in every release zip.
+
+`make third-party-licenses.txt` regenerates the file with
+[go-licenses](https://github.com/google/go-licenses) after a dependency
+changes.

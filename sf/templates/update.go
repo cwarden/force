@@ -7,8 +7,9 @@
 //
 // It clones the repository at the tag, writes one <name>.tar.gz for each
 // directory of src/templates, copies the license to LICENSE.txt, records the
-// tag and commit in SOURCE, and writes THIRD-PARTY-LICENSES.txt at the root
-// of this repository.  The archives depend only on the content of the
+// tag and commit in SOURCE, and writes the attribution block
+// licenses/salesforcedx-templates.txt, which "make third-party-licenses.txt"
+// appends to the license report.  The archives depend only on the content of the
 // files: entries are sorted and carry no times or owners.
 package main
 
@@ -61,17 +62,19 @@ func main() {
 	check(os.WriteFile(filepath.Join(out, "LICENSE.txt"), license, 0o644))
 	check(os.WriteFile(filepath.Join(out, "SOURCE"), []byte(fmt.Sprintf("repository: %s\ntag: %s\ncommit: %s\n", repository, tag, commit)), 0o644))
 
-	notice := "Third-Party Licenses\n" +
-		"====================\n\n" +
-		"The force binary includes the following third-party material.\n\n" +
-		"salesforcedx-templates\n" +
-		"----------------------\n\n" +
-		"The file templates used by the \"template generate\" commands of the\n" +
-		"sf-compatible mode come from " + repository + "\n" +
-		"(tag " + tag + ", commit " + commit + "). They are stored in sf/templates\n" +
-		"as compressed archives and are compiled into the binary.\n\n" +
-		string(license)
-	check(os.WriteFile(filepath.Join(root, "THIRD-PARTY-LICENSES.txt"), []byte(notice), 0o644))
+	// The attribution block has the layout of the blocks go-licenses
+	// writes with licenses.tpl.
+	rule := strings.Repeat("=", 80)
+	notice := rule + "\n" +
+		"salesforcedx-templates " + tag + " (file templates of the sf \"template generate\" commands)\n" +
+		"BSD-3-Clause\n" +
+		rule + "\n\n" +
+		"Source: " + repository + " commit " + commit + "\n" +
+		"The templates are stored in sf/templates as compressed archives and are\n" +
+		"compiled into the binary.\n\n" +
+		string(license) + "\n"
+	check(os.MkdirAll(filepath.Join(root, "licenses"), 0o755))
+	check(os.WriteFile(filepath.Join(root, "licenses", "salesforcedx-templates.txt"), []byte(notice), 0o644))
 }
 
 // archive returns a gzip-compressed tar of the regular files under dir,

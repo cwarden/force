@@ -140,7 +140,7 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 
 ## Needs A Decision
 
-- [x] Template files: the 192 files of the salesforcedx-templates repository (tag 66.9.1) are embedded as compressed archives in `sf/templates`, with the license in `THIRD-PARTY-LICENSES.txt` and in every release zip. The React app templates of the npm package are not in that repository and are not included
+- [x] Template files: the 192 files of the salesforcedx-templates repository (tag 66.9.1) are embedded as compressed archives in `sf/templates`, with the license in `third-party-licenses.txt` and in every release zip. The React app templates of the npm package are not in that repository and are not included
 
 ## Not Yet Verified
 

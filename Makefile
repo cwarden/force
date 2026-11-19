@@ -13,9 +13,10 @@ OSX_ARM64=$(EXECUTABLE)_osx_arm64
 ALL=$(WINDOWS) $(WINDOWS_ARM64) $(LINUX) $(LINUX_ARM64) $(OSX_AMD64) $(OSX_ARM64)
 ZIPS=$(addsuffix _$(VERSION).zip,$(basename $(ALL)))
 RELEASE_ASSETS=$(ZIPS) SHA256SUMS-$(VERSION)
-# Notices that the licenses of third-party material in the binary require to
-# accompany it.  Every release zip includes these files.
-LICENSE_FILES=THIRD-PARTY-LICENSES.txt
+# The license of force and the notices that the licenses of third-party
+# material in the binary require to accompany it.  Every release zip includes
+# these files.
+LICENSES := LICENSE third-party-licenses.txt
 # Source of the file templates in sf/templates.
 SF_TEMPLATES_REPO=https://github.com/forcedotcom/salesforcedx-templates
 SF_TEMPLATES_VERSION=66.9.1
@@ -53,42 +54,50 @@ $(OSX_ARM64):
 	env CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -v -o $(OSX_ARM64) ${LDFLAGS}
 	rcodesign sign --for-notarization --pem-file <(pass OctoberSwimmer/codesign/combined) $@
 
-$(basename $(WINDOWS))_$(VERSION).zip: $(WINDOWS) $(LICENSE_FILES)
+$(basename $(WINDOWS))_$(VERSION).zip: $(WINDOWS) $(LICENSES)
 	@rm -f $@
-	zip $@ $< $(LICENSE_FILES)
+	zip $@ $< $(LICENSES)
 	7za rn $@ $< $(EXECUTABLE)$(suffix $<)
 
-$(basename $(WINDOWS_ARM64))_$(VERSION).zip: $(WINDOWS_ARM64) $(LICENSE_FILES)
+$(basename $(WINDOWS_ARM64))_$(VERSION).zip: $(WINDOWS_ARM64) $(LICENSES)
 	@rm -f $@
-	zip $@ $< $(LICENSE_FILES)
+	zip $@ $< $(LICENSES)
 	7za rn $@ $< $(EXECUTABLE)$(suffix $<)
 
-$(basename $(OSX_AMD64))_$(VERSION).zip: $(OSX_AMD64) $(LICENSE_FILES)
+$(basename $(OSX_AMD64))_$(VERSION).zip: $(OSX_AMD64) $(LICENSES)
 	@rm -f $@
-	zip $@ $< $(LICENSE_FILES)
+	zip $@ $< $(LICENSES)
 	7za rn $@ $< $(EXECUTABLE)
 	rcodesign notary-submit --api-key-file <(pass OctoberSwimmer/codesign/api-key) $@
 
-$(basename $(OSX_ARM64))_$(VERSION).zip: $(OSX_ARM64) $(LICENSE_FILES)
+$(basename $(OSX_ARM64))_$(VERSION).zip: $(OSX_ARM64) $(LICENSES)
 	@rm -f $@
-	zip $@ $< $(LICENSE_FILES)
+	zip $@ $< $(LICENSES)
 	7za rn $@ $< $(EXECUTABLE)
 	rcodesign notary-submit --api-key-file <(pass OctoberSwimmer/codesign/api-key) $@
 
-%_$(VERSION).zip: % $(LICENSE_FILES)
+%_$(VERSION).zip: % $(LICENSES)
 	@rm -f $@
-	zip $@ $< $(LICENSE_FILES)
+	zip $@ $< $(LICENSES)
 	7za rn $@ $< $(EXECUTABLE)
 
 docs:
 	go run docs/mkdocs.go
 
-# Rebuild the template archives in sf/templates, their license and
-# THIRD-PARTY-LICENSES.txt from a tag of the source repository:
+# Rebuild the template archives in sf/templates and their attribution in
+# licenses/ from a tag of the source repository, then the license report:
 #   make update-sf-templates SF_TEMPLATES_VERSION=66.9.3
 update-sf-templates:
 	go run sf/templates/update.go $(SF_TEMPLATES_REPO) $(SF_TEMPLATES_VERSION) .
+	$(MAKE) third-party-licenses.txt
 	go test ./sf/...
+
+# Attributions for the Go modules compiled into the binary, followed by the
+# attributions in licenses/ for third-party material that is not a Go module
+# dependency, so go-licenses cannot find it by walking the module graph.
+third-party-licenses.txt: go.mod licenses.tpl $(wildcard licenses/*.txt)
+	go tool go-licenses report ./... --ignore github.com/ForceCLI/force --template licenses.tpl > $@
+	@if ls licenses/*.txt >/dev/null 2>&1; then cat licenses/*.txt >> $@; fi
 
 dist: test $(ZIPS)
 

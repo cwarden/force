@@ -35,7 +35,7 @@ Logins, aliases and config values written by this mode were read by `sf` 2.138.6
 
 ## Templates
 
-The files written by the `template generate` commands come from the salesforcedx-templates repository (BSD-3-Clause). They are stored in `sf/templates` as one compressed archive for each template directory and are compiled into the binary. `sf/templates/SOURCE` names the tag and commit. `make update-sf-templates SF_TEMPLATES_VERSION=<tag>` rebuilds the archives, the copy of the license and `THIRD-PARTY-LICENSES.txt`, which every release zip includes.
+The files written by the `template generate` commands come from the salesforcedx-templates repository (BSD-3-Clause). They are stored in `sf/templates` as one compressed archive for each template directory and are compiled into the binary. `sf/templates/SOURCE` names the tag and commit. `make update-sf-templates SF_TEMPLATES_VERSION=<tag>` rebuilds the archives, the copy of the license, the attribution in `licenses/salesforcedx-templates.txt` and `third-party-licenses.txt`, which every release zip includes.
 
 ## Output
 

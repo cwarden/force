@@ -40,40 +40,53 @@ func TestArchivesHoldTheTemplateFiles(t *testing.T) {
 }
 
 // The license of the templates has to accompany the binary.  The release
-// zips include THIRD-PARTY-LICENSES.txt, so it has to contain the license
+// zips include third-party-licenses.txt, so it has to contain the license
 // and name the source the archives were built from.
 func TestThirdPartyLicensesFileCoversTheTemplates(t *testing.T) {
 	if !strings.Contains(License, "Redistribution and use in source and binary forms") || !strings.Contains(License, "Salesforce") {
 		t.Fatalf("LICENSE.txt is not the license of the templates:\n%s", License)
 	}
-	notice, err := os.ReadFile("../../THIRD-PARTY-LICENSES.txt")
+	notice, err := os.ReadFile("../../third-party-licenses.txt")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(string(notice), License) {
-		t.Error("THIRD-PARTY-LICENSES.txt does not contain sf/templates/LICENSE.txt; run make update-sf-templates")
+		t.Error("third-party-licenses.txt does not contain sf/templates/LICENSE.txt; run make update-sf-templates")
 	}
 	for _, line := range strings.Split(strings.TrimSpace(Source), "\n") {
 		_, value, ok := strings.Cut(line, ": ")
 		if !ok || !strings.Contains(string(notice), value) {
-			t.Errorf("THIRD-PARTY-LICENSES.txt does not name %q from SOURCE", line)
+			t.Errorf("third-party-licenses.txt does not name %q from SOURCE", line)
 		}
 	}
 }
 
 // The release zips are built by Makefile rules that add the license files.
-func TestReleaseZipsIncludeTheLicenseFile(t *testing.T) {
+func TestReleaseZipsIncludeTheLicenseFiles(t *testing.T) {
 	makefile, err := os.ReadFile("../../Makefile")
 	if err != nil {
 		t.Fatal(err)
 	}
 	text := string(makefile)
-	if !strings.Contains(text, "LICENSE_FILES=THIRD-PARTY-LICENSES.txt") {
-		t.Fatal("the Makefile does not define LICENSE_FILES with THIRD-PARTY-LICENSES.txt")
+	if !strings.Contains(text, "LICENSES := LICENSE third-party-licenses.txt") {
+		t.Fatal("the Makefile does not define LICENSES as LICENSE and third-party-licenses.txt")
 	}
 	rules := strings.Count(text, ".zip: ")
-	withLicense := strings.Count(text, "\tzip $@ $< $(LICENSE_FILES)\n")
-	if rules == 0 || rules != withLicense {
-		t.Errorf("%d zip rules, %d of them add $(LICENSE_FILES)", rules, withLicense)
+	withLicenses := strings.Count(text, "\tzip $@ $< $(LICENSES)\n")
+	if rules == 0 || rules != withLicenses {
+		t.Errorf("%d zip rules, %d of them add $(LICENSES)", rules, withLicenses)
+	}
+}
+
+// The license report lists the Go modules compiled into the binary.
+func TestThirdPartyLicensesFileCoversGoModules(t *testing.T) {
+	notice, err := os.ReadFile("../../third-party-licenses.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, module := range []string{"github.com/spf13/cobra", "github.com/spf13/pflag", "golang.org/x/term"} {
+		if !strings.Contains(string(notice), "\n"+module+" ") {
+			t.Errorf("third-party-licenses.txt has no block for %s; run make third-party-licenses.txt", module)
+		}
 	}
 }
