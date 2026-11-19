@@ -349,7 +349,7 @@ func newProjectDeleteSourceCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := recordDeploy(id, map[string]interface{}{"status": state.status.Status}); err != nil {
+			if err := recordDeploy(id, orderedFields("status", state.status.Status)); err != nil {
 				return err
 			}
 			succeeded := state.status.Status == "Succeeded"

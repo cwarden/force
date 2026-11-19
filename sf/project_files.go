@@ -132,6 +132,9 @@ type sourceSet struct {
 	// deletedPaths holds the files of the components a deploy deletes,
 	// relative to the project, keyed by type and name ("ApexClass###A").
 	deletedPaths map[string][]string
+	// noFiles marks a set that stands for a deployment whose local files
+	// are not known: sf then lists no files for it.
+	noFiles bool
 }
 
 func newSourceSet() *sourceSet {

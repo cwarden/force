@@ -1,6 +1,7 @@
 package sf
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -88,6 +89,10 @@ type deployState struct {
 	raw    *orderedMap
 	// verboseInfo holds the lines --verbose adds to the progress display.
 	verboseInfo [][2]string
+	// finishedBefore is set when the deployment was already finished
+	// when the command started to watch it: sf then shows the deploy and
+	// test stages as skipped.
+	finishedBefore bool
 }
 
 func checkDeploy(org *targetOrg, id string) (*deployState, error) {
@@ -121,6 +126,9 @@ func deployURL(org *targetOrg, id string) string {
 // result, the way sf reports them in "files".
 func deployFileResults(state *deployState, source *sourceSet) []*orderedMap {
 	results := []*orderedMap{}
+	if source != nil && source.noFiles {
+		return results
+	}
 	add := func(fullName, componentType, fileState, fileName string, extra func(*orderedMap)) {
 		if fileName == "package.xml" || componentType == "" {
 			return
@@ -198,7 +206,7 @@ func fillTestResultLists(result *orderedMap) {
 			coverage, _ := tests.values["codeCoverage"].([]interface{})
 			for _, item := range coverage {
 				if class, ok := item.(*orderedMap); ok {
-					for _, key := range []string{"dmlInfo", "methodInfo", "soqlInfo", "soslInfo"} {
+					for _, key := range []string{"dmlInfo", "locationsNotCovered", "methodInfo", "soqlInfo", "soslInfo"} {
 						if _, present := class.values[key]; !present {
 							class.Set(key, []interface{}{})
 						}
@@ -280,6 +288,8 @@ func writeDeployTables(w io.Writer, state *deployState, source *sourceSet, conci
 		testsEnabled = enabled
 	}
 	if !testsEnabled {
+		// sf prints an empty line in place of the test results.
+		fmt.Fprintln(w)
 		return
 	}
 	byMethod := func(aMethod, aName, bMethod, bName string) bool {
@@ -405,6 +415,10 @@ func deployProgress(w io.Writer, org *targetOrg, title, subtitle string, state *
 				stages[3] = stage{label: "Running Tests"}
 			}
 		}
+	}
+	if state.finishedBefore && status.Status == "Succeeded" {
+		stages[2] = stage{label: "Deploying Metadata", state: "skipped"}
+		stages[3] = stage{label: "Running Tests", state: "skipped"}
 	}
 	deployTime := elapsed - prepare
 	if len(tracked) > 0 && tracked[0] != nil {
@@ -569,8 +583,9 @@ func deployCachePath() (string, error) {
 	return filepath.Join(home, ".sf", "deploy-cache.json"), nil
 }
 
-func readDeployCache() (map[string]map[string]interface{}, error) {
-	entries := map[string]map[string]interface{}{}
+// readDeployCache reads the deploy cache: an object of cache entries by
+// deployment id, each an object of the options sf recorded.
+func readDeployCache() (*orderedMap, error) {
 	path, err := deployCachePath()
 	if err != nil {
 		return nil, err
@@ -578,32 +593,70 @@ func readDeployCache() (map[string]map[string]interface{}, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return entries, nil
+			return newOrderedMap(), nil
 		}
 		return nil, err
 	}
-	if err := json.Unmarshal(data, &entries); err != nil {
+	parsed, err := parseOrderedJSON(data)
+	if err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
-	return entries, nil
+	cache, _ := parsed.(*orderedMap)
+	if cache == nil {
+		cache = newOrderedMap()
+	}
+	return cache, nil
+}
+
+// deployCacheEntry returns the entry of a deployment and its 18-character
+// id.  A 15-character id matches the entry whose id starts with it.
+func deployCacheEntry(cache *orderedMap, id string) (*orderedMap, string) {
+	if entry, ok := cache.values[id].(*orderedMap); ok {
+		return entry, id
+	}
+	if len(id) == 15 {
+		for _, key := range cache.keys {
+			if strings.HasPrefix(key, id) {
+				if entry, ok := cache.values[key].(*orderedMap); ok {
+					return entry, key
+				}
+			}
+		}
+	}
+	return nil, id
+}
+
+// orderedFields builds an ordered map from keys and values given in turn.
+func orderedFields(pairs ...interface{}) *orderedMap {
+	fields := newOrderedMap()
+	for i := 0; i+1 < len(pairs); i += 2 {
+		fields.Set(pairs[i].(string), pairs[i+1])
+	}
+	return fields
 }
 
 // recordDeploy adds or updates the cache entry of a deployment.  The other
-// entries and the fields sf wrote in an existing entry are kept.
-func recordDeploy(id string, fields map[string]interface{}) error {
-	entries, err := readDeployCache()
+// entries, the fields of an existing entry and the order of both are kept.
+func recordDeploy(id string, fields *orderedMap) error {
+	cache, err := readDeployCache()
 	if err != nil {
 		return err
 	}
-	entry := entries[id]
+	entry, key := deployCacheEntry(cache, id)
 	if entry == nil {
-		entry = map[string]interface{}{}
+		entry = newOrderedMap()
 	}
-	for key, value := range fields {
-		entry[key] = value
+	for _, name := range fields.keys {
+		entry.Set(name, fields.values[name])
 	}
-	entry["timestamp"] = time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
-	entries[id] = entry
+	return writeDeployCacheWith(cache, key, entry)
+}
+
+// writeDeployCacheWith stores an entry with the current time and writes
+// the cache.
+func writeDeployCacheWith(cache *orderedMap, key string, entry *orderedMap) error {
+	entry.Set("timestamp", time.Now().UTC().Format("2006-01-02T15:04:05.000Z"))
+	cache.Set(key, entry)
 	path, err := deployCachePath()
 	if err != nil {
 		return err
@@ -611,32 +664,105 @@ func recordDeploy(id string, fields map[string]interface{}) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
-	data, err := json.MarshalIndent(entries, "", "  ")
+	var buffer bytes.Buffer
+	encoder := json.NewEncoder(&buffer)
+	encoder.SetEscapeHTML(false)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(cache); err != nil {
+		return err
+	}
+	return os.WriteFile(path, bytes.TrimRight(buffer.Bytes(), "\n"), 0o600)
+}
+
+// replaceDeployCacheEntry replaces the cache entry of a deployment, keeping
+// its place in the cache.
+func replaceDeployCacheEntry(id string, entry *orderedMap) error {
+	cache, err := readDeployCache()
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, data, 0o600)
+	_, key := deployCacheEntry(cache, id)
+	cache.Set(key, newOrderedMap())
+	return writeDeployCacheWith(cache, key, entry)
 }
 
-// deployJob returns the deployment a command acts on, from --job-id or,
-// with --use-most-recent, the newest entry of the deploy cache.  It also
-// returns the org the deployment was started in: --target-org when given,
-// then the org in the cache entry, then the default org.
-func deployJob(cmd *cobra.Command) (string, *targetOrg, error) {
+// writeDeployManifest writes the manifest of a deployment to the manifest
+// cache of sf, ~/.sf/manifestCache/<id>.xml, and returns its path.  The
+// deploy commands read it to find the local files of the deployment.
+func writeDeployManifest(id string, source *sourceSet, version string) (string, error) {
+	cachePath, err := deployCachePath()
+	if err != nil {
+		return "", err
+	}
+	path := filepath.Join(filepath.Dir(cachePath), "manifestCache", id+".xml")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return "", err
+	}
+	return path, os.WriteFile(path, packageXML(source.types, version), 0o644)
+}
+
+// deployJobSource collects the local files of a deployment from the
+// manifest in its cache entry, or from the package directories of the
+// project when there is no entry.  It returns nil when the files cannot be
+// found: the commands then report the paths the org gives.
+func deployJobSource(entry *orderedMap) *sourceSet {
+	project, err := loadProject()
+	if err != nil {
+		return nil
+	}
+	set := newSourceSet()
+	set.ignore = loadForceIgnore(project.Root)
+	if entry == nil {
+		for _, dir := range project.packageDirs() {
+			if set.addPath(dir) != nil {
+				return nil
+			}
+		}
+		return set
+	}
+	if entry.values["isMdapi"] == true {
+		return nil
+	}
+	manifestPath := text(entry.values["manifest"])
+	if manifestPath == "" {
+		return nil
+	}
+	manifest, err := readManifest(manifestPath)
+	if err != nil {
+		return nil
+	}
+	if err := set.addMetadata(project, manifest.metadataNames()); err != nil {
+		return nil
+	}
+	return set
+}
+
+// deployJobID returns the deployment a command acts on, from --job-id or,
+// with --use-most-recent, the newest entry of the deploy cache, and the
+// cache entry of the deployment or nil.  With mustBeCached, a deployment
+// without a cache entry is an error.
+func deployJobID(cmd *cobra.Command, mustBeCached bool) (string, *orderedMap, error) {
 	id, _ := cmd.Flags().GetString("job-id")
 	mostRecent, _ := cmd.Flags().GetBool("use-most-recent")
 	if (id == "") == !mostRecent {
+		// sf names the flags in the order the command defines them.
+		if cmd.Name() == "report" {
+			return "", nil, exactlyOneError("job-id", "use-most-recent")
+		}
 		return "", nil, exactlyOneError("use-most-recent", "job-id")
 	}
-	entries, err := readDeployCache()
+	cache, err := readDeployCache()
 	if err != nil {
 		return "", nil, err
 	}
 	if mostRecent {
 		newest := ""
-		for key, entry := range entries {
-			stamp, _ := entry["timestamp"].(string)
-			if id == "" || stamp > newest {
+		for _, key := range cache.keys {
+			entry, _ := cache.values[key].(*orderedMap)
+			if entry == nil {
+				continue
+			}
+			if stamp := text(entry.values["timestamp"]); id == "" || stamp > newest {
 				id, newest = key, stamp
 			}
 		}
@@ -644,21 +770,113 @@ func deployJob(cmd *cobra.Command) (string, *targetOrg, error) {
 			return "", nil, newError("NoRecentJobIdError", "There are no recent job IDs available.")
 		}
 	}
-	if targetOrgFlag(cmd) == "" {
-		if cached, _ := entries[id]["target-org"].(string); cached != "" {
+	if len(id) != 15 && len(id) != 18 {
+		return "", nil, newError("InvalidJobIdError", "No job found for ID: %s.", id)
+	}
+	entry, key := deployCacheEntry(cache, id)
+	if entry == nil && mustBeCached {
+		return "", nil, newError("NoMatchingJobIdError", "No matching job found in cache for ID: %s.", id)
+	}
+	return key, entry, nil
+}
+
+// deployJobOrg returns the org of a deployment: the org in its cache entry,
+// then --target-org, then the default org.
+func deployJobOrg(cmd *cobra.Command, entry *orderedMap) (*targetOrg, error) {
+	if entry != nil {
+		if cached := text(entry.values["target-org"]); cached != "" {
 			org, err := loadOrg(cached)
 			if err != nil {
-				return "", nil, newError("NamedOrgNotFoundError", "No authorization information found for %s.", cached)
+				return nil, newError("NamedOrgNotFoundError", "No authorization information found for %s.", cached)
 			}
 			if version := org.Fields.String("instanceApiVersion"); version != "" {
 				lib.SetApiVersion(version)
 				org.Force.Metadata = lib.NewForceMetadata(org.Force)
 			}
-			return id, org, nil
+			return org, nil
 		}
 	}
-	org, err := resolveTargetOrg(cmd)
+	return resolveTargetOrg(cmd)
+}
+
+// deployJob returns the id and the org of the deployment a command acts on.
+func deployJob(cmd *cobra.Command) (string, *targetOrg, error) {
+	id, entry, err := deployJobID(cmd, false)
+	if err != nil {
+		return "", nil, err
+	}
+	org, err := deployJobOrg(cmd, entry)
 	return id, org, err
+}
+
+// deployCacheFields returns the cache entry sf records for a deploy that
+// deploy start or deploy validate started: the flags of the command in the
+// order sf defines them, and what the deploy commands need to find the
+// deployment again.
+func deployCacheFields(cmd *cobra.Command, validate bool, org *targetOrg, manifestPath string, isMdapi bool) *orderedMap {
+	entry := newOrderedMap()
+	flags := cmd.Flags()
+	given := func(name string) bool {
+		flag := flags.Lookup(name)
+		return flag != nil && flag.Changed
+	}
+	boolean := func(name string, always bool) {
+		if value, err := flags.GetBool(name); err == nil && (always || given(name)) {
+			entry.Set(name, value)
+		}
+	}
+	str := func(name string) {
+		if given(name) {
+			value, _ := flags.GetString(name)
+			entry.Set(name, value)
+		}
+	}
+	list := func(name string) {
+		if values := splitList(cmd, name); len(values) > 0 {
+			entry.Set(name, values)
+		}
+	}
+	boolean("json", false)
+	str("api-version")
+	boolean("async", false)
+	boolean("concise", false)
+	if !validate {
+		boolean("dry-run", true)
+		boolean("ignore-conflicts", true)
+		boolean("ignore-errors", true)
+		boolean("ignore-warnings", true)
+	}
+	if given("manifest") && manifestPath != "" {
+		entry.Set("manifest", manifestPath)
+	}
+	list("metadata")
+	boolean("single-package", false)
+	entry.Set("target-org", org.Username)
+	list("tests")
+	str("test-level")
+	boolean("verbose", false)
+	if validate {
+		boolean("ignore-warnings", true)
+	} else {
+		boolean("purge-on-delete", false)
+		str("pre-destructive-changes")
+		str("post-destructive-changes")
+	}
+	list("coverage-formatters")
+	boolean("junit", false)
+	str("results-dir")
+	if validate {
+		entry.Set("ignore-conflicts", true)
+		entry.Set("dry-run", true)
+	}
+	entry.Set("api", "SOAP")
+	if manifestPath != "" {
+		entry.Set("manifest", manifestPath)
+	}
+	minutes, _ := flags.GetInt("wait")
+	entry.Set("wait", minutes)
+	entry.Set("isMdapi", isMdapi)
+	return entry
 }
 
 func newProjectDeployStartCmd(validate bool) *cobra.Command {
@@ -781,7 +999,8 @@ func newProjectDeployStartCmd(validate bool) *cobra.Command {
 						return err
 					}
 				}
-				if tracking != nil && !ignoreConflicts {
+				// A validation does not change the org and ignores conflicts.
+				if tracking != nil && !ignoreConflicts && !validate {
 					keys := append(source.componentKeys(), deletedKeys...)
 					if rows := trackingState.conflictRows(project.Root, keys); len(rows) > 0 {
 						return conflictError(cmd, rows, true)
@@ -834,7 +1053,14 @@ func newProjectDeployStartCmd(validate bool) *cobra.Command {
 			if err != nil {
 				return apiError(err)
 			}
-			if err := recordDeploy(id, map[string]interface{}{"target-org": org.Username, "isMdapi": metadataDir != "", "api": "SOAP"}); err != nil {
+			manifestPath := ""
+			if source != nil {
+				manifestPath, err = writeDeployManifest(id, source, strings.TrimPrefix(version, "v"))
+				if err != nil {
+					return err
+				}
+			}
+			if err := recordDeploy(id, deployCacheFields(cmd, validate, org, manifestPath, metadataDir != "")); err != nil {
 				return err
 			}
 			async, _ := cmd.Flags().GetBool("async")
@@ -896,16 +1122,17 @@ func newProjectDeployStartCmd(validate bool) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := recordDeploy(id, map[string]interface{}{"status": state.status.Status}); err != nil {
+			if err := recordDeploy(id, orderedFields("status", state.status.Status)); err != nil {
 				return err
 			}
-			return finishDeploy(cmd, org, state, source, len(archive), len(files), func(w io.Writer) {
-				if tracked != nil {
-					// sf prints one more blank line after a deploy that
-					// updated source tracking.
-					fmt.Fprintln(w)
-				}
+			zipSize, zipFileCount := len(archive), len(files)
+			if validate {
+				// sf reports the size the org gives for a validation.
+				zipSize, zipFileCount = 0, 0
+			}
+			return finishDeploy(cmd, org, state, source, zipSize, zipFileCount, func(w io.Writer) {
 				if validate {
+					fmt.Fprintln(w)
 					fmt.Fprintln(w, paint(w, styleGreen, fmt.Sprintf("Successfully validated the deployment (%s).", id)))
 					fmt.Fprintf(w, "Run \"sf project deploy quick --job-id %s\" to execute this deploy\n", id)
 				}
@@ -946,28 +1173,111 @@ func newProjectDeployResumeCmd() *cobra.Command {
 		Args:        cobra.NoArgs,
 		Annotations: map[string]string{commandNameAnnotation: "DeployMetadataResume"},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			id, org, err := deployJob(cmd)
+			if _, err := readDeployReportFlags(cmd); err != nil {
+				return err
+			}
+			id, entry, err := deployJobID(cmd, true)
 			if err != nil {
 				return err
+			}
+			org, err := deployJobOrg(cmd, entry)
+			if err != nil {
+				return err
+			}
+			// --verbose adds the deploy URL to the progress display.  The
+			// tables follow the verbosity of the command that started
+			// the deploy, as in sf.
+			stageVerbose, _ := cmd.Flags().GetBool("verbose")
+			stageVerbose = stageVerbose || entry.values["verbose"] == true
+			for _, name := range []string{"verbose", "concise"} {
+				value := "false"
+				if entry.values[name] == true {
+					value = "true"
+				}
+				cmd.Flags().Set(name, value)
 			}
 			started := time.Now()
-			state, err := checkDeploy(org, id)
-			if err != nil {
-				return err
+			source := deployJobSource(entry)
+			if source == nil {
+				source = &sourceSet{noFiles: true}
 			}
-			if state.status.Done {
-				warn(cmd, fmt.Sprintf("Job ID %s is not resumable because it already completed with status: %s. Displaying results...", id, state.status.Status))
-			} else {
-				minutes, _ := cmd.Flags().GetInt("wait")
-				state, err = waitForDeploy(org, id, time.Duration(minutes)*time.Minute)
-				if state != nil && !jsonRequested(cmd) {
-					deployProgress(cmd.OutOrStdout(), org, "Resuming Deploy", "", state, false, 0, time.Since(started))
-				}
+			switch status := text(entry.values["status"]); status {
+			case "Succeeded", "SucceededPartial", "Failed", "Canceled":
+				// The deploy is known to be finished: report it.
+				warn(cmd, fmt.Sprintf("Job ID %s is not resumable because it already completed with status: %s. Displaying results...", id, status))
+				state, err := checkDeploy(org, id)
 				if err != nil {
 					return err
 				}
+				return finishDeploy(cmd, org, state, source, 0, 0, nil)
 			}
-			return finishDeploy(cmd, org, state, nil, 0, 0, nil)
+			first, err := checkDeploy(org, id)
+			if err != nil {
+				return err
+			}
+			state := first
+			if !first.status.Done {
+				minutes, _ := cmd.Flags().GetInt("wait")
+				if !cmd.Flags().Changed("wait") {
+					if cached := intValue(entry.values["wait"]); cached > 0 {
+						minutes = cached
+					}
+				}
+				state, err = waitForDeploy(org, id, time.Duration(minutes)*time.Minute)
+				if err != nil {
+					if state != nil && !jsonRequested(cmd) {
+						deployProgress(cmd.OutOrStdout(), org, "Resuming Deploy", "", state, false, 0, time.Since(started))
+					}
+					return err
+				}
+			}
+			// A deploy that finished updates the source tracking files,
+			// as the command that started it would have.
+			var tracked *trackingProgress
+			if state.status.Status == "Succeeded" && !state.status.CheckOnly && entry.values["isMdapi"] != true && tracksSource(org) {
+				if project, projectErr := loadProject(); projectErr == nil {
+					tracking := newSourceTracking(project, org)
+					// The org is not asked for its changes here: the wait
+					// for the source members of the deploy starts from the
+					// revision that was recorded before the deploy.
+					trackingState, err := tracking.state(false)
+					if err != nil {
+						return err
+					}
+					var deployed, deleted, unchanged []string
+					for _, success := range state.status.Details.ComponentSuccesses {
+						key := success.ComponentType + "###" + success.FullName
+						switch {
+						case success.ComponentType == "":
+						case success.Deleted:
+							deleted = append(deleted, key)
+						default:
+							deployed = append(deployed, key)
+							if !success.Changed && !success.Created {
+								unchanged = append(unchanged, key)
+							}
+						}
+					}
+					tracked, err = tracking.recordDeploy(trackingState, deployed, deleted, unchanged...)
+					if err != nil {
+						return err
+					}
+					if tracked.warning != "" {
+						warn(cmd, tracked.warning)
+					}
+				}
+			}
+			if !jsonRequested(cmd) {
+				if stageVerbose {
+					state.verboseInfo = [][2]string{{"Deploy URL", deployURL(org, id)}}
+				}
+				state.finishedBefore = first.status.Done
+				deployProgress(cmd.OutOrStdout(), org, "Resuming Deploy", "", state, false, 0, time.Since(started), tracked)
+			}
+			if err := recordDeploy(id, orderedFields("status", state.status.Status)); err != nil {
+				return err
+			}
+			return finishDeploy(cmd, org, state, source, 0, 0, nil)
 		},
 	}
 	addDeployJobFlags(cmd)
@@ -984,18 +1294,47 @@ func newProjectDeployReportCmd() *cobra.Command {
 		Args:        cobra.NoArgs,
 		Annotations: map[string]string{commandNameAnnotation: "DeployMetadataReport"},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			id, org, err := deployJob(cmd)
-			if err != nil {
-				return err
-			}
 			reports, err := readDeployReportFlags(cmd)
 			if err != nil {
 				return err
 			}
+			id, entry, err := deployJobID(cmd, false)
+			if err != nil {
+				return err
+			}
+			org, err := deployJobOrg(cmd, entry)
+			if err != nil {
+				if e, ok := err.(*Error); ok && e.Name == "NoDefaultEnvError" {
+					return newError("NoOrgError", "No environment found. Use -o or --target-org to specify an environment")
+				}
+				return err
+			}
+			// The local files are looked up unless the deploy is known to
+			// have succeeded.
+			var source *sourceSet
+			if entry == nil || text(entry.values["status"]) != "Succeeded" {
+				source = deployJobSource(entry)
+			}
+			if source == nil {
+				source = &sourceSet{noFiles: true}
+			}
+			started := time.Now()
 			var state *deployState
 			if cmd.Flags().Changed("wait") {
 				minutes, _ := cmd.Flags().GetInt("wait")
+				first, checkErr := checkDeploy(org, id)
+				if checkErr != nil {
+					return checkErr
+				}
 				state, err = waitForDeploy(org, id, time.Duration(minutes)*time.Minute)
+				if state != nil && !jsonRequested(cmd) {
+					state.finishedBefore = first.status.Done
+					deployProgress(cmd.OutOrStdout(), org, "Deploying Metadata", "", state, false, 0, time.Since(started))
+				}
+				if err != nil {
+					// The time is over: report the status as it is.
+					state, err = checkDeploy(org, id)
+				}
 			} else {
 				state, err = checkDeploy(org, id)
 			}
@@ -1007,7 +1346,10 @@ func newProjectDeployReportCmd() *cobra.Command {
 					return err
 				}
 			}
-			return emit(cmd, deployJSON(org, state, nil, 0, 0), func(w io.Writer) {
+			// The result of a report has no deploy URL.
+			result := deployJSON(org, state, source, 0, 0)
+			result.Delete("deployUrl")
+			return emit(cmd, result, func(w io.Writer) {
 				fmt.Fprintf(w, "%s... %s\n", state.status.Id, state.status.Status)
 				var rows [][]string
 				for _, key := range state.raw.keys {
@@ -1018,14 +1360,9 @@ func newProjectDeployReportCmd() *cobra.Command {
 				}
 				fmt.Fprintln(w)
 				printTable(w, paint(w, style{"\x1b[1m\x1b[34m", "\x1b[39m\x1b[22m"}, "Deploy Info"), []string{"Key", "Value"}, rows)
-				options := [][]string{{"job-id", id}, {"target-org", org.Username}}
-				if cmd.Flags().Changed("wait") {
-					minutes, _ := cmd.Flags().GetInt("wait")
-					options = append(options, []string{"wait", fmt.Sprintf("%d minutes", minutes)})
-				}
 				fmt.Fprintln(w)
-				printTable(w, paint(w, style{"\x1b[1m\x1b[34m", "\x1b[39m\x1b[22m"}, "Deploy Options"), []string{"Key", "Value"}, options)
-				writeDeployTables(w, state, nil, false)
+				printTable(w, paint(w, style{"\x1b[1m\x1b[34m", "\x1b[39m\x1b[22m"}, "Deploy Options"), []string{"Key", "Value"}, deployOptionRows(cmd, entry, org))
+				writeDeployTables(w, state, source, false)
 				if len(reports.formats) > 0 {
 					fmt.Fprintf(w, "Code Coverage formats, [%s], written to %s/\n", strings.Join(reports.formats, ", "), filepath.Join(reports.resultsDir, "coverage"))
 				}
@@ -1040,6 +1377,64 @@ func newProjectDeployReportCmd() *cobra.Command {
 	return cmd
 }
 
+// deployOptionRows lists the options of a deployment for deploy report:
+// the cache entry of the deployment, then the flags of the report command
+// in the order sf defines them.  A flag replaces the option of the same
+// name in place.
+func deployOptionRows(cmd *cobra.Command, entry *orderedMap, org *targetOrg) [][]string {
+	options := newOrderedMap()
+	if entry != nil {
+		for _, key := range entry.keys {
+			if key != "timestamp" {
+				options.Set(key, entry.values[key])
+			}
+		}
+	}
+	if targetOrgFlag(cmd) != "" {
+		options.Set("target-org", org.Username)
+	}
+	if id, _ := cmd.Flags().GetString("job-id"); id != "" {
+		options.Set("job-id", id)
+	}
+	if mostRecent, _ := cmd.Flags().GetBool("use-most-recent"); mostRecent {
+		options.Set("use-most-recent", true)
+	}
+	if formats := splitList(cmd, "coverage-formatters"); len(formats) > 0 {
+		options.Set("coverage-formatters", formats)
+	}
+	if junit, _ := cmd.Flags().GetBool("junit"); junit {
+		options.Set("junit", true)
+	}
+	if dir, _ := cmd.Flags().GetString("results-dir"); dir != "" {
+		options.Set("results-dir", dir)
+	}
+	if cmd.Flags().Changed("wait") {
+		minutes, _ := cmd.Flags().GetInt("wait")
+		options.Set("wait", minutes)
+	}
+	options.Set("target-org", org.Username)
+	rows := make([][]string, 0, len(options.keys))
+	for _, key := range options.keys {
+		value := options.values[key]
+		text := displayValue(value)
+		switch v := value.(type) {
+		case []interface{}:
+			parts := make([]string, 0, len(v))
+			for _, item := range v {
+				parts = append(parts, displayValue(item))
+			}
+			text = strings.Join(parts, ",")
+		case []string:
+			text = strings.Join(v, ",")
+		}
+		if key == "wait" {
+			text += " minutes"
+		}
+		rows = append(rows, []string{key, text})
+	}
+	return rows
+}
+
 func newProjectDeployQuickCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:         "quick",
@@ -1047,18 +1442,39 @@ func newProjectDeployQuickCmd() *cobra.Command {
 		Args:        cobra.NoArgs,
 		Annotations: map[string]string{commandNameAnnotation: "DeployMetadataQuick"},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			id, org, err := deployJob(cmd)
+			// The id of the validation.  One that is not in the cache
+			// is used as it was given.
+			id, entry, err := deployJobID(cmd, false)
 			if err != nil {
 				return err
 			}
-			started := time.Now()
+			if mostRecent, _ := cmd.Flags().GetBool("use-most-recent"); mostRecent && entry == nil {
+				return newError("NoMatchingJobIdError", "No matching job found in cache for ID: %s.", id)
+			}
+			org, err := deployJobOrg(cmd, entry)
+			if err != nil {
+				if e, ok := err.(*Error); ok && e.Name == "NoDefaultEnvError" {
+					return newError("NoTargetOrgError", "No target org found in cache, from a flag, or in the environment.")
+				}
+				return err
+			}
+			// The org gives the deploy of the validated metadata an id of
+			// its own.
 			quick, err := org.Force.Metadata.DeployRecentValidation(id)
 			if err != nil {
-				return newError("CannotQuickDeployError", "Job ID can't be used for quick deployment. Possible reasons include the deployment hasn't been validated, has already been deployed, or the validation expired because you ran it more than 10 days ago.")
+				if strings.Contains(err.Error(), "INVALID_ID_FIELD") {
+					return newError("CannotQuickDeployError", "Job ID can't be used for quick deployment. Possible reasons include the deployment hasn't been validated, has already been deployed, or the validation expired because you ran it more than 10 days ago.")
+				}
+				return apiError(err)
 			}
 			deployID := quick.Id
 			if deployID == "" {
 				deployID = id
+			}
+			out := cmd.OutOrStdout()
+			if !jsonRequested(cmd) {
+				fmt.Fprintf(out, "Deploy ID: %s\n", deployID)
+				fmt.Fprintf(out, "Deploy URL: %s\n", deployURL(org, deployID))
 			}
 			if async, _ := cmd.Flags().GetBool("async"); async {
 				result := newOrderedMap()
@@ -1066,6 +1482,7 @@ func newProjectDeployQuickCmd() *cobra.Command {
 				result.Set("done", false)
 				result.Set("status", "Queued")
 				result.Set("files", []interface{}{})
+				result.Set("deployUrl", deployURL(org, deployID))
 				return emit(cmd, result, func(w io.Writer) {
 					fmt.Fprintln(w, "Deploy has been queued.")
 					fmt.Fprintln(w)
@@ -1076,18 +1493,33 @@ func newProjectDeployQuickCmd() *cobra.Command {
 			}
 			minutes, _ := cmd.Flags().GetInt("wait")
 			state, err := waitForDeploy(org, deployID, time.Duration(minutes)*time.Minute)
-			if state != nil && !jsonRequested(cmd) {
-				deployProgress(cmd.OutOrStdout(), org, "Deploying Metadata", "", state, false, 0, time.Since(started))
-			}
 			if err != nil {
 				return err
 			}
-			if state.status.Status != "Succeeded" {
-				return newError("QuickDeployFailure", "Deployment %s exited with status code: %s.", deployID, state.status.Status)
+			if err := recordDeploy(deployID, orderedFields("status", state.status.Status)); err != nil {
+				return err
 			}
-			return finishDeploy(cmd, org, state, nil, 0, 0, func(w io.Writer) {
-				fmt.Fprintln(w, paint(w, styleGreen, fmt.Sprintf("Successfully deployed (%s).", deployID)))
-			})
+			status := 0
+			if state.status.Status != "Succeeded" {
+				status = 1
+			}
+			concise, _ := cmd.Flags().GetBool("concise")
+			verbose, _ := cmd.Flags().GetBool("verbose")
+			if err := emitStatus(cmd, status, deployJSON(org, state, nil, 0, 0), func(w io.Writer) {
+				writeDeployTables(w, state, nil, concise, verbose)
+				if status == 0 {
+					fmt.Fprintln(w)
+					fmt.Fprintln(w, paint(w, styleGreen, fmt.Sprintf("Successfully deployed (%s).", deployID)))
+				} else {
+					fmt.Fprintf(w, "Deployment %s exited with status code: %s.\n", deployID, state.status.Status)
+				}
+			}); err != nil {
+				return err
+			}
+			if status != 0 {
+				return exitStatus(status)
+			}
+			return nil
 		},
 	}
 	addDeployJobFlags(cmd)
@@ -1105,24 +1537,56 @@ func newProjectDeployCancelCmd() *cobra.Command {
 		Args:        cobra.NoArgs,
 		Annotations: map[string]string{commandNameAnnotation: "DeployMetadataCancel"},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			id, org, err := deployJob(cmd)
+			id, entry, err := deployJobID(cmd, false)
 			if err != nil {
 				return err
 			}
-			current, err := checkDeploy(org, id)
+			org, err := deployJobOrg(cmd, entry)
 			if err != nil {
 				return err
 			}
-			if current.status.Done {
-				return newError("CannotCancelDeployError", "Can't cancel deploy with Job Id %s because it's already completed (status is %s)", id, current.status.Status)
+			async, _ := cmd.Flags().GetBool("async")
+			if !async {
+				// Like sf, record the options of the cancel as the cache
+				// entry of the deploy: the org first and the wait last.
+				options := orderedFields("target-org", org.Username)
+				if entry != nil {
+					for _, key := range entry.keys {
+						switch key {
+						case "wait", "timestamp", "metadata-dir", "source-dir":
+						default:
+							options.Set(key, entry.values[key])
+						}
+					}
+				}
+				options.Set("ignore-conflicts", true)
+				minutes := 33
+				if entry != nil && intValue(entry.values["wait"]) > 0 {
+					minutes = intValue(entry.values["wait"])
+				}
+				if cmd.Flags().Changed("wait") {
+					minutes, _ = cmd.Flags().GetInt("wait")
+				}
+				options.Set("wait", minutes)
+				if _, present := options.values["isMdapi"]; !present {
+					options.Set("isMdapi", false)
+				}
+				if err := replaceDeployCacheEntry(id, options); err != nil {
+					return err
+				}
 			}
 			if _, err := org.Force.Metadata.CancelDeploy(id); err != nil {
 				if err == lib.AlreadyCompletedError {
-					return newError("CannotCancelDeployError", "Can't cancel deploy because it's already completed.")
+					return &Error{
+						Name:     "CannotCancelDeployError",
+						Message:  "Can't cancel deploy because it's already completed.",
+						ExitCode: 1,
+						Data:     orderedFields("errorCode", "sf:INVALID_ID_FIELD", "message", "INVALID_ID_FIELD: Deployment already completed"),
+					}
 				}
 				return apiError(err)
 			}
-			if async, _ := cmd.Flags().GetBool("async"); async {
+			if async {
 				result := newOrderedMap()
 				result.Set("id", id)
 				return emit(cmd, result, func(w io.Writer) {
@@ -1135,6 +1599,9 @@ func newProjectDeployCancelCmd() *cobra.Command {
 			minutes, _ := cmd.Flags().GetInt("wait")
 			state, err := waitForDeploy(org, id, time.Duration(minutes)*time.Minute)
 			if err != nil {
+				return err
+			}
+			if err := recordDeploy(id, orderedFields("status", state.status.Status)); err != nil {
 				return err
 			}
 			status := 0

@@ -405,6 +405,7 @@ Deployed Source
 │ Created │ Greeter │ ApexClass │ force-app/main/default/classes/Greeter.cls-meta.xml │
 └─────────┴─────────┴───────────┴─────────────────────────────────────────────────────┘
 
+
 `
 	if got := durationPattern.ReplaceAllString(out, "T"); got != want {
 		t.Errorf("output =\n%s\nwant\n%s", got, want)
@@ -606,71 +607,137 @@ Run "sf project deploy cancel --job-id 0Af000000000001AAA" to cancel the deploy.
 }
 
 func TestProjectDeployQuickReportResumeAndCancel(t *testing.T) {
-	_, fake, _ := deploySetup(t)
-	out, _, status := run("project", "deploy", "quick", "-i", "0Af000000000001AAA")
-	if status != 0 || !strings.HasSuffix(out, "Successfully deployed (0Af000000000001AAA).\n") || fake.requests[0] != "deployRecentValidation" {
-		t.Errorf("quick: status %d\n%s", status, out)
+	org, fake, _ := deploySetup(t)
+	// A quick deploy prints the id and the URL of the deploy, and the
+	// components as the org names them.
+	out, errOut, status := run("project", "deploy", "quick", "-i", "0Af000000000001AAA")
+	want := "Deploy ID: 0Af000000000001AAA\nDeploy URL: " + org.URL + `//lightning/setup/DeployStatus/page?address=%2Fchangemgmt%2FmonitorDeploymentsDetails.apexp%3FasyncId%3D0Af000000000001AAA%26retURL%3D%252Fchangemgmt%252FmonitorDeployment.apexp
+
+Deployed Source
+┌─────────┬─────────┬───────────┬─────────────────────┐
+│ State   │ Name    │ Type      │ Path                │
+├─────────┼─────────┼───────────┼─────────────────────┤
+│ Created │ Greeter │ ApexClass │ classes/Greeter.cls │
+└─────────┴─────────┴───────────┴─────────────────────┘
+
+
+
+Successfully deployed (0Af000000000001AAA).
+`
+	if status != 0 || out != want || fake.requests[0] != "deployRecentValidation" {
+		t.Errorf("quick: status %d, stderr %q\n%s\nwant\n%s", status, errOut, out, want)
 	}
 
+	// The quick deploy is in the cache as succeeded, so the report lists
+	// no files.
 	out, _, status = run("project", "deploy", "report", "--job-id", "0Af000000000001AAA")
 	if status != 0 || !strings.HasPrefix(out, "0Af000000000001AAA... Succeeded\n\nDeploy Info\n") || !strings.Contains(out, "│ numberComponentsDeployed │ 1 ") ||
-		!strings.Contains(out, "\nDeploy Options\n") || !strings.Contains(out, "│ target-org │ me@example.com     │") {
+		!strings.Contains(out, `
+Deploy Options
+┌────────────┬────────────────────┐
+│ Key        │ Value              │
+├────────────┼────────────────────┤
+│ status     │ Succeeded          │
+│ job-id     │ 0Af000000000001AAA │
+│ target-org │ me@example.com     │
+└────────────┴────────────────────┘
+`) || strings.Contains(out, "Deployed Source") {
 		t.Errorf("report: status %d\n%s", status, out)
 	}
 
-	out, errOut, status := run("project", "deploy", "resume", "-i", "0Af000000000001AAA")
-	if status != 0 || !strings.Contains(errOut, "Job ID 0Af000000000001AAA is not resumable because it already completed with status: Succeeded. Displaying results...") ||
-		!strings.Contains(out, "Deployed Source") {
+	out, errOut, status = run("project", "deploy", "resume", "-i", "0Af000000000001AAA")
+	if status != 0 || errOut != "Warning: Job ID 0Af000000000001AAA is not resumable because it already completed with status: Succeeded. Displaying results...\n" {
 		t.Errorf("resume: status %d, stderr %q\n%s", status, errOut, out)
 	}
-
-	_, errOut, status = run("project", "deploy", "cancel", "-i", "0Af000000000001AAA")
-	if status != 1 || !strings.Contains(errOut, "Can't cancel deploy with Job Id 0Af000000000001AAA because it's already completed (status is Succeeded)") {
-		t.Errorf("cancel of a finished deploy: status %d, stderr %q", status, errOut)
+	_, errOut, status = run("project", "deploy", "resume", "-i", "0Af000000000009AAA")
+	if status != 1 || errOut != "Error (NoMatchingJobIdError): No matching job found in cache for ID: 0Af000000000009AAA.\n\n\n" {
+		t.Errorf("resume of an unknown job: status %d, stderr %q", status, errOut)
 	}
+
 	fake.statusResult = `<done>false</done><id>0Af000000000001AAA</id><status>InProgress</status><success>false</success>`
 	expectRun(t, 0, "Deploy has been queued for cancellation.\n\nRun \"sf project deploy resume --job-id 0Af000000000001AAA\" to resume watching the deploy.\nRun \"sf project deploy report --job-id 0Af000000000001AAA\" to get the latest status.\n",
 		"project", "deploy", "cancel", "-i", "0Af000000000001AAA", "--async")
+}
 
-	_, errOut, status = run("project", "deploy", "report", "--use-most-recent")
-	if status != 1 || !strings.Contains(errOut, "Error (NoRecentJobIdError): There are no recent job IDs available.") {
+func TestProjectDeployReportNeedsAJob(t *testing.T) {
+	deploySetup(t)
+	_, errOut, status := run("project", "deploy", "report", "--use-most-recent")
+	if status != 1 || errOut != "Error (NoRecentJobIdError): There are no recent job IDs available.\n\n\n" {
 		t.Errorf("--use-most-recent with an empty cache: status %d, stderr %q", status, errOut)
+	}
+	_, errOut, status = run("project", "deploy", "report")
+	if status != 2 || !strings.Contains(errOut, "Exactly one of the following must be provided: --job-id, --use-most-recent") {
+		t.Errorf("no job: status %d, stderr %q", status, errOut)
+	}
+	_, errOut, status = run("project", "deploy", "resume")
+	if status != 2 || !strings.Contains(errOut, "Exactly one of the following must be provided: --use-most-recent, --job-id") {
+		t.Errorf("resume without a job: status %d, stderr %q", status, errOut)
 	}
 }
 
-func TestDeployCacheSuppliesTheMostRecentJobAndItsOrg(t *testing.T) {
-	_, fake, _ := deploySetup(t)
-	if _, errOut, status := run("project", "deploy", "start", "-d", "force-app", "--async", "--json"); status != 0 {
+func TestDeployCacheRecordsTheDeployAsSfDoes(t *testing.T) {
+	_, fake, project := deploySetup(t)
+	home := os.Getenv("HOME")
+	if _, errOut, status := run("project", "deploy", "start", "-d", "force-app/main/default/classes", "-l", "RunSpecifiedTests", "-t", "GreeterTest", "--async"); status != 0 {
 		t.Fatalf("deploy: status %d %s", status, errOut)
 	}
-	data, err := os.ReadFile(filepath.Join(os.Getenv("HOME"), ".sf", "deploy-cache.json"))
-	if err != nil {
-		t.Fatal(err)
+	manifest := filepath.Join(home, ".sf", "manifestCache", "0Af000000000001AAA.xml")
+	cache := regexp.MustCompile(`"timestamp": "[^"]+"`).ReplaceAllString(readFile(t, filepath.Join(home, ".sf", "deploy-cache.json")), `"timestamp": "T"`)
+	wantCache := `{
+  "0Af000000000001AAA": {
+    "async": true,
+    "dry-run": false,
+    "ignore-conflicts": false,
+    "ignore-errors": false,
+    "ignore-warnings": false,
+    "target-org": "me@example.com",
+    "tests": [
+      "GreeterTest"
+    ],
+    "test-level": "RunSpecifiedTests",
+    "api": "SOAP",
+    "manifest": "` + manifest + `",
+    "wait": 33,
+    "isMdapi": false,
+    "timestamp": "T"
+  }
+}`
+	if cache != wantCache {
+		t.Errorf("cache =\n%s\nwant\n%s", cache, wantCache)
 	}
-	var cache map[string]map[string]interface{}
-	json.Unmarshal(data, &cache)
-	entry := cache["0Af000000000001AAA"]
-	if entry["target-org"] != "me@example.com" || entry["isMdapi"] != false || entry["timestamp"] == nil {
-		t.Errorf("cache entry = %v", entry)
+	if got := readFile(t, manifest); !strings.Contains(got, "<members>Greeter</members>") || !strings.Contains(got, "<members>GreeterTest</members>") || !strings.Contains(got, "<name>ApexClass</name>") {
+		t.Errorf("manifest = %s", got)
 	}
 
 	// The default org is removed, so the report finds the org in the
-	// cache entry.
+	// cache entry.  It finds the local files through the manifest.
 	if _, _, status := run("config", "unset", "target-org", "--global"); status != 0 {
 		t.Fatal("config unset failed")
 	}
 	fake.requests = nil
 	out, errOut, status := run("project", "deploy", "report", "--use-most-recent")
-	if status != 0 || !strings.HasPrefix(out, "0Af000000000001AAA... Succeeded\n") {
+	if status != 0 || !strings.HasPrefix(out, "0Af000000000001AAA... Succeeded\n") || !strings.Contains(out, `
+│ tests            │ GreeterTest `) || !strings.Contains(out, "│ wait             │ 33 minutes ") || !strings.Contains(out, "│ use-most-recent  │ true ") ||
+		!strings.Contains(out, "│ Created │ Greeter │ ApexClass │ force-app/main/default/classes/Greeter.cls-meta.xml │") {
 		t.Errorf("report --use-most-recent: status %d, stderr %q\n%s", status, errOut, out)
 	}
-	out, _, status = run("project", "deploy", "resume", "-r", "--json")
-	if status != 0 || !strings.Contains(out, `"id": "0Af000000000001AAA"`) {
-		t.Errorf("resume -r: status %d\n%s", status, out)
+
+	// The resume watches the deploy, shows the stages of a deploy that
+	// was already finished as skipped, and records the status.
+	out, errOut, status = run("project", "deploy", "resume", "-r")
+	if status != 0 || errOut != "" || !strings.Contains(out, " ──────────────── Resuming Deploy ────────────────\n") ||
+		!strings.Contains(out, " ◯ Deploying Metadata - Skipped\n ◯ Running Tests - Skipped\n") ||
+		!strings.Contains(out, "│ Created │ Greeter │ ApexClass │ "+strings.TrimPrefix(filepath.Join(project, "force-app/main/default/classes/Greeter.cls"), project+"/")+" ") {
+		t.Errorf("resume -r: status %d, stderr %q\n%s", status, errOut, out)
 	}
-	_, errOut, status = run("project", "deploy", "report")
-	if status != 2 || !strings.Contains(errOut, "Exactly one of the following must be provided: --use-most-recent, --job-id") {
-		t.Errorf("no job: status %d, stderr %q", status, errOut)
+	if cache := readFile(t, filepath.Join(home, ".sf", "deploy-cache.json")); !strings.Contains(cache, `"isMdapi": false,
+    "timestamp": "`) || !strings.Contains(cache, `"status": "Succeeded"`) {
+		t.Errorf("cache after resume =\n%s", cache)
+	}
+	// A cancel of a finished deploy is refused by the org.
+	out, _, status = run("project", "deploy", "resume", "-r", "--json")
+	if status != 0 || !strings.Contains(out, `"id": "0Af000000000001AAA"`) || !strings.Contains(out, "is not resumable because it already completed with status: Succeeded") {
+		t.Errorf("resume -r --json: status %d\n%s", status, out)
 	}
 }
 

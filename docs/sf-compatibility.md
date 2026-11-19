@@ -154,10 +154,10 @@ The files written by the `template generate` commands come from the salesforcedx
 | `sf project reset tracking` | none; writes the tracking files in `<project>/.sf/orgs/<orgId>/` | Without `--no-prompt` and without a terminal the command does nothing; `sf` fails with status 13. | Compared with sf |
 | `sf project convert mdapi` | `force fetch` (source format writer) | A child component named on its own with `--metadata` or `--manifest`, such as a `CustomField`. | Compared with sf |
 | `sf project convert source` | `force import` (source format conversion) | A composed custom object has its elements in alphabetical order; `sf` writes the child components last. | Compared with sf |
-| `sf project deploy cancel` | `force deploys cancel` |  | Follows the sf plugin source |
-| `sf project deploy quick` | `force quickdeploy` |  | Follows the sf plugin source |
-| `sf project deploy report` | `force deploys status` | The `html` and `html-spa` values of `--coverage-formatters`. | Follows the sf plugin source |
-| `sf project deploy resume` | `force deploys watch` | The `html` and `html-spa` values of `--coverage-formatters`. | Follows the sf plugin source |
+| `sf project deploy cancel` | `force deploys cancel` | The output of a cancel that succeeds follows the plugin source; in the comparison the deploy of sf had always finished before the cancel. | Compared with sf |
+| `sf project deploy quick` | `force quickdeploy` |  | Compared with sf |
+| `sf project deploy report` | `force deploys status` | The `html` and `html-spa` values of `--coverage-formatters`. | Compared with sf |
+| `sf project deploy resume` | `force deploys watch` | The `html` and `html-spa` values of `--coverage-formatters`. | Compared with sf |
 | `sf project deploy preview` | none; reads the source tracking files |  | Compared with sf |
 | `sf project deploy start` | `force push`, `force import` | The `html` and `html-spa` values of `--coverage-formatters`. Prints the last frame of the progress display once. Without `--source-dir`, `--metadata`, `--manifest` or `--metadata-dir`, deploys the local changes that source tracking reports; the org must track source. | Compared with sf |
 | `sf project deploy validate` | `force import --checkonly` | As `project deploy start`. | As `project deploy start` |

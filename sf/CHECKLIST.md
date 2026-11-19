@@ -58,7 +58,7 @@ Reference: `sf` 2.138.6. Update this file as each item is finished.
 ## Step 6: project
 - [x] Source collection for sf mode is built on `lib.PackageBuilder` in `sf/project_files.go`; the helpers in `command/` did not need to move
 - [x] `project deploy start`, `project deploy validate` (queued output and progress layout compared with sf; the tables after a finished deploy follow the sf plugin source, because sf cannot finish a deploy against the local test server)
-- [x] `project deploy quick`, `project deploy report`, `project deploy resume`, `project deploy cancel`
+- [x] `project deploy quick`, `project deploy report`, `project deploy resume`, `project deploy cancel` (compared with sf against a scratch org; the deploy cache entries and the manifest cache are written as sf writes them)
 - [x] `project retrieve start` (failure output compared with sf; the result table follows the sf plugin source)
 - [x] `project convert source`, `project convert mdapi`
 
@@ -96,7 +96,7 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [x] `project convert mdapi`: `--manifest`, `--metadata-dir`, `--metadata`
 - [x] `project convert source`: `--package-name`
 - [x] `project deploy start`, `project deploy validate`: `--coverage-formatters`, `--junit`, `--results-dir` (the `html` and `html-spa` formats are not supported)
-- [x] `project deploy report`, `project deploy resume`: `--coverage-formatters`, `--junit`, `--results-dir` (follow the code of deploy start; not compared with sf)
+- [x] `project deploy report`, `project deploy resume`: `--coverage-formatters`, `--junit`, `--results-dir` (compared with sf against a scratch org)
 - [x] `project deploy quick`, `report`, `resume`, `cancel`: `--use-most-recent`
 - [ ] `project generate manifest`: `--from-org`, `--include-packages`
 - [ ] `project retrieve start`: `--single-package`; more than one `--package-name`
@@ -115,7 +115,8 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [ ] `package version report`: `--verbose`
 - [x] `project deploy start`, `project deploy validate`: `--verbose` (deploy URL, size, file count, passed tests and the coverage table; compared with sf against a scratch org), `--ignore-conflicts`
 - [ ] `project deploy start`, `project deploy validate`: `--single-package` (accepted without effect)
-- [ ] `project deploy quick`, `project deploy resume`: `--verbose` (resume prints the passed tests and the coverage table; the deploy URL line is not printed)
+- [x] `project deploy resume`: `--verbose` (adds the deploy URL to the progress display; the tables follow the verbosity of the command that started the deploy, as in sf)
+- [ ] `project deploy quick`: `--verbose` (not compared with sf)
 - [ ] `project retrieve start`: `--wait` (`--ignore-conflicts` is done)
 - [ ] `template generate project`: the `agent`, `nativemobile`, `reactinternalapp` and `reactexternalapp` templates
 - [x] `template generate apex trigger`, `template generate visualforce page`, `template generate visualforce component`: `--template` (each command has one template; another value is an error, as in sf)
