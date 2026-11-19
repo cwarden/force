@@ -206,6 +206,9 @@ func newTemplateApexTriggerCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if template, _ := cmd.Flags().GetString("template"); template != "ApexTrigger" {
+				return &Error{Message: fmt.Sprintf("Expected --template=%s to be one of: ApexTrigger\nSee more help with --help", template), ExitCode: 1}
+			}
 			sobject, _ := cmd.Flags().GetString("sobject")
 			events := splitList(cmd, "event")
 			if len(events) == 0 {
@@ -238,6 +241,8 @@ func newTemplateApexTriggerCmd() *cobra.Command {
 }
 
 func newTemplateVisualforceCmd(kind, short, directory, body, meta string) *cobra.Command {
+	// The command has one template, named after its body file.
+	templateName := strings.TrimSuffix(body, filepath.Ext(body))
 	cmd := &cobra.Command{
 		Use:         kind,
 		Short:       short,
@@ -252,6 +257,9 @@ func newTemplateVisualforceCmd(kind, short, directory, body, meta string) *cobra
 			if label == "" {
 				return missingFlagError("label")
 			}
+			if template, _ := cmd.Flags().GetString("template"); template != templateName {
+				return &Error{Message: fmt.Sprintf("Expected --template=%s to be one of: %s\nSee more help with --help", template, templateName), ExitCode: 1}
+			}
 			files, err := renderFiles(directory, map[string]string{"apiVersion": apiVersion, "vfLabel": label},
 				[2]string{name + "." + kind, body}, [2]string{name + "." + kind + "-meta.xml", meta})
 			if err != nil {
@@ -261,7 +269,7 @@ func newTemplateVisualforceCmd(kind, short, directory, body, meta string) *cobra
 		},
 	}
 	addTemplateFlags(cmd)
-	cmd.Flags().StringP("template", "t", "", "Template to use for file creation.")
+	cmd.Flags().StringP("template", "t", templateName, "Template to use for file creation.")
 	cmd.Flags().StringP("label", "l", "", "Visualforce "+strings.ToUpper(kind[:1])+kind[1:]+" label.")
 	return cmd
 }

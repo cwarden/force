@@ -15,7 +15,7 @@ sf template generate visualforce component [flags]
   -l, --label string         Visualforce Component label.
   -n, --name string          Name of the generated metadata.
   -d, --output-dir string    Directory for saving the created files. (default ".")
-  -t, --template string      Template to use for file creation.
+  -t, --template string      Template to use for file creation. (default "DefaultVFComponent")
 ```
 
 ### SEE ALSO

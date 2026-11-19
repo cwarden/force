@@ -116,7 +116,7 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [ ] `project deploy quick`, `project deploy resume`: `--verbose`
 - [ ] `project retrieve start`: `--ignore-conflicts`, `--wait`
 - [ ] `template generate project`: the `agent`, `nativemobile`, `reactinternalapp` and `reactexternalapp` templates
-- [ ] `template generate apex trigger`, `template generate visualforce page`, `template generate visualforce component`: `--template`
+- [x] `template generate apex trigger`, `template generate visualforce page`, `template generate visualforce component`: `--template` (each command has one template; another value is an error, as in sf)
 
 ## Unimplemented Behavior Of Implemented Commands
 
@@ -228,12 +228,12 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 
 - [x] `api request graphql` (follows the sf plugin source)
 
-### schema (4 open, 0 done)
+### schema (3 open, 1 done)
 
 - [ ] `schema generate field`
 - [ ] `schema generate platformevent`
 - [ ] `schema generate sobject`
-- [ ] `schema generate tab`
+- [x] `schema generate tab`
 
 ### template (3 open, 8 done)
 

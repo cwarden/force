@@ -15,7 +15,7 @@ sf template generate visualforce page [flags]
   -l, --label string         Visualforce Page label.
   -n, --name string          Name of the generated metadata.
   -d, --output-dir string    Directory for saving the created files. (default ".")
-  -t, --template string      Template to use for file creation.
+  -t, --template string      Template to use for file creation. (default "DefaultVFPage")
 ```
 
 ### SEE ALSO

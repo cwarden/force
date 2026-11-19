@@ -33,11 +33,8 @@ func newCmdtCmd() *cobra.Command {
 // an error where the commands bundled with sf print two.
 func cmdtRun(run func(cmd *cobra.Command, args []string) error) func(cmd *cobra.Command, args []string) error {
 	return func(cmd *cobra.Command, args []string) error {
-		if _, err := loadProject(); err != nil {
-			// sf prints this error in this form, without a JSON envelope
-			// when --json is given.
-			fmt.Fprint(cmd.ErrOrStderr(), "    RequiresProjectError: This command is required to run from within a \n    Salesforce project directory.\n    Code: RequiresProjectError\n")
-			return exitStatus(1)
+		if err := requireProject(cmd); err != nil {
+			return err
 		}
 		err := run(cmd, args)
 		if err == nil {
@@ -50,6 +47,18 @@ func cmdtRun(run func(cmd *cobra.Command, args []string) error) func(cmd *cobra.
 		e.Compact = true
 		return e
 	}
+}
+
+// requireProject returns an error when the working directory is not in a
+// Salesforce project.  It has printed the error, in the form sf prints it
+// for these commands: no "Error (name):" line, and no JSON envelope when
+// --json is given.
+func requireProject(cmd *cobra.Command) error {
+	if _, err := loadProject(); err != nil {
+		fmt.Fprint(cmd.ErrOrStderr(), "    RequiresProjectError: This command is required to run from within a \n    Salesforce project directory.\n    Code: RequiresProjectError\n")
+		return exitStatus(1)
+	}
+	return nil
 }
 
 // flagParseError is the error sf reports when the value of a flag fails

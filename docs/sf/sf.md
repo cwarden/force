@@ -27,6 +27,7 @@ sf [flags]
 * [sf org](sf_org.md)	 - Commands to create and manage orgs and scratch org users.
 * [sf package](sf_package.md)	 - Commands to develop and install unlocked packages and managed 2GP packages.
 * [sf project](sf_project.md)	 - Work with projects, such as deploy and retrieve metadata.
+* [sf schema](sf_schema.md)	 - Generate metadata files.
 * [sf sobject](sf_sobject.md)	 - Commands to interact with Salesforce objects.
 * [sf template](sf_template.md)	 - Commands to create metadata from templates.
 * [sf version](sf_version.md)	 - Display the version

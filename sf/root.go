@@ -153,6 +153,7 @@ func NewRootCmd() *cobra.Command {
 		newOrgCmd(),
 		newPackageCmd(),
 		newProjectCmd(),
+		newSchemaCmd(),
 		newSobjectCmd(),
 		newTemplateCmd(),
 		newVersionCmd(),

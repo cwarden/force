@@ -152,6 +152,7 @@ The files written by the `template generate` commands come from the salesforcedx
 | `sf project generate manifest` | none | `--from-org`, `--include-packages`. sf reports an error when a content file is ignored by `.forceignore` and its `-meta.xml` file is not; this mode leaves both out. | Compared with sf |
 | `sf project list ignored` | none |  | Compared with sf |
 | `sf project retrieve start` | `force fetch`, `force export` | `--single-package`; one `--package-name` value. The JSON result has `files`, `status`, `success` and `done`; it has no `fileProperties`. Requires `--metadata`, `--manifest`, `--source-dir` or `--package-name`. | Failure output compared with sf; result table follows the sf plugin source |
+| `sf schema generate tab` | none |  | Compared with sf |
 | `sf sobject describe` | `force describe sobject --name <name> --json` |  | Compared with sf |
 | `sf sobject list` | `force sobject list` |  | Compared with sf |
 | `sf template generate analytics template` | none |  | Compared with sf |
@@ -230,7 +231,7 @@ A flag listed as unsupported returns an error that names the flag.
 
 ## sf Commands Not Implemented
 
-126 of the 239 commands of `sf` 2.138.6 and its bundled and install-on-first-use plugins are not implemented. Third-party plugins and the retired Functions plugin are not counted. Running one of these commands prints the message `sf` prints for an unknown command and exits with status 127.
+125 of the 239 commands of `sf` 2.138.6 and its bundled and install-on-first-use plugins are not implemented. Third-party plugins and the retired Functions plugin are not counted. Running one of these commands prints the message `sf` prints for an unknown command and exits with status 127.
 
 ### org
 
@@ -295,10 +296,9 @@ A flag listed as unsupported returns an error that names the flag.
 
 | sf command | Summary | What is required |
 |---|---|---|
-| `sf schema generate field` | Generate metadata source files for a new custom field on a specified object. | Write metadata files from prompts or flags; these commands make no API requests. |
-| `sf schema generate platformevent` | Generate metadata source files for a new platform event. | Write metadata files from prompts or flags; these commands make no API requests. |
-| `sf schema generate sobject` | Generate metadata source files for a new custom object. | Write metadata files from prompts or flags; these commands make no API requests. |
-| `sf schema generate tab` | Generate the metadata source files for a new custom tab on a custom object. | Write metadata files from prompts or flags; these commands make no API requests. |
+| `sf schema generate field` | Generate metadata source files for a new custom field on a specified object. | Ask for the properties of the object, field or platform event with prompts, then write the metadata file. `sf` has no flags for these properties, so the command cannot run without a terminal. |
+| `sf schema generate platformevent` | Generate metadata source files for a new platform event. | Ask for the properties of the object, field or platform event with prompts, then write the metadata file. `sf` has no flags for these properties, so the command cannot run without a terminal. |
+| `sf schema generate sobject` | Generate metadata source files for a new custom object. | Ask for the properties of the object, field or platform event with prompts, then write the metadata file. `sf` has no flags for these properties, so the command cannot run without a terminal. |
 
 ### template
 
