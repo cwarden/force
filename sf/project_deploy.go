@@ -464,8 +464,25 @@ func newProjectDeployStartCmd(validate bool) *cobra.Command {
 		Args:        cobra.NoArgs,
 		Annotations: map[string]string{commandNameAnnotation: className},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := unsupportedFlags(cmd, "pre-destructive-changes", "post-destructive-changes", "coverage-formatters", "junit", "results-dir"); err != nil {
+			if err := unsupportedFlags(cmd, "coverage-formatters", "junit", "results-dir"); err != nil {
 				return err
+			}
+			// Destructive change manifests are deployed under the file
+			// names the Metadata API reads.
+			destructive := lib.ForceMetadataFiles{}
+			for flag, name := range map[string]string{"pre-destructive-changes": "destructiveChangesPre.xml", "post-destructive-changes": "destructiveChangesPost.xml"} {
+				path, _ := cmd.Flags().GetString(flag)
+				if path == "" {
+					continue
+				}
+				if manifest, _ := cmd.Flags().GetString("manifest"); manifest == "" {
+					return &Error{Message: fmt.Sprintf("The following error occurred:\n  All of the following must be provided when using --%s: --manifest\nSee more help with --help", flag), ExitCode: 2}
+				}
+				data, err := os.ReadFile(path)
+				if err != nil {
+					return err
+				}
+				destructive[name] = data
 			}
 			testLevel, _ := cmd.Flags().GetString("test-level")
 			tests := splitList(cmd, "tests")
@@ -517,6 +534,9 @@ func newProjectDeployStartCmd(validate bool) *cobra.Command {
 				manifestVersion := projectAPIVersion(project)
 				version = "v" + manifestVersion
 				files = source.deployFiles(manifestVersion)
+			}
+			for name, data := range destructive {
+				files[name] = data
 			}
 			archive, err := zipFiles(files, "")
 			if err != nil {

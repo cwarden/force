@@ -18,6 +18,7 @@ sf [flags]
 * [sf alias](sf_alias.md)	 - Commands to manage aliases.
 * [sf apex](sf_apex.md)	 - Use the apex commands to create Apex classes, execute anonymous blocks, view your logs, run Apex tests, and view Apex test results.
 * [sf api](sf_api.md)	 - Commands to send API requests to your org.
+* [sf autocomplete](sf_autocomplete.md)	 - Display autocomplete installation instructions.
 * [sf commands](sf_commands.md)	 - List all sf commands.
 * [sf config](sf_config.md)	 - Commands to configure Salesforce CLI.
 * [sf data](sf_data.md)	 - Manage records in your org.

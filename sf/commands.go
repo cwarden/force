@@ -1,7 +1,10 @@
 package sf
 
 import (
+	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -67,5 +70,66 @@ func newCommandsCmd() *cobra.Command {
 		},
 	}
 	addJSONFlag(cmd)
+	return cmd
+}
+
+// newAutocompleteCmd prints how to set up shell completion.  sf completes
+// with a cache it builds from its plugins; this mode uses the completion
+// scripts cobra generates, so the instructions differ from sf's.
+func newAutocompleteCmd() *cobra.Command {
+	shells := []string{"bash", "zsh", "fish", "powershell"}
+	script := &cobra.Command{
+		Use:    "script shell",
+		Short:  "Print the completion script for a shell.",
+		Hidden: true,
+		Args:   cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			out := cmd.OutOrStdout()
+			switch args[0] {
+			case "bash":
+				return cmd.Root().GenBashCompletionV2(out, true)
+			case "zsh":
+				return cmd.Root().GenZshCompletion(out)
+			case "fish":
+				return cmd.Root().GenFishCompletion(out, true)
+			case "powershell":
+				return cmd.Root().GenPowerShellCompletionWithDesc(out)
+			}
+			return &Error{Message: fmt.Sprintf("%s is not a supported shell for autocomplete", args[0]), ExitCode: 1}
+		},
+	}
+	cmd := &cobra.Command{
+		Use:   "autocomplete [shell]",
+		Short: "Display autocomplete installation instructions.",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			shell := filepath.Base(os.Getenv("SHELL"))
+			if len(args) == 1 {
+				shell = args[0]
+			}
+			supported := false
+			for _, known := range shells {
+				if shell == known {
+					supported = true
+				}
+			}
+			if !supported {
+				return &Error{Message: fmt.Sprintf("%s is not a supported shell for autocomplete", shell), ExitCode: 1}
+			}
+			out := cmd.OutOrStdout()
+			line := map[string]string{
+				"bash":       "source <(sf autocomplete script bash)",
+				"zsh":        "source <(sf autocomplete script zsh)",
+				"fish":       "sf autocomplete script fish | source",
+				"powershell": "sf autocomplete script powershell | Out-String | Invoke-Expression",
+			}[shell]
+			fmt.Fprintf(out, "Setup Instructions for SF CLI Autocomplete ---\n\n")
+			fmt.Fprintf(out, "1) Add the autocomplete script to your %s profile and source it\n\n  %s\n\n", shell, line)
+			fmt.Fprintf(out, "2) Test it out, e.g.:\n\n  sf <TAB>                 # Command completion\n  sf command --<TAB>       # Flag completion\n")
+			return nil
+		},
+	}
+	cmd.Flags().BoolP("refresh-cache", "r", false, "Refresh cache (ignores displaying instructions)")
+	cmd.AddCommand(script)
 	return cmd
 }

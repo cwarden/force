@@ -76,7 +76,7 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [ ] `apex run`: `--debug-level`, `--category-level` (not defined)
 - [x] `apex run test`: `--output-dir`, `--detailed-coverage`
 - [ ] `apex tail log`: `--debug-level`
-- [ ] `api request rest`: `--file`
+- [x] `api request rest`: `--file` (the `formdata` body mode is not supported)
 - [ ] `commands`: `--columns`, `--deprecated`, `--extended`, `--hidden`, `--no-truncate`, `--sort`, `--tree` (not defined)
 - [ ] `data delete resume`, `data upsert resume`: `--target-org` (not defined; the org comes from the job cache)
 - [ ] `org create scratch`: `--async`, `--client-id`, `--no-ancestors`, `--track-source`, `--source-org`, `--snapshot`
@@ -90,7 +90,7 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [ ] `package version list`: `--show-conversions-only`
 - [ ] `project convert mdapi`: `--manifest`, `--metadata-dir`, `--metadata`
 - [ ] `project convert source`: `--package-name`
-- [ ] `project deploy start`, `project deploy validate`: `--pre-destructive-changes`, `--post-destructive-changes`, `--coverage-formatters`, `--junit`, `--results-dir`
+- [ ] `project deploy start`, `project deploy validate`: `--coverage-formatters`, `--junit`, `--results-dir` (`--pre-destructive-changes` and `--post-destructive-changes` are done)
 - [ ] `project deploy report`, `project deploy resume`: `--coverage-formatters`, `--junit`, `--results-dir` (not defined)
 - [x] `project deploy quick`, `report`, `resume`, `cancel`: `--use-most-recent`
 - [ ] `project generate manifest`: `--from-org`, `--include-packages`
@@ -130,13 +130,17 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 
 ## Unimplemented Features Shared By Several Commands
 
-- [ ] `--flags-dir` on every command
+- [x] `--flags-dir` on every command
 - [x] `--use-most-recent` on the deploy commands (needs `~/.sf/deploy-cache.json`)
 - [ ] Source tracking (deploy and retrieve without naming components; `project deploy preview`, `project retrieve preview`, the tracking commands)
 - [x] `.forceignore` (sf reports an error when a content file is ignored and its `-meta.xml` file is not; this mode leaves both out)
-- [ ] Destructive changes on deploy
+- [x] Destructive changes on deploy
 - [ ] Coverage and JUnit result files on the deploy commands
-- [ ] Shell completion for the sf command tree
+- [x] Shell completion for the sf command tree (`sf autocomplete`)
+
+## Needs A Decision
+
+- [ ] The remaining `template generate` commands need the template files of `@salesforce/templates` copied into this repository (BSD-3-Clause; the project template is 370 files, 6 MB)
 
 ## Not Yet Verified
 
@@ -342,9 +346,9 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [ ] `dev generate flag`
 - [ ] `dev generate plugin`
 
-### CLI management (23 open, 0 done)
+### CLI management (22 open, 1 done)
 
-- [ ] `autocomplete`
+- [x] `autocomplete` (instructions for cobra completion scripts; the mechanism differs from sf)
 - [ ] `doctor`
 - [ ] `help`
 - [ ] `info releasenotes display`

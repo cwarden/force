@@ -59,6 +59,12 @@ func Run(args []string, out, errOut io.Writer) int {
 	root := NewRootCmd()
 	args = normalizeArgsFor(root, args)
 	jsonOutput := hasJSONFlag(args)
+	if expanded, err := expandFlagsDir(root, args); err != nil {
+		return writeError(out, errOut, nil, err, jsonOutput)
+	} else {
+		args = expanded
+		jsonOutput = hasJSONFlag(args)
+	}
 	root.SetArgs(args)
 	root.SetContext(context.WithValue(context.Background(), runStateKey{}, &runState{}))
 	root.SetOut(out)
@@ -103,6 +109,7 @@ func NewRootCmd() *cobra.Command {
 		newAliasCmd(),
 		newApexCmd(),
 		newApiCmd(),
+		newAutocompleteCmd(),
 		newCommandsCmd(),
 		newConfigCmd(),
 		newDataCmd(),
@@ -208,6 +215,121 @@ func normalizeArgs(args []string) []string {
 		}
 	}
 	return append(words, rest...)
+}
+
+// expandFlagsDir implements --flags-dir: each file in the directory is
+// named after a flag and holds its value, one value on each line.  An empty
+// file sets a boolean flag.  A flag that is also on the command line keeps
+// the command line value.
+func expandFlagsDir(root *cobra.Command, args []string) ([]string, error) {
+	dir := ""
+	rest := make([]string, 0, len(args))
+	for i := 0; i < len(args); i++ {
+		switch {
+		case args[i] == "--":
+			rest = append(rest, args[i:]...)
+			i = len(args)
+		case args[i] == "--flags-dir" && i+1 < len(args):
+			dir = args[i+1]
+			i++
+		case strings.HasPrefix(args[i], "--flags-dir="):
+			dir = strings.TrimPrefix(args[i], "--flags-dir=")
+		default:
+			rest = append(rest, args[i])
+		}
+	}
+	if dir == "" {
+		return args, nil
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, &Error{Message: fmt.Sprintf("Parsing --flags-dir \n\tNo directory found at %s\nSee more help with --help", dir), ExitCode: 2}
+	}
+	// The long and short names of a flag count as the same flag.
+	var command *cobra.Command
+	if root != nil {
+		positional := 0
+		for positional < len(rest) && !strings.HasPrefix(rest[positional], "-") {
+			positional++
+		}
+		command, _, _ = root.Find(rest[:positional])
+	}
+	forms := func(name string) []string {
+		names := []string{name}
+		if command != nil {
+			flag := command.Flags().Lookup(name)
+			if flag == nil && len(name) == 1 {
+				flag = command.Flags().ShorthandLookup(name)
+			}
+			if flag != nil {
+				names = []string{flag.Name}
+				if flag.Shorthand != "" {
+					names = append(names, flag.Shorthand)
+				}
+			}
+		}
+		var result []string
+		for _, candidate := range names {
+			if len(candidate) == 1 {
+				result = append(result, "-"+candidate)
+			} else {
+				result = append(result, "--"+candidate, "--no-"+candidate)
+			}
+		}
+		return result
+	}
+	given := func(name string) bool {
+		for _, arg := range rest {
+			if arg == "--" {
+				break
+			}
+			for _, form := range forms(name) {
+				if arg == form || strings.HasPrefix(arg, form+"=") {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	// Flags from files go before a "--" argument.
+	end := len(rest)
+	for i, arg := range rest {
+		if arg == "--" {
+			end = i
+			break
+		}
+	}
+	var fromFiles []string
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := strings.TrimSuffix(entry.Name(), ".json")
+		if given(name) {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(dir, entry.Name()))
+		if err != nil {
+			return nil, err
+		}
+		prefix := "--" + name
+		if len(name) == 1 {
+			prefix = "-" + name
+		}
+		content := strings.TrimSpace(string(data))
+		if content == "" {
+			fromFiles = append(fromFiles, prefix)
+			continue
+		}
+		for _, line := range strings.Split(content, "\n") {
+			if line = strings.TrimSpace(line); line != "" {
+				fromFiles = append(fromFiles, prefix+"="+line)
+			}
+		}
+	}
+	result := append([]string{}, rest[:end]...)
+	result = append(result, fromFiles...)
+	return append(result, rest[end:]...), nil
 }
 
 func hasJSONFlag(args []string) bool {

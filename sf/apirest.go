@@ -31,14 +31,44 @@ func newApiRequestRestCmd() *cobra.Command {
 		Short: "Make an authenticated HTTP request using the Salesforce REST API.",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := unsupportedFlags(cmd, "file"); err != nil {
-				return err
-			}
 			warn(cmd, "This command is currently in beta. Any aspect of this command can change without advanced notice. Don't use beta commands in your scripts.")
+			// --file holds the request: url, method, header and body.  A
+			// value on the command line replaces the one in the file.
+			var fileOptions *orderedMap
+			if file, _ := cmd.Flags().GetString("file"); file != "" {
+				data, err := os.ReadFile(file)
+				if err != nil {
+					return err
+				}
+				parsed, err := parseOrderedJSON(data)
+				if err != nil {
+					return fmt.Errorf("%s: %w", file, err)
+				}
+				fileOptions, _ = parsed.(*orderedMap)
+			}
+			fileValue := func(key string) interface{} {
+				if fileOptions == nil {
+					return nil
+				}
+				return fileOptions.values[key]
+			}
 			if len(args) == 0 {
+				switch target := fileValue("url").(type) {
+				case string:
+					args = []string{target}
+				case *orderedMap:
+					args = []string{text(target.values["raw"])}
+				}
+			}
+			if len(args) == 0 || args[0] == "" {
 				return &Error{Message: "The url is required either in --file file's content or as an argument", ExitCode: 1}
 			}
 			method, _ := cmd.Flags().GetString("method")
+			if !cmd.Flags().Changed("method") {
+				if fromFile := text(fileValue("method")); fromFile != "" {
+					method = fromFile
+				}
+			}
 			validMethod := false
 			for _, known := range restMethods {
 				if method == known {
@@ -70,6 +100,19 @@ func newApiRequestRestCmd() *cobra.Command {
 					body = bytes.NewReader(data)
 				case content != "":
 					body = strings.NewReader(content)
+				case fileOptions != nil:
+					description, _ := fileValue("body").(*orderedMap)
+					if description == nil || text(description.values["mode"]) == "" {
+						return &Error{Message: "No 'mode' found in 'body' entry", ExitCode: 1, Actions: []string{`add "mode":"raw" | "formdata" to your body`}}
+					}
+					if text(description.values["mode"]) != "raw" {
+						return newError("UnsupportedFlagError", "The body mode \"%s\" in --file is not supported by the sf-compatible mode of force.", text(description.values["mode"]))
+					}
+					encoded, err := encodeJSON(description.values["raw"])
+					if err != nil {
+						return err
+					}
+					body = strings.NewReader(encoded)
 				}
 			}
 			// A request through lib refreshes an expired access token
@@ -84,6 +127,25 @@ func newApiRequestRestCmd() *cobra.Command {
 			}
 			request.Header.Set("Authorization", "Bearer "+org.Force.Credentials.AccessToken)
 			headers, _ := cmd.Flags().GetStringArray("header")
+			if len(headers) == 0 {
+				// Headers in the file are "key:value" strings or objects
+				// with key and value.
+				switch fromFile := fileValue("header").(type) {
+				case string:
+					headers = []string{fromFile}
+				case []interface{}:
+					for _, item := range fromFile {
+						switch header := item.(type) {
+						case string:
+							headers = append(headers, header)
+						case *orderedMap:
+							if header.values["disabled"] != true {
+								headers = append(headers, text(header.values["key"])+":"+displayValue(header.values["value"]))
+							}
+						}
+					}
+				}
+			}
 			for _, header := range headers {
 				key, value, ok := strings.Cut(header, ":")
 				value = strings.TrimSpace(value)

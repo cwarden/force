@@ -40,7 +40,7 @@ Logins, aliases and config values written by this mode were read by `sf` 2.138.6
 - Exit status follows `sf`: 2 for a flag error, 127 for an unknown command, 100 for failing Apex tests, 1 for other failures.
 - Color is used when `FORCE_COLOR` is set to a value other than `0`, when `COLORTERM=truecolor`, or when the output is a terminal. `NO_COLOR` and `FORCE_COLOR=0` turn it off.
 - `sf` redraws a progress display while it waits for a bulk job, deploy, retrieve or scratch org. This mode prints the last frame once.
-- `--flags-dir` is not supported.
+- `--flags-dir` reads one file per flag; a file name can be the long or the short name of the flag.
 - Authorization files are written with mode 0600; `sf` writes them with the default file mode.
 
 ## sf Commands Implemented
@@ -62,7 +62,8 @@ Logins, aliases and config values written by this mode were read by `sf` 2.138.6
 | `sf apex trace delete` | `force trace delete` | As above. | Follows the sf plugin source |
 | `sf apex trace list` | `force trace list` | As above. | Follows the sf plugin source |
 | `sf api request graphql` | none | With `--include`, headers are listed in alphabetical order. | Follows the sf plugin source |
-| `sf api request rest` | `force rest` | `--file`. With `--include`, headers are listed in alphabetical order; sf lists them in the order received. | Compared with sf |
+| `sf api request rest` | `force rest` | The `formdata` body mode of `--file`. With `--include`, headers are listed in alphabetical order; sf lists them in the order received. | Compared with sf |
+| `sf autocomplete` | `force completion` | Prints instructions for the completion scripts cobra generates (`sf autocomplete script <shell>`); sf builds a cache from its plugins. `--refresh-cache` has no effect. | Not compared; the mechanism differs |
 | `sf commands` | none | Lists only the commands this mode implements. sf prints more columns. | Not compared |
 | `sf config get` | none; reads sf config files | Does not suggest a name for an unknown config name. | Compared with sf |
 | `sf config list` | `force active` (for the default org) |  | Compared with sf |
@@ -134,7 +135,7 @@ Logins, aliases and config values written by this mode were read by `sf` 2.138.6
 | `sf project deploy quick` | `force quickdeploy` |  | Follows the sf plugin source |
 | `sf project deploy report` | `force deploys status` | `--coverage-formatters`, `--junit`, `--results-dir` | Follows the sf plugin source |
 | `sf project deploy resume` | `force deploys watch` | `--coverage-formatters`, `--junit`, `--results-dir` | Follows the sf plugin source |
-| `sf project deploy start` | `force push`, `force import` | `--pre-destructive-changes`, `--post-destructive-changes`, `--coverage-formatters`, `--junit`, `--results-dir`. Requires `--source-dir`, `--metadata`, `--manifest` or `--metadata-dir`; there is no source tracking. Prints the last frame of the progress display once. | Queued output and progress layout compared with sf; result tables follow the sf plugin source |
+| `sf project deploy start` | `force push`, `force import` | `--coverage-formatters`, `--junit`, `--results-dir`. Requires `--source-dir`, `--metadata`, `--manifest` or `--metadata-dir`; there is no source tracking. Prints the last frame of the progress display once. | Queued output and progress layout compared with sf; result tables follow the sf plugin source |
 | `sf project deploy validate` | `force import --checkonly` | As `project deploy start`. | As `project deploy start` |
 | `sf project generate manifest` | none | `--from-org`, `--include-packages`. sf reports an error when a content file is ignored by `.forceignore` and its `-meta.xml` file is not; this mode leaves both out. | Compared with sf |
 | `sf project list ignored` | none |  | Compared with sf |
@@ -209,7 +210,7 @@ A flag listed as unsupported returns an error that names the flag.
 
 ## sf Commands Not Implemented
 
-142 of the 239 commands of `sf` 2.138.6 and its bundled and install-on-first-use plugins are not implemented. Third-party plugins and the retired Functions plugin are not counted. Running one of these commands prints the message `sf` prints for an unknown command and exits with status 127.
+141 of the 239 commands of `sf` 2.138.6 and its bundled and install-on-first-use plugins are not implemented. Third-party plugins and the retired Functions plugin are not counted. Running one of these commands prints the message `sf` prints for an unknown command and exits with status 127.
 
 ### org
 
@@ -419,7 +420,6 @@ A flag listed as unsupported returns an error that names the flag.
 
 | sf command | Summary | What is required |
 |---|---|---|
-| `sf autocomplete` |  | cobra can generate shell completion scripts (`force completion`); add the same to the sf command tree. |
 | `sf doctor` | Gather CLI configuration data and run diagnostic tests to discover and report potential problems in your environment. | Diagnostics of the Node.js CLI installation; they do not apply to force. |
 | `sf help` |  | cobra provides `sf help <command>`; its text differs from sf help. |
 | `sf info releasenotes display` | Display Salesforce CLI release notes on the command line. | Prints the release notes of the Node.js CLI. |
@@ -448,7 +448,6 @@ A flag listed as unsupported returns an error that names the flag.
 | Feature | What is required |
 |---|---|
 | Source tracking | Record the revision of each component in `<project>/.sf/orgs/<orgId>/` and query SourceMember, so that deploy and retrieve work without naming components. |
-| `--flags-dir` | Read one file per flag from the directory before parsing. |
 | `--coverage-formatters`, `--junit`, `--results-dir` on the deploy commands | Write coverage and JUnit files from the deploy result; `lib/junit` has a JUnit writer. |
-| Destructive changes on deploy | Add destructiveChangesPre.xml and destructiveChangesPost.xml to the deploy zip. |
+| The remaining `template generate` commands | The template files of `@salesforce/templates` (BSD-3-Clause; the project template is 370 files) would have to be copied into this repository with their copyright notice. This needs a decision on licensing and repository size. |
 | Interactive prompts | `sf` prompts for a similar config name, for a command when a topic is given without one, and before some destructive actions. This mode prompts only before `org logout` and `package version promote`. |
