@@ -25,6 +25,9 @@ func colorEnabled(w io.Writer) bool {
 	if os.Getenv("TERM") == "dumb" {
 		return false
 	}
+	if wrapper, ok := w.(*deprecationWriter); ok {
+		w = wrapper.Writer
+	}
 	if file, ok := w.(*os.File); ok {
 		return term.IsTerminal(int(file.Fd()))
 	}

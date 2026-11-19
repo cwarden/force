@@ -413,3 +413,89 @@ func TestLegacyAliasReportsDeprecation(t *testing.T) {
 		t.Errorf("alias of a missing command: status %d, stderr %q", status, errOut)
 	}
 }
+
+func TestLegacyFlagNamesReportDeprecation(t *testing.T) {
+	home := useTempHome(t)
+	// sf reports the warnings in the order it defines the flags, and has
+	// no warning for the --name=value form.
+	out, errOut, status := run("template", "generate", "apex", "class", "--apiversion", "60.0", "--outputdir=.", "--classname", "Z3")
+	if status != 0 || out != "target dir = "+home+"\n  create Z3.cls\n  create Z3.cls-meta.xml\n\n" ||
+		errOut != "Warning: The \"--classname\" flag has been deprecated. Use \"--name | -n\" instead.\nWarning: The \"--apiversion\" flag has been deprecated. Use \"--api-version\" instead.\n" {
+		t.Errorf("status %d, stdout %q, stderr %q", status, out, errOut)
+	}
+	if meta := readFile(t, "Z3.cls-meta.xml"); !strings.Contains(meta, "<apiVersion>60.0</apiVersion>") {
+		t.Errorf("--apiversion was not applied: %s", meta)
+	}
+	out, _, _ = run("apex:generate:class", "--classname", "Z4", "--outputdir", ".", "--json")
+	want := `  "warnings": [
+    "The \"apex generate class\" command has been deprecated. Use \"template generate apex class\" instead.",
+    "The \"--classname\" flag has been deprecated. Use \"--name | -n\" instead.",
+    "The \"--outputdir\" flag has been deprecated. Use \"--output-dir | -d\" instead."
+  ]
+}
+`
+	if !strings.HasSuffix(out, want) {
+		t.Errorf("json warnings = %s", out)
+	}
+	// The warnings come before an error of the command.
+	_, errOut, status = run("template", "generate", "apex", "class", "--classname", "1bad", "--outputdir", ".")
+	if status != 1 || errOut != "Warning: The \"--classname\" flag has been deprecated. Use \"--name | -n\" instead.\nWarning: The \"--outputdir\" flag has been deprecated. Use \"--output-dir | -d\" instead.\nError (1): Name must start with a letter.\n\n\n" {
+		t.Errorf("command error: status %d, stderr %q", status, errOut)
+	}
+	// A command line that sf cannot parse has the parse error only.
+	for _, args := range [][]string{
+		{"template", "generate", "apex", "class", "--classname", "Z5", "--outputdir", ".", "--template", "Nope"},
+		{"template", "generate", "apex", "class", "--outputdir", "."},
+		{"org", "display", "--targetusername", "nobody"},
+		{"data", "query", "--query", "SELECT Id FROM Account", "-u", "nobody", "--resultformat", "csv"},
+	} {
+		if _, errOut, status := run(args...); status == 0 || strings.Contains(errOut, "deprecated") || !strings.Contains(errOut, "See more help with --help") {
+			t.Errorf("%v: status %d, stderr %q", args, status, errOut)
+		}
+	}
+	out, _, _ = run("org", "display", "-u", "nobody", "--json")
+	if !strings.Contains(out, `"warnings": []`) {
+		t.Errorf("parse error with --json = %s", out)
+	}
+}
+
+func TestUnknownOrgSuggestsTheClosestName(t *testing.T) {
+	useTempHome(t)
+	_, errOut, _ := run("org", "display", "-o", "nobody")
+	if strings.Contains(errOut, "Try this:") {
+		t.Errorf("a suggestion without any authorized org or alias: %q", errOut)
+	}
+	run("alias", "set", "staging=someone@example.com", "nobdy=other@example.com")
+	_, errOut, status := run("org", "display", "-o", "nobody")
+	want := "Error (NamedOrgNotFoundError): Parsing --target-org \n\tNo authorization information found for nobody.\nSee more help with --help\n\n\nTry this:\n\nIt looks like you mistyped the username or alias. Did you mean \"nobdy\"?\n\n"
+	if status != 2 || errOut != want {
+		t.Errorf("status %d, stderr %q, want %q", status, errOut, want)
+	}
+	out, _, _ := run("org", "display", "-o", "nobody", "--json")
+	if !strings.Contains(out, `"actions": [
+    "It looks like you mistyped the username or alias. Did you mean \"nobdy\"?"
+  ],`) {
+		t.Errorf("json = %s", out)
+	}
+	for _, c := range []struct {
+		a, b string
+		want int
+	}{{"", "abc", 3}, {"kitten", "sitting", 3}, {"same", "same", 0}, {"nobody", "nobdy", 1}} {
+		if got := editDistance(c.a, c.b); got != c.want {
+			t.Errorf("editDistance(%q, %q) = %d, want %d", c.a, c.b, got, c.want)
+		}
+	}
+}
+
+func TestTemplateGenerateApexChecksTheName(t *testing.T) {
+	useTempHome(t)
+	for _, args := range [][]string{
+		{"template", "generate", "apex", "class", "-n", "1bad"},
+		{"template", "generate", "apex", "trigger", "-n", "1bad"},
+		{"template", "generate", "visualforce", "page", "-n", "1bad", "-l", "x"},
+	} {
+		if _, errOut, status := run(args...); status != 1 || errOut != "Error (1): Name must start with a letter.\n\n\n" {
+			t.Errorf("%v: status %d, stderr %q", args, status, errOut)
+		}
+	}
+}

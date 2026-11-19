@@ -58,6 +58,7 @@ func Execute() {
 func Run(args []string, out, errOut io.Writer) int {
 	root := NewRootCmd()
 	args, deprecation := normalizeArgsFor(root, args)
+	args, flagDeprecations := rewriteLegacyFlags(root, args)
 	jsonOutput := hasJSONFlag(args)
 	if expanded, err := expandFlagsDir(root, args); err != nil {
 		return writeError(out, errOut, nil, err, jsonOutput)
@@ -66,16 +67,32 @@ func Run(args []string, out, errOut io.Writer) int {
 		jsonOutput = hasJSONFlag(args)
 	}
 	root.SetArgs(args)
-	state := &runState{}
+	state := &runState{flagDeprecations: flagDeprecations}
 	root.SetContext(context.WithValue(context.Background(), runStateKey{}, state))
-	root.SetOut(out)
-	root.SetErr(errOut)
 	if deprecation != "" {
 		if jsonOutput {
-			state.warnings = append(state.warnings, deprecation)
+			state.deprecations = append(state.deprecations, deprecation)
 		} else {
 			fmt.Fprintf(errOut, "%s %s\n", paint(errOut, styleBoldYellow, "Warning:"), deprecation)
 		}
+	}
+	// With --json the flag warnings are part of the envelope.  Otherwise
+	// they are printed before the first output of the command.
+	reportFlagDeprecations := func() {
+		if jsonOutput {
+			return
+		}
+		for _, message := range state.flagDeprecations {
+			fmt.Fprintf(errOut, "%s %s\n", paint(errOut, styleBoldYellow, "Warning:"), message)
+		}
+		state.flagDeprecations = nil
+	}
+	if len(flagDeprecations) > 0 && !jsonOutput {
+		root.SetOut(&deprecationWriter{out, reportFlagDeprecations})
+		root.SetErr(&deprecationWriter{errOut, reportFlagDeprecations})
+	} else {
+		root.SetOut(out)
+		root.SetErr(errOut)
 	}
 
 	// lib reports some failures by calling ErrorAndExit.  Print those in
@@ -88,8 +105,13 @@ func Run(args []string, out, errOut io.Writer) int {
 
 	cmd, err := root.ExecuteC()
 	if err != nil {
+		if isParseError(err) {
+			state.flagDeprecations = nil
+		}
+		reportFlagDeprecations()
 		return writeError(out, errOut, cmd, err, jsonOutput)
 	}
+	reportFlagDeprecations()
 	return 0
 }
 
@@ -274,6 +296,97 @@ func rewriteLegacyID(args []string) ([]string, string, string) {
 		}
 	}
 	return append(words, rest...), "", ""
+}
+
+// isParseError reports whether sf raises the error while it parses the
+// command line: an unknown flag, a missing required flag, a flag value that
+// fails its check, or a target org that cannot be resolved.
+func isParseError(err error) bool {
+	if _, ok := err.(exitStatus); ok {
+		return false
+	}
+	if _, ok := err.(*unknownCommandError); ok {
+		return true
+	}
+	e := asError(err)
+	return strings.HasSuffix(e.Message, "See more help with --help") || e.Name == "NoDefaultEnvError" || e.Name == "NoDefaultDevHubError"
+}
+
+// rewriteLegacyFlags replaces the legacy flag names of the command that
+// args names with the current names, and returns the deprecation warnings
+// sf reports for them.  sf warns for "--alias value" and not for
+// "--alias=value".
+func rewriteLegacyFlags(root *cobra.Command, args []string) ([]string, []string) {
+	positional := 0
+	for positional < len(args) && !strings.HasPrefix(args[positional], "-") {
+		positional++
+	}
+	cmd, _, err := root.Find(args[:positional])
+	if err != nil || cmd == root {
+		return args, nil
+	}
+	aliases := legacyFlagAliases[strings.ReplaceAll(strings.TrimPrefix(cmd.CommandPath(), root.Name()+" "), " ", ":")]
+	if len(aliases) == 0 {
+		return args, nil
+	}
+	// A legacy name is replaced when the command has the current flag and
+	// no other flag of the legacy name.
+	usable := func(alias flagAlias) bool {
+		if cmd.Flags().Lookup(alias.current) == nil {
+			return false
+		}
+		existing := cmd.Flags().Lookup(alias.alias)
+		if len(alias.alias) == 1 {
+			existing = cmd.Flags().ShorthandLookup(alias.alias)
+		}
+		// A hidden flag of the legacy name is this mode's own definition
+		// of the legacy name.
+		return existing == nil || existing.Name == alias.current || existing.Hidden
+	}
+	result := append([]string{}, args...)
+	used := map[string]bool{}
+	for i := positional; i < len(result); i++ {
+		arg := result[i]
+		if arg == "--" {
+			break
+		}
+		for _, alias := range aliases {
+			if !usable(alias) {
+				continue
+			}
+			long := "--" + alias.alias
+			switch {
+			case arg == long:
+				result[i] = "--" + alias.current
+				// sf looks for "-u" on the command line to warn about
+				// the one-letter name u, so "--u" has no warning.
+				if len(alias.alias) > 1 {
+					used[alias.alias] = true
+				}
+			case strings.HasPrefix(arg, long+"="):
+				result[i] = "--" + alias.current + strings.TrimPrefix(arg, long)
+			case len(alias.alias) == 1 && arg == "-"+alias.alias:
+				result[i] = "--" + alias.current
+				used[alias.alias] = true
+			}
+		}
+	}
+	var warnings []string
+	for _, alias := range aliases {
+		if !used[alias.alias] {
+			continue
+		}
+		name := "--" + alias.alias
+		if len(alias.alias) == 1 {
+			name = "-" + alias.alias
+		}
+		preferred := "--" + alias.current
+		if alias.char != "" {
+			preferred += " | -" + alias.char
+		}
+		warnings = append(warnings, fmt.Sprintf("The %q flag has been deprecated. Use %q instead.", name, preferred))
+	}
+	return result, warnings
 }
 
 // expandFlagsDir implements --flags-dir: each file in the directory is

@@ -136,9 +136,6 @@ func newTemplateLightningComponentCmd() *cobra.Command {
 			if kind != "aura" && kind != "lwc" {
 				return &Error{Message: fmt.Sprintf("Expected --type=%s to be one of: aura, lwc\nSee more help with --help", kind), ExitCode: 1}
 			}
-			if err := checkTemplateName(name); err != nil {
-				return err
-			}
 			validTemplate := false
 			for _, known := range lwcTemplates {
 				if template == known {
@@ -235,9 +232,6 @@ func newTemplateAuraBundleCmd(kind, short, className string) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := checkTemplateName(name); err != nil {
-				return err
-			}
 			if err := requireParentFolder(cmd, "aura", missingAuraDir); err != nil {
 				return err
 			}
@@ -273,9 +267,6 @@ func newTemplateLightningTestCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name, _, err := templateFlags(cmd)
 			if err != nil {
-				return err
-			}
-			if err := checkTemplateName(name); err != nil {
 				return err
 			}
 			if template, _ := cmd.Flags().GetString("template"); template != "DefaultLightningTest" {
@@ -316,9 +307,6 @@ func newTemplateStaticResourceCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := checkTemplateName(name); err != nil {
-				return err
-			}
 			contentType, _ := cmd.Flags().GetString("type")
 			if !mimeType.MatchString(strings.ToLower(contentType)) {
 				return &Error{Message: "The value of this argument must be a valid MIME type.", ExitCode: 1}
@@ -354,9 +342,6 @@ func newTemplateAnalyticsCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name, apiVersion, err := templateFlags(cmd)
 			if err != nil {
-				return err
-			}
-			if err := checkTemplateName(name); err != nil {
 				return err
 			}
 			if err := requireParentFolder(cmd, "waveTemplates", "Analytics templates must have a parent folder named 'waveTemplates'."); err != nil {

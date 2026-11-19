@@ -242,11 +242,22 @@ func TestOrgDisplay(t *testing.T) {
 		{"force:org:display", "-u", "dev", "--json"},
 		{"org:display", "--targetusername", "dev", "--json"},
 	} {
-		expected := want
+		// A legacy command id and a legacy flag name each add a warning
+		// before the warning of the command.
+		var deprecations string
 		if args[0] == "force:org:display" {
-			expected = strings.Replace(want, `"warnings": [`, `"warnings": [
-    "The \"force org display\" command has been deprecated. Use \"org display\" instead.",`, 1)
+			deprecations += `
+    "The \"force org display\" command has been deprecated. Use \"org display\" instead.",`
 		}
+		switch args[1] {
+		case "-u":
+			deprecations += `
+    "The \"-u\" flag has been deprecated. Use \"--target-org | -o\" instead.",`
+		case "--targetusername":
+			deprecations += `
+    "The \"--targetusername\" flag has been deprecated. Use \"--target-org | -o\" instead.",`
+		}
+		expected := strings.Replace(want, `"warnings": [`, `"warnings": [`+deprecations, 1)
 		expectRun(t, 0, expected, args...)
 	}
 

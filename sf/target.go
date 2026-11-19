@@ -124,17 +124,23 @@ func resolveOrg(cmd *cobra.Command, name, flagName, configKey string) (*targetOr
 	}
 	org, err := loadOrg(name)
 	if err != nil {
+		var actions []string
+		if similar := similarOrgName(name); similar != "" {
+			actions = []string{fmt.Sprintf("It looks like you mistyped the username or alias. Did you mean %q?", similar)}
+		}
 		if fromFlag {
 			return nil, &Error{
 				Name:     "NamedOrgNotFoundError",
 				Message:  fmt.Sprintf("Parsing --%s \n\tNo authorization information found for %s.\nSee more help with --help", flagName, name),
 				ExitCode: 2,
+				Actions:  actions,
 			}
 		}
 		return nil, &Error{
 			Name:     "NamedOrgNotFoundError",
 			Message:  fmt.Sprintf("No authorization information found for %s.", name),
 			ExitCode: 1,
+			Actions:  actions,
 		}
 	}
 	version := ""
@@ -194,4 +200,47 @@ func defaultUsernames() (org string, devHub string) {
 		devHub = lib.ResolveSFDXUsername(value.Value)
 	}
 	return
+}
+
+// similarOrgName returns the authorized username or alias with the smallest
+// edit distance from name, or "" when there are none.  sf suggests it for a
+// name that has no authorization, whatever the distance.  Of two names at
+// the same distance sf suggests the later one, with usernames before
+// aliases.
+func similarOrgName(name string) string {
+	candidates := lib.ListSFDXUsernames()
+	if aliases, err := lib.ListSFDXAliasesOrdered(); err == nil {
+		for _, alias := range aliases {
+			candidates = append(candidates, alias.Alias)
+		}
+	}
+	best, bestDistance := "", -1
+	for _, candidate := range candidates {
+		if distance := editDistance(name, candidate); bestDistance < 0 || distance <= bestDistance {
+			best, bestDistance = candidate, distance
+		}
+	}
+	return best
+}
+
+// editDistance is the Levenshtein distance between two strings.
+func editDistance(a, b string) int {
+	x, y := []rune(a), []rune(b)
+	previous := make([]int, len(y)+1)
+	for j := range previous {
+		previous[j] = j
+	}
+	for i := 1; i <= len(x); i++ {
+		current := make([]int, len(y)+1)
+		current[0] = i
+		for j := 1; j <= len(y); j++ {
+			cost := 1
+			if x[i-1] == y[j-1] {
+				cost = 0
+			}
+			current[j] = min(previous[j]+1, current[j-1]+1, previous[j-1]+cost)
+		}
+		previous = current
+	}
+	return previous[len(y)]
 }

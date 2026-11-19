@@ -147,6 +147,9 @@ func templateFlags(cmd *cobra.Command) (name string, apiVersion string, err erro
 	if name == "" {
 		return "", "", missingFlagError("name")
 	}
+	if err := checkTemplateName(name); err != nil {
+		return "", "", err
+	}
 	apiVersion, _ = cmd.Flags().GetString("api-version")
 	if apiVersion == "" {
 		apiVersion = templateAPIVersion

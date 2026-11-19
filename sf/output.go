@@ -46,6 +46,27 @@ func emitStatus(cmd *cobra.Command, status int, result interface{}, human func(w
 
 type runState struct {
 	warnings []string
+	// deprecations are the warnings for a legacy command id and legacy
+	// flag names on the command line.  With --json they come before the
+	// warnings of the command.
+	deprecations []string
+	// flagDeprecations are the warnings for legacy flag names that have
+	// not been reported yet.  sf reports them after it has parsed the
+	// command line, so they are dropped when the command line is invalid.
+	flagDeprecations []string
+}
+
+// deprecationWriter is the output of a command that was given legacy flag
+// names.  It reports the deprecation warnings before the first output of
+// the command.
+type deprecationWriter struct {
+	io.Writer
+	report func()
+}
+
+func (w *deprecationWriter) Write(p []byte) (int, error) {
+	w.report()
+	return w.Writer.Write(p)
 }
 
 type runStateKey struct{}
@@ -59,10 +80,13 @@ func stateOf(cmd *cobra.Command) *runState {
 }
 
 func warningsOf(cmd *cobra.Command) []string {
-	if state := stateOf(cmd); state != nil && len(state.warnings) > 0 {
-		return state.warnings
+	warnings := []string{}
+	if state := stateOf(cmd); state != nil {
+		warnings = append(warnings, state.deprecations...)
+		warnings = append(warnings, state.flagDeprecations...)
+		warnings = append(warnings, state.warnings...)
 	}
-	return []string{}
+	return warnings
 }
 
 // warn reports a warning.  With --json it is added to the "warnings" array
