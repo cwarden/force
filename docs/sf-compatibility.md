@@ -121,6 +121,8 @@ The files written by the `template generate` commands come from the salesforcedx
 | `sf org login access-token` | none (`SF_ACCESS_TOKEN` and `SF_INSTANCE_URL` in force) |  | Compared with sf |
 | `sf org login jwt` | `force login -u <user> -k <key> --connected-app-client-id <id>` |  | Not compared; no JWT-enabled org was available |
 | `sf org login sfdx-url` | none |  | Follows the sf plugin source |
+| `sf org disable tracking` | none; writes `tracksSource` to the authorization file |  | Compared with sf |
+| `sf org enable tracking` | none; writes `tracksSource` to the authorization file |  | Compared with sf |
 | `sf org login web` | `force login` | `--browser`, `--client-app`, `--username`, `--scopes`. Uses the force connected app and callback port unless `--client-id` is given. | Not compared; needs a browser login |
 | `sf org logout` | `force logout` | `--client-app` is accepted and has no effect. | Compared with sf |
 | `sf org open` | `force open` | `--private`, `--browser`, `--source-file` | Follows the sf plugin source |
@@ -141,6 +143,8 @@ The files written by the `template generate` commands come from the salesforcedx
 | `sf package version promote` | `force package version release` |  | Follows the sf plugin source |
 | `sf package version report` | `force package version get` | `--verbose` is accepted and adds nothing. | Follows the sf plugin source |
 | `sf package version update` | none |  | Follows the sf plugin source |
+| `sf project delete tracking` | none; deletes the tracking files in `<project>/.sf/orgs/<orgId>/` | Without `--no-prompt` and without a terminal the command does nothing; `sf` fails with status 13. | Compared with sf |
+| `sf project reset tracking` | none; writes the tracking files in `<project>/.sf/orgs/<orgId>/` | Without `--no-prompt` and without a terminal the command does nothing; `sf` fails with status 13. | Compared with sf |
 | `sf project convert mdapi` | `force fetch` (source format writer) | A child component named on its own with `--metadata` or `--manifest`, such as a `CustomField`. | Compared with sf |
 | `sf project convert source` | `force import` (source format conversion) | A composed custom object has its elements in alphabetical order; `sf` writes the child components last. | Compared with sf |
 | `sf project deploy cancel` | `force deploys cancel` |  | Follows the sf plugin source |
@@ -231,7 +235,7 @@ A flag listed as unsupported returns an error that names the flag.
 
 ## sf Commands Not Implemented
 
-125 of the 239 commands of `sf` 2.138.6 and its bundled and install-on-first-use plugins are not implemented. Third-party plugins and the retired Functions plugin are not counted. Running one of these commands prints the message `sf` prints for an unknown command and exits with status 127.
+121 of the 239 commands of `sf` 2.138.6 and its bundled and install-on-first-use plugins are not implemented. Third-party plugins and the retired Functions plugin are not counted. Running one of these commands prints the message `sf` prints for an unknown command and exits with status 127.
 
 ### org
 
@@ -245,8 +249,6 @@ A flag listed as unsupported returns an error that names the flag.
 | `sf org delete sandbox` | Delete a sandbox. | Delete the SandboxInfo record and remove the authorization file. |
 | `sf org delete shape` | Delete all org shapes for a target org. | Delete ShapeRepresentation records. |
 | `sf org delete snapshot` | Delete a scratch org snapshot. | Delete an OrgSnapshot record. |
-| `sf org disable tracking` | Prevent Salesforce CLI from tracking changes in your source files between your project and an org. | Source tracking is not implemented. |
-| `sf org enable tracking` | Allow Salesforce CLI to track changes in your source files between your project and an org. | Source tracking is not implemented. |
 | `sf org get snapshot` | Get details about a scratch org snapshot. | Query OrgSnapshot. |
 | `sf org list shape` | List all org shapes you’ve created. | Query ShapeRepresentation in each authorized org. |
 | `sf org list snapshot` | List scratch org snapshots. | Query OrgSnapshot. |
@@ -262,15 +264,13 @@ A flag listed as unsupported returns an error that names the flag.
 |---|---|---|
 | `sf project convert source-behavior` | Enable a behavior of your project source files, and then update your Salesforce DX project to implement the behavior. | Rewrite source files between source behaviors; no force code exists. |
 | `sf project delete source` | Delete source from your project and from a non-source-tracked org. | Deploy destructive changes for the components and delete the local files. |
-| `sf project delete tracking` | Delete all local source tracking information. | Source tracking is not implemented. |
 | `sf project deploy pipeline quick` | Quickly deploy a validated deployment to an org. | DevOps Center API; no force code exists. |
 | `sf project deploy pipeline report` | Check the status of a pipeline deploy operation. | DevOps Center API; no force code exists. |
 | `sf project deploy pipeline resume` | Resume watching a pipeline deploy operation. | DevOps Center API; no force code exists. |
 | `sf project deploy pipeline start` | Deploy changes from a branch to the pipeline stage’s org. | DevOps Center API; no force code exists. |
 | `sf project deploy pipeline validate` | Perform a validate-only deployment from a branch to the pipeline stage’s org. | DevOps Center API; no force code exists. |
-| `sf project deploy preview` | Preview a deployment to see what will deploy to the org, the potential conflicts, and the ignored files. | Source tracking is not implemented. |
-| `sf project reset tracking` | Reset local and remote source tracking. | Source tracking is not implemented. |
-| `sf project retrieve preview` | Preview a retrieval to see what will be retrieved from the org, the potential conflicts, and the ignored files. | Source tracking is not implemented. |
+| `sf project deploy preview` | Preview a deployment to see what will deploy to the org, the potential conflicts, and the ignored files. | List the local changes that `sf/tracking.go` computes as components, with the conflicts against the org. |
+| `sf project retrieve preview` | Preview a retrieval to see what will be retrieved from the org, the potential conflicts, and the ignored files. | List the source members of `maxRevision.json` that are not in sync as components, with the conflicts against local changes. |
 
 ### apex
 
@@ -447,6 +447,6 @@ A flag listed as unsupported returns an error that names the flag.
 
 | Feature | What is required |
 |---|---|
-| Source tracking | Record the revision of each component in `<project>/.sf/orgs/<orgId>/` and query SourceMember, so that deploy and retrieve work without naming components. |
+| Source tracking | The tracking files in `<project>/.sf/orgs/<orgId>/` are read and written in the formats of `sf` (`sf/tracking.go`, `sf/gitstore.go`), and `project reset tracking` and `project delete tracking` use them. Deploy and retrieve do not use or update them yet, so they still need components to be named. |
 | `--coverage-formatters`, `--junit`, `--results-dir` on the deploy commands | Write coverage and JUnit files from the deploy result; `lib/junit` has a JUnit writer. |
 | Interactive prompts | `sf` prompts for a similar config name, for a command when a topic is given without one, and before some destructive actions. This mode prompts only before `org logout` and `package version promote`. |

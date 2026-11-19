@@ -23,6 +23,8 @@ func newProjectCmd() *cobra.Command {
 			newProjectConvertSourceCmd(),
 			newProjectConvertMdapiCmd(),
 		),
+		newGroup("delete", "Delete source tracking information.", newProjectDeleteTrackingCmd()),
+		newGroup("reset", "Reset source tracking.", newProjectResetTrackingCmd()),
 		newGroup("generate", "Generate a manifest.", newProjectGenerateManifestCmd()),
 		newGroup("list", "List ignored files.", newProjectListIgnoredCmd()),
 		newGroup("deploy", "Deploy metadata to an org from your local project.",

@@ -140,7 +140,14 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 
 - [x] `--flags-dir` on every command
 - [x] `--use-most-recent` on the deploy commands (needs `~/.sf/deploy-cache.json`)
-- [ ] Source tracking (deploy and retrieve without naming components; `project deploy preview`, `project retrieve preview`, the tracking commands)
+- [ ] Source tracking
+  - [x] Read and write `maxRevision.json` and the `localSourceTracking` git repository in the formats of sf (sf read the files this mode wrote)
+  - [x] `org enable tracking`, `org disable tracking`, `project reset tracking`, `project delete tracking`
+  - [ ] `project deploy preview`, `project retrieve preview`
+  - [ ] Deploy and retrieve without naming components, and update the tracking files after a deploy or retrieve
+  - [ ] Conflict detection (`--ignore-conflicts`)
+  - [ ] Detection of moved files
+  - [ ] Write `maxRevision.json` as fileVersion 1 when `SF_SOURCE_TRACKING_FILE_VERSION=1` (the file is read in both versions)
 - [x] `.forceignore` (sf reports an error when a content file is ignored and its `-meta.xml` file is not; this mode leaves both out)
 - [x] Destructive changes on deploy
 - [ ] Coverage and JUnit result files on the deploy commands
@@ -160,7 +167,7 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 
 163 commands of sf 2.138.6 and its bundled and install-on-first-use plugins. `docs/sf-compatibility.md` says what each needs. Commands under "dev" and most under "CLI management" manage the Node.js CLI and its plugins and do not apply to force.
 
-### org (18 open, 9 done)
+### org (16 open, 11 done)
 
 - [x] `org assign permset` (follows the sf plugin source)
 - [x] `org assign permsetlicense` (follows the sf plugin source)
@@ -176,8 +183,8 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [x] `org delete scratch` (follows the sf plugin source)
 - [ ] `org delete shape`
 - [ ] `org delete snapshot`
-- [ ] `org disable tracking`
-- [ ] `org enable tracking`
+- [x] `org disable tracking`
+- [x] `org enable tracking`
 - [x] `org generate password` (follows the sf plugin source)
 - [ ] `org get snapshot`
 - [ ] `org list shape`
@@ -190,11 +197,11 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [ ] `org resume sandbox`
 - [ ] `org resume scratch`
 
-### project (11 open, 2 done)
+### project (9 open, 4 done)
 
 - [ ] `project convert source-behavior`
 - [ ] `project delete source`
-- [ ] `project delete tracking`
+- [x] `project delete tracking`
 - [ ] `project deploy pipeline quick`
 - [ ] `project deploy pipeline report`
 - [ ] `project deploy pipeline resume`
@@ -203,7 +210,7 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [ ] `project deploy preview`
 - [x] `project generate manifest` (`--from-org` and `--include-packages` are not supported)
 - [x] `project list ignored`
-- [ ] `project reset tracking`
+- [x] `project reset tracking`
 - [ ] `project retrieve preview`
 
 ### data (0 open, 3 done)

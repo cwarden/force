@@ -35,6 +35,8 @@ func newOrgCmd() *cobra.Command {
 		newGroup("assign", "Assign permission sets and licenses.", newOrgAssignPermsetCmd(), newOrgAssignPermsetLicenseCmd()),
 		newGroup("create", "Create scratch orgs.", newOrgCreateScratchCmd()),
 		newGroup("delete", "Delete scratch orgs.", newOrgDeleteScratchCmd()),
+		newGroup("disable", "Disable source tracking.", newOrgTrackingCmd(false)),
+		newGroup("enable", "Enable source tracking.", newOrgTrackingCmd(true)),
 		newGroup("generate", "Generate a password.", newOrgGeneratePasswordCmd()),
 		newOrgLoginCmd(),
 		newOrgLogoutCmd(),
