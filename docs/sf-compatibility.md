@@ -154,9 +154,11 @@ The files written by the `template generate` commands come from the salesforcedx
 | `sf package version create report` | none | Only the error for a request that does not exist was compared with sf. | Follows the sf plugin source |
 | `sf package version delete` | none |  | Follows the sf plugin source |
 | `sf package version displayancestry` | none | Only the errors for a package and a package version that do not exist were compared with sf. | Follows the sf plugin source |
+| `sf package version displaydependencies` | none | Not compared with sf. | Follows the sf plugin source |
 | `sf package version list` | `force package version list` | `--show-conversions-only`. The Dev Hub used for the comparison had no version with an ancestor, so the ancestor version number follows the plugin source. | Compared with sf |
 | `sf package version promote` | `force package version release` |  | Follows the sf plugin source |
 | `sf package version report` | `force package version get` | `--verbose` is accepted and adds nothing. Only the error for a version that does not exist was compared with sf. | Follows the sf plugin source |
+| `sf package version retrieve` | none | Not compared with sf: it needs a package version whose developer package zip can be downloaded. The rows are listed in the order this mode writes the files. | Follows the sf plugin source |
 | `sf package version update` | none |  | Follows the sf plugin source |
 | `sf package1 version create` | none | Not compared with sf: it needs an org with a first-generation package. | Follows the sf plugin source |
 | `sf package1 version create get` | none | Not compared with sf: it needs an org with a first-generation package. | Follows the sf plugin source |
@@ -258,7 +260,7 @@ A flag listed as unsupported returns an error that names the flag.
 
 ## sf Commands Not Implemented
 
-98 of the 239 commands of `sf` 2.138.6 and its bundled and install-on-first-use plugins are not implemented. Third-party plugins and the retired Functions plugin are not counted. Running one of these commands prints the message `sf` prints for an unknown command and exits with status 127.
+96 of the 239 commands of `sf` 2.138.6 and its bundled and install-on-first-use plugins are not implemented. Third-party plugins and the retired Functions plugin are not counted. Running one of these commands prints the message `sf` prints for an unknown command and exits with status 127.
 
 ### org
 
@@ -318,8 +320,6 @@ A flag listed as unsupported returns an error that names the flag.
 |---|---|---|
 | `sf package convert` | Convert a managed-released first-generation managed package into a second-generation managed package. | Create a Package2VersionCreateRequest for a first-generation package. |
 | `sf package push-upgrade schedule` | Schedule a package push upgrade. | PackagePushRequest and PackagePushJob records; no force code exists. |
-| `sf package version displaydependencies` | Display the dependency graph for an unlocked or 2GP managed package version. | Read the dependencies of SubscriberPackageVersion records. |
-| `sf package version retrieve` | Retrieve package metadata for a specified package version. Package metadata can be retrieved for only second-generation managed package versions or unlocked packages. | Download the metadata zip of a package version and convert it to source format. |
 
 ### community
 

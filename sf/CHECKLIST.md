@@ -276,7 +276,7 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [x] `template generate static-resource`
 - [ ] `template generate ui-bundle`
 
-### package (4 open, 12 done)
+### package (2 open, 14 done)
 
 - [ ] `package convert`
 - [x] `package delete` (follows the sf plugin source)
@@ -291,8 +291,8 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [x] `package version create report` (follows the sf plugin source; the error for a missing request was compared with sf)
 - [x] `package version delete` (follows the sf plugin source)
 - [x] `package version displayancestry` (follows the sf plugin source; the errors for a missing package and a missing version were compared with sf)
-- [ ] `package version displaydependencies`
-- [ ] `package version retrieve`
+- [x] `package version displaydependencies` (follows the sf plugin source; not compared with sf)
+- [x] `package version retrieve` (follows the sf plugin source; not compared with sf)
 - [x] `package version update` (follows the sf plugin source)
 
 ### package1 (0 open, 4 done)

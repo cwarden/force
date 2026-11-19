@@ -37,6 +37,8 @@ func newPackageCmd() *cobra.Command {
 			newPackageVersionPromoteCmd(),
 			newPackageVersionUpdateCmd(),
 			newPackageVersionDisplayAncestryCmd(),
+			newPackageVersionDisplayDependenciesCmd(),
+			newPackageVersionRetrieveCmd(),
 		),
 	)
 }
