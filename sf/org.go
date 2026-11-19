@@ -39,7 +39,7 @@ func newOrgCmd() *cobra.Command {
 		),
 		newGroup("assign", "Assign permission sets and licenses.", newOrgAssignPermsetCmd(), newOrgAssignPermsetLicenseCmd()),
 		newGroup("create", "Create scratch orgs, users and org shapes.", newOrgCreateScratchCmd(), newOrgCreateUserCmd(), newOrgCreateShapeCmd()),
-		newGroup("delete", "Delete scratch orgs, snapshots and org shapes.", newOrgDeleteScratchCmd(), newOrgDeleteSnapshotCmd(), newOrgDeleteShapeCmd()),
+		newGroup("delete", "Delete scratch orgs, sandboxes, snapshots and org shapes.", newOrgDeleteScratchCmd(), newOrgDeleteSnapshotCmd(), newOrgDeleteShapeCmd(), newOrgDeleteSandboxCmd()),
 		newGroup("get", "Get details about a snapshot.", newOrgGetSnapshotCmd()),
 		newGroup("disable", "Disable source tracking.", newOrgTrackingCmd(false)),
 		newGroup("enable", "Enable source tracking.", newOrgTrackingCmd(true)),

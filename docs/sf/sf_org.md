@@ -18,7 +18,7 @@ sf org [flags]
 * [sf org assign](sf_org_assign.md)	 - Assign permission sets and licenses.
 * [sf org auth](sf_org_auth.md)	 - Show stored credentials of an org.
 * [sf org create](sf_org_create.md)	 - Create scratch orgs, users and org shapes.
-* [sf org delete](sf_org_delete.md)	 - Delete scratch orgs, snapshots and org shapes.
+* [sf org delete](sf_org_delete.md)	 - Delete scratch orgs, sandboxes, snapshots and org shapes.
 * [sf org disable](sf_org_disable.md)	 - Disable source tracking.
 * [sf org display](sf_org_display.md)	 - Display information about an org.
 * [sf org enable](sf_org_enable.md)	 - Enable source tracking.

@@ -184,7 +184,7 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 
 163 commands of sf 2.138.6 and its bundled and install-on-first-use plugins. `docs/sf-compatibility.md` says what each needs. Commands under "dev" and most under "CLI management" manage the Node.js CLI and its plugins and do not apply to force.
 
-### org (7 open, 20 done)
+### org (6 open, 21 done)
 
 - [x] `org assign permset` (follows the sf plugin source)
 - [x] `org assign permsetlicense` (follows the sf plugin source)
@@ -196,7 +196,7 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [x] `org create shape` (follows the sf plugin source)
 - [ ] `org create snapshot`
 - [x] `org create user` (compared with sf against a scratch org; an org authorized with the JWT flow is refused)
-- [ ] `org delete sandbox`
+- [x] `org delete sandbox` (follows the sf plugin source; not compared with sf)
 - [x] `org delete scratch` (follows the sf plugin source)
 - [x] `org delete shape` (follows the sf plugin source)
 - [x] `org delete snapshot` (the error of a Dev Hub without snapshots was compared with sf; the tables follow the plugin source)

@@ -115,6 +115,7 @@ The files written by the `template generate` commands come from the salesforcedx
 | `sf org create user` | none; creates the user with the SCIM API and writes its authorization file | An org that was authorized with the JWT flow. | Compared with sf |
 | `sf org delete shape` | none |  | Follows the sf plugin source |
 | `sf org delete snapshot` | none | The Dev Hub used for the comparison did not have snapshots enabled: the error for that case was compared, and the tables follow the plugin source. Dates are formatted for the en-US locale. | Follows the sf plugin source |
+| `sf org delete sandbox` | none | Not compared with sf: it needs a production org with a sandbox. When the sandbox file has no SandboxInfo Id, sf 2.138.6 finds the Id by sandbox name and then does not use it, so it deletes nothing in the production org. This mode deletes the SandboxInfo it finds. | Follows the sf plugin source |
 | `sf org delete scratch` | none | For an org that has expired, `sf` removes the local authorization and reports it as marked for deletion; this mode asks the Dev Hub and reports it as deleted. | Compared with sf |
 | `sf org display` | `force whoami`, `force active` | An HTML response from the org, such as the one an expired scratch org gives, is reported in other words than in `sf`. | Compared with sf |
 | `sf org display user` | `force whoami` |  | Compared with sf |
@@ -261,7 +262,7 @@ A flag listed as unsupported returns an error that names the flag.
 
 ## sf Commands Not Implemented
 
-95 of the 239 commands of `sf` 2.138.6 and its bundled and install-on-first-use plugins are not implemented. Third-party plugins and the retired Functions plugin are not counted. Running one of these commands prints the message `sf` prints for an unknown command and exits with status 127.
+94 of the 239 commands of `sf` 2.138.6 and its bundled and install-on-first-use plugins are not implemented. Third-party plugins and the retired Functions plugin are not counted. Running one of these commands prints the message `sf` prints for an unknown command and exits with status 127.
 
 ### org
 
@@ -270,7 +271,6 @@ A flag listed as unsupported returns an error that names the flag.
 | `sf org create agent-user` | Create the default Salesforce user that is used to run an agent. | Create an agent User record and assign permission sets. |
 | `sf org create sandbox` | Create a sandbox org. | Create a SandboxInfo record through the Tooling API and poll SandboxProcess; no force code exists. |
 | `sf org create snapshot` | Create a snapshot of a scratch org. | Create an OrgSnapshot record in the Dev Hub. |
-| `sf org delete sandbox` | Delete a sandbox. | Delete the SandboxInfo record and remove the authorization file. |
 | `sf org open agent` | Open an agent in your org's Agentforce Builder UI in a browser. | Build the Agentforce Builder URL for an agent and open it as `org open` does. |
 | `sf org refresh sandbox` | Refresh a sandbox org using the sandbox name. | As `org create sandbox`. |
 | `sf org resume sandbox` | Check the status of a sandbox creation, and log in to it if it's ready. | As `org create sandbox`. |
