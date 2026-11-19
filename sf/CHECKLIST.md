@@ -149,8 +149,11 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
   - [x] Read and write `maxRevision.json` and the `localSourceTracking` git repository in the formats of sf (sf read the files this mode wrote)
   - [x] `org enable tracking`, `org disable tracking`, `project reset tracking`, `project delete tracking`
   - [x] `project deploy preview`, `project retrieve preview` (a component of the org without local files is never reported as ignored; sf checks the paths it would be retrieved to against `.forceignore`)
-  - [ ] Deploy and retrieve without naming components, and update the tracking files after a deploy or retrieve
-  - [ ] Conflict detection (`--ignore-conflicts`)
+  - [x] Deploy and retrieve without naming components, and update the tracking files after a deploy or retrieve (compared with sf against a scratch org)
+  - [x] Conflict detection (`--ignore-conflicts`)
+  - [x] Send the client name of sf (`sfdx toolbelt:`) with SOAP requests; the org records the source members of a deploy only for that client
+  - [ ] Retrieve a changed component into the package directory it is in (it is written to the default package directory)
+  - [ ] The warning sf prints when the org does not report the source members of a deploy in time
   - [ ] Detection of moved files
   - [ ] Write `maxRevision.json` as fileVersion 1 when `SF_SOURCE_TRACKING_FILE_VERSION=1` (the file is read in both versions)
 - [x] `.forceignore` (sf reports an error when a content file is ignored and its `-meta.xml` file is not; this mode leaves both out)

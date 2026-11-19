@@ -496,8 +496,9 @@ func formatElapsed(d time.Duration) string {
 	return fmt.Sprintf("%dm %.2fs", minutes, d.Seconds()-float64(minutes*60))
 }
 
-// wrapLine breaks text at spaces so that no line is wider than width.  The
-// space at a break starts the next line, as in sf's output.
+// wrapLine breaks text at spaces so that no line is wider than width.  As
+// in sf's output, the space at a break is dropped, except after a line that
+// is exactly width wide, where it starts the next line.
 func wrapLine(text string, width int) []string {
 	var lines []string
 	for len([]rune(text)) > width {
@@ -511,6 +512,9 @@ func wrapLine(text string, width int) []string {
 		}
 		lines = append(lines, string(runes[:cut]))
 		text = string(runes[cut:])
+		if cut < width {
+			text = strings.TrimPrefix(text, " ")
+		}
 	}
 	return append(lines, text)
 }

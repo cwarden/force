@@ -463,6 +463,21 @@ func keys(m map[string]string) []string {
 	return names
 }
 
+// sf wraps the subtitle of the progress display at 79 characters.  The space
+// at the break starts the next line only after a line of exactly 79
+// characters, which the subtitle for admin@aer.local is and the subtitle for
+// me@example.com is not.
+func TestWrapLineKeepsTheSpaceOnlyAfterAFullLine(t *testing.T) {
+	full := wrapLine("Deploying <version specified in manifest> metadata to admin@aer.local using the v67.0 SOAP API.", 79)
+	if len(full) != 2 || len(full[0]) != 79 || full[1] != " v67.0 SOAP API." {
+		t.Errorf("after a full line: %q", full)
+	}
+	short := wrapLine("Deploying v62.0 metadata to test-xzdyiek98fwg@example.com using the v68.0 SOAP API.", 79)
+	if len(short) != 2 || short[0] != "Deploying v62.0 metadata to test-xzdyiek98fwg@example.com using the v68.0 SOAP" || short[1] != "API." {
+		t.Errorf("after a shorter line: %q", short)
+	}
+}
+
 func TestProjectDeployStartByMetadataManifestAndMetadataDir(t *testing.T) {
 	home := os.Getenv("HOME")
 	_, fake, _ := deploySetup(t)
@@ -489,7 +504,7 @@ func TestProjectDeployStartByMetadataManifestAndMetadataDir(t *testing.T) {
 	os.WriteFile(filepath.Join(mdapi, "classes", "Other.cls"), []byte("public class Other {}"), 0o644)
 	os.WriteFile(filepath.Join(mdapi, "package.xml"), []byte("<Package/>"), 0o644)
 	out, _, status := run("project", "deploy", "start", "--metadata-dir", mdapi, "-l", "RunSpecifiedTests", "-t", "OtherTest", "--ignore-errors", "--ignore-warnings")
-	if status != 0 || !strings.Contains(out, " Deploying <version specified in manifest> metadata to me@example.com using the\n  v67.0 SOAP API.\n") {
+	if status != 0 || !strings.Contains(out, " Deploying <version specified in manifest> metadata to me@example.com using the\n v67.0 SOAP API.\n") {
 		t.Errorf("--metadata-dir: status %d\n%s", status, out)
 	}
 	if fake.deployed["classes/Other.cls"] != "public class Other {}" || fake.deployed["package.xml"] != "<Package/>" {
@@ -700,8 +715,8 @@ Retrieved Source
 ┌─────────┬────────┬───────────┬────────────────────────────────────────────────────┐
 │ State   │ Name   │ Type      │ Path                                               │
 ├─────────┼────────┼───────────┼────────────────────────────────────────────────────┤
-│ Created │ Remote │ ApexClass │ force-app/main/default/classes/Remote.cls-meta.xml │
 │ Created │ Remote │ ApexClass │ force-app/main/default/classes/Remote.cls          │
+│ Created │ Remote │ ApexClass │ force-app/main/default/classes/Remote.cls-meta.xml │
 └─────────┴────────┴───────────┴────────────────────────────────────────────────────┘
 
 `
@@ -716,7 +731,8 @@ Retrieved Source
 	}
 
 	out, _, status = run("project", "retrieve", "start", "--metadata", "ApexClass:Remote", "--json")
-	if status != 0 || !strings.Contains(out, `"state": "Unchanged"`) ||
+	// sf reports the files of a component that existed as changed.
+	if status != 0 || !strings.Contains(out, `"state": "Changed"`) ||
 		!strings.Contains(out, `"filePath": "`+filepath.Join(project, "force-app", "main", "default", "classes", "Remote.cls")+`"`) {
 		t.Errorf("json: status %d\n%s", status, out)
 	}

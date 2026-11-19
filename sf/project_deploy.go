@@ -120,6 +120,11 @@ func deployFileResults(state *deployState, source *sourceSet) []*orderedMap {
 		var paths []string
 		if source != nil {
 			paths = source.localPaths(fileName)
+			if fileState == "Deleted" {
+				// sf reports the files of a deleted component relative
+				// to the project.
+				paths = source.deletedPaths[componentType+"###"+fullName]
+			}
 		}
 		if len(paths) == 0 {
 			paths = []string{fileName}
@@ -178,6 +183,17 @@ func deployJSON(org *targetOrg, state *deployState, source *sourceSet, zipSize, 
 	result := newOrderedMap()
 	for _, key := range state.raw.keys {
 		result.Set(key, state.raw.values[key])
+	}
+	// sf reports the lists of a test result that the org left out as
+	// empty lists.
+	if details, ok := result.values["details"].(*orderedMap); ok {
+		if tests, ok := details.values["runTestResult"].(*orderedMap); ok {
+			for _, key := range []string{"codeCoverage", "codeCoverageWarnings", "failures", "flowCoverage", "flowCoverageWarnings", "successes"} {
+				if _, present := tests.values[key]; !present {
+					tests.Set(key, []interface{}{})
+				}
+			}
+		}
 	}
 	result.Set("files", deployFileResults(state, source))
 	if zipSize > 0 {
@@ -260,7 +276,7 @@ func writeDeployTables(w io.Writer, state *deployState, source *sourceSet, conci
 
 // deployProgress prints the last frame of the progress display for a
 // deployment.
-func deployProgress(w io.Writer, org *targetOrg, title, subtitle string, state *deployState, queued bool, prepare, elapsed time.Duration) {
+func deployProgress(w io.Writer, org *targetOrg, title, subtitle string, state *deployState, queued bool, prepare, elapsed time.Duration, tracked ...*trackingProgress) {
 	status := state.status
 	stages := []stage{
 		{label: "Preparing", state: "done", elapsed: prepare},
@@ -291,6 +307,16 @@ func deployProgress(w io.Writer, org *targetOrg, title, subtitle string, state *
 			stages[5].state = ""
 		}
 	}
+	deployTime := elapsed - prepare
+	if len(tracked) > 0 && tracked[0] != nil {
+		progress := tracked[0]
+		deployTime -= progress.elapsed
+		stages[4] = stage{label: "Updating Source Tracking", state: "done", elapsed: progress.elapsed}
+		if progress.total > 0 {
+			stages[4].details = []string{fmt.Sprintf("Members: %d/%d (%d%%)", progress.found, progress.total, progress.found*100/progress.total)}
+		}
+	}
+	stages[2].elapsed = deployTime
 	statusText := status.Status
 	if statusText == "InProgress" {
 		statusText = "In Progress"
@@ -512,6 +538,11 @@ func newProjectDeployStartCmd(validate bool) *cobra.Command {
 				source  *sourceSet
 				files   lib.ForceMetadataFiles
 				version = "v" + lib.ApiVersionNumber()
+				// tracking is set for a deploy from a project to an org
+				// that tracks source.
+				tracking      *sourceTracking
+				trackingState *trackingState
+				deletedKeys   []string
 			)
 			if metadataDir != "" {
 				files, err = readMetadataDir(metadataDir)
@@ -524,11 +555,57 @@ func newProjectDeployStartCmd(validate bool) *cobra.Command {
 				if err != nil {
 					return err
 				}
-				source, err = collectSource(cmd, project, "source-dir")
-				if err != nil {
-					return err
+				ignoreConflicts, _ := cmd.Flags().GetBool("ignore-conflicts")
+				specified := len(splitList(cmd, "source-dir")) > 0 || len(splitList(cmd, "metadata")) > 0 || cmd.Flags().Changed("manifest")
+				if tracksSource(org) {
+					tracking = newSourceTracking(project, org)
+					trackingState, err = tracking.state(true)
+					if err != nil {
+						return err
+					}
 				}
-				if len(source.files) == 0 {
+				if !specified && tracking != nil {
+					// Deploy the components changed since the last deploy
+					// or retrieve.
+					changes := trackingState.localChangeSet(project.Root, loadForceIgnore(project.Root))
+					if len(changes.deploy) == 0 && len(changes.remove) == 0 {
+						result := newOrderedMap()
+						result.Set("status", "Nothing to deploy")
+						result.Set("files", []interface{}{})
+						return emit(cmd, result, func(w io.Writer) { fmt.Fprintln(w, "No changes to deploy") })
+					}
+					source = newSourceSet()
+					source.ignore = loadForceIgnore(project.Root)
+					var names []string
+					for _, component := range changes.deploy {
+						names = append(names, component.metadataName())
+					}
+					if len(names) > 0 {
+						if err := source.addMetadata(project, names); err != nil {
+							return err
+						}
+					}
+					if len(changes.remove) > 0 {
+						source.deletedPaths = map[string][]string{}
+						for _, component := range changes.remove {
+							source.deletedPaths[component.key()] = component.files
+							deletedKeys = append(deletedKeys, component.key())
+						}
+						destructive["destructiveChangesPost.xml"] = destructiveChanges(changes.remove, projectAPIVersion(project))
+					}
+				} else {
+					source, err = collectSource(cmd, project, "source-dir")
+					if err != nil {
+						return err
+					}
+				}
+				if tracking != nil && !ignoreConflicts {
+					keys := append(source.componentKeys(), deletedKeys...)
+					if rows := trackingState.conflictRows(project.Root, keys); len(rows) > 0 {
+						return conflictError(cmd, rows, true)
+					}
+				}
+				if len(source.files) == 0 && len(deletedKeys) == 0 {
 					return &Error{
 						Name:     "NothingToDeploy",
 						Message:  "No local changes to deploy.",
@@ -600,8 +677,26 @@ func newProjectDeployStartCmd(validate bool) *cobra.Command {
 			}
 			minutes, _ := cmd.Flags().GetInt("wait")
 			state, err := waitForDeploy(org, id, time.Duration(minutes)*time.Minute)
+			var tracked *trackingProgress
+			if err == nil && tracking != nil && !options.CheckOnly && state.status.Status == "Succeeded" {
+				// Record what was deployed in the source tracking files.
+				var deployed, deleted []string
+				for _, success := range state.status.Details.ComponentSuccesses {
+					switch {
+					case success.ComponentType == "":
+					case success.Deleted:
+						deleted = append(deleted, success.ComponentType+"###"+success.FullName)
+					default:
+						deployed = append(deployed, success.ComponentType+"###"+success.FullName)
+					}
+				}
+				tracked, err = tracking.recordDeploy(trackingState, deployed, deleted)
+				if err != nil {
+					return err
+				}
+			}
 			if state != nil && !jsonRequested(cmd) {
-				deployProgress(out, org, title, subtitle, state, false, prepare, time.Since(started))
+				deployProgress(out, org, title, subtitle, state, false, prepare, time.Since(started), tracked)
 			}
 			if err != nil {
 				return err
@@ -610,6 +705,11 @@ func newProjectDeployStartCmd(validate bool) *cobra.Command {
 				return err
 			}
 			return finishDeploy(cmd, org, state, source, len(archive), len(files), func(w io.Writer) {
+				if tracked != nil {
+					// sf prints one more blank line after a deploy that
+					// updated source tracking.
+					fmt.Fprintln(w)
+				}
 				if validate {
 					fmt.Fprintln(w, paint(w, styleGreen, fmt.Sprintf("Successfully validated the deployment (%s).", id)))
 					fmt.Fprintf(w, "Run \"sf project deploy quick --job-id %s\" to execute this deploy\n", id)
@@ -913,7 +1013,79 @@ func newProjectRetrieveStartCmd() *cobra.Command {
 					query = append(query, lib.ForceMetadataQueryElement{Name: []string{name}, Members: set.types[name]})
 				}
 			}
-			if len(query) == 0 && len(packageNames) == 0 {
+			// tracking is set for a retrieve into a project from an org
+			// that tracks source.
+			var (
+				tracking      *sourceTracking
+				trackingState *trackingState
+				retrieveKeys  []string
+				remoteDeletes []*sourceComponent
+			)
+			started := time.Now()
+			out := cmd.OutOrStdout()
+			earlyFrame := func(sending, status string) {
+				if !jsonRequested(cmd) {
+					writeStages(out, "Retrieving Metadata", "", []stage{
+						{label: "Preparing retrieve request", state: "done", elapsed: time.Since(started)},
+						{label: "Sending request to org", state: sending},
+						{label: "Waiting for the org to respond"},
+						{label: "Done"},
+					}, [][2]string{{"Status", status}, {"Elapsed Time", formatElapsed(0)}})
+				}
+			}
+			if targetMetadataDir == "" && project != nil && len(packageNames) == 0 && tracksSource(org) {
+				tracking = newSourceTracking(project, org)
+				trackingState, err = tracking.state(true)
+				if err != nil {
+					return err
+				}
+				if len(query) == 0 {
+					// Retrieve the components changed in the org since
+					// the last deploy or retrieve, and delete the local
+					// files of the ones deleted there.
+					byType := map[string][]string{}
+					var types []string
+					for _, member := range trackingState.outOfSync {
+						retrieveKeys = append(retrieveKeys, member.key())
+						if member.IsNameObsolete {
+							if component := trackingState.components[member.key()]; component != nil && trackingState.exists(component) {
+								remoteDeletes = append(remoteDeletes, component)
+							}
+							continue
+						}
+						if _, seen := byType[member.Type]; !seen {
+							types = append(types, member.Type)
+						}
+						byType[member.Type] = append(byType[member.Type], member.Name)
+					}
+					for _, metadataType := range types {
+						query = append(query, lib.ForceMetadataQueryElement{Name: []string{metadataType}, Members: byType[metadataType]})
+					}
+					if len(query) == 0 && len(remoteDeletes) == 0 {
+						result := newOrderedMap()
+						result.Set("files", []interface{}{})
+						// sf stops its progress display here before it
+						// is complete.
+						earlyFrame("done", "⠁")
+						return emit(cmd, result, func(w io.Writer) { fmt.Fprintln(w, "Nothing retrieved") })
+					}
+				} else {
+					for _, element := range query {
+						for _, member := range element.Members {
+							for _, name := range element.Name {
+								retrieveKeys = append(retrieveKeys, name+"###"+member)
+							}
+						}
+					}
+				}
+				if ignoreConflicts, _ := cmd.Flags().GetBool("ignore-conflicts"); !ignoreConflicts {
+					if rows := trackingState.conflictRows(project.Root, retrieveKeys); len(rows) > 0 {
+						earlyFrame("failed", "Failed")
+						return conflictError(cmd, rows, false)
+					}
+				}
+			}
+			if len(query) == 0 && len(packageNames) == 0 && len(remoteDeletes) == 0 {
 				return &Error{
 					Name:     "NoSourceTrackingError",
 					Message:  "Unable to track changes in your source files.\nThis command expects the org to support source tracking. If it doesn't, you must specify the metadata you want to retrieve.",
@@ -924,16 +1096,18 @@ func newProjectRetrieveStartCmd() *cobra.Command {
 					},
 				}
 			}
-			started := time.Now()
 			version := lib.ApiVersionNumber()
-			subtitle := fmt.Sprintf("Retrieving v%s metadata from %s using the v%s SOAP API", version, org.Username, version)
+			sourceVersion := version
+			if project != nil {
+				sourceVersion = projectAPIVersion(project)
+			}
+			subtitle := fmt.Sprintf("Retrieving v%s metadata from %s using the v%s SOAP API", sourceVersion, org.Username, version)
 			stages := []stage{
 				{label: "Preparing retrieve request", state: "done", elapsed: time.Since(started)},
 				{label: "Sending request to org"},
 				{label: "Waiting for the org to respond"},
 				{label: "Done"},
 			}
-			out := cmd.OutOrStdout()
 			frame := func(status string) {
 				if !jsonRequested(cmd) {
 					writeStages(out, "Retrieving Metadata", subtitle, stages, [][2]string{{"Status", status}, {"Elapsed Time", formatElapsed(time.Since(started))}})
@@ -944,10 +1118,14 @@ func newProjectRetrieveStartCmd() *cobra.Command {
 				files    lib.ForceMetadataFiles
 				problems []string
 			)
-			if len(packageNames) == 1 {
+			switch {
+			case len(packageNames) == 1:
 				files, problems, err = org.Force.Metadata.RetrievePackage(packageNames[0])
-			} else {
+			case len(query) > 0:
 				files, problems, err = org.Force.Metadata.Retrieve(query)
+			default:
+				// Only deletions in the org to apply locally.
+				files = lib.ForceMetadataFiles{}
 			}
 			if err != nil {
 				stages[1].state = "failed"
@@ -1025,12 +1203,30 @@ func newProjectRetrieveStartCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			// sf lists the files by type, name and path, and reports every
+			// file of a component that existed as changed.
+			sort.SliceStable(written, func(i, j int) bool {
+				a, b := written[i], written[j]
+				if a.Type != b.Type {
+					return a.Type < b.Type
+				}
+				if a.FullName != b.FullName {
+					return a.FullName < b.FullName
+				}
+				return a.FilePath < b.FilePath
+			})
+			existed := map[string]bool{}
+			for _, file := range written {
+				if file.State != "Add" {
+					existed[file.Type+"###"+file.FullName] = true
+				}
+			}
 			fileItems := make([]*orderedMap, 0, len(written))
 			rows := make([][]string, 0, len(written))
 			for _, file := range written {
 				state := "Created"
-				if file.State != "Add" {
-					state = file.State
+				if existed[file.Type+"###"+file.FullName] {
+					state = "Changed"
 				}
 				absolute, _ := filepath.Abs(file.FilePath)
 				item := newOrderedMap()
@@ -1040,6 +1236,55 @@ func newProjectRetrieveStartCmd() *cobra.Command {
 				item.Set("filePath", absolute)
 				fileItems = append(fileItems, item)
 				rows = append(rows, []string{state, file.FullName, file.Type, file.FilePath})
+			}
+			if tracking != nil {
+				// Delete the files of the components deleted in the org,
+				// and record what was retrieved in the tracking files.
+				var updated, removed []string
+				for _, file := range written {
+					if absolute, err := filepath.Abs(file.FilePath); err == nil {
+						if relative, err := filepath.Rel(project.Root, absolute); err == nil {
+							if info, err := os.Stat(absolute); err == nil && info.Mode().IsRegular() {
+								updated = append(updated, filepath.ToSlash(relative))
+							}
+						}
+					}
+				}
+				for _, component := range remoteDeletes {
+					for _, file := range component.files {
+						if !trackingState.onDisk[file] {
+							continue
+						}
+						absolute := filepath.Join(project.Root, filepath.FromSlash(file))
+						if err := os.Remove(absolute); err != nil {
+							return err
+						}
+						removed = append(removed, file)
+						item := newOrderedMap()
+						item.Set("fullName", component.FullName)
+						item.Set("type", component.Type)
+						item.Set("state", "Deleted")
+						item.Set("filePath", absolute)
+						fileItems = append(fileItems, item)
+						rows = append(rows, []string{"Deleted", component.FullName, component.Type, relativePath(absolute)})
+					}
+				}
+				repo, err := openShadowRepo(tracking.gitDir(), project.Root)
+				if err != nil {
+					return err
+				}
+				if err := tracking.commitLocal(repo, updated, removed, "sfdx source tracking"); err != nil {
+					return err
+				}
+				// The members that were asked for, and the members of the
+				// components that came back, are now in sync.
+				keys := append([]string{}, retrieveKeys...)
+				for _, file := range written {
+					keys = append(keys, file.Type+"###"+file.FullName)
+				}
+				if _, err := tracking.syncRemote(keys, false); err != nil {
+					return err
+				}
 			}
 			result.Set("files", fileItems)
 			frame("Succeeded")

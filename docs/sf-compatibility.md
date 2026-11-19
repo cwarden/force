@@ -152,12 +152,12 @@ The files written by the `template generate` commands come from the salesforcedx
 | `sf project deploy report` | `force deploys status` | `--coverage-formatters`, `--junit`, `--results-dir` | Follows the sf plugin source |
 | `sf project deploy resume` | `force deploys watch` | `--coverage-formatters`, `--junit`, `--results-dir` | Follows the sf plugin source |
 | `sf project deploy preview` | none; reads the source tracking files |  | Compared with sf |
-| `sf project deploy start` | `force push`, `force import` | `--coverage-formatters`, `--junit`, `--results-dir`. Requires `--source-dir`, `--metadata`, `--manifest` or `--metadata-dir`; there is no source tracking. Prints the last frame of the progress display once. | Queued output and progress layout compared with sf; result tables follow the sf plugin source |
+| `sf project deploy start` | `force push`, `force import` | `--coverage-formatters`, `--junit`, `--results-dir`. Prints the last frame of the progress display once. Without `--source-dir`, `--metadata`, `--manifest` or `--metadata-dir`, deploys the local changes that source tracking reports; the org must track source. | Compared with sf |
 | `sf project deploy validate` | `force import --checkonly` | As `project deploy start`. | As `project deploy start` |
 | `sf project generate manifest` | none | `--from-org`, `--include-packages`. sf reports an error when a content file is ignored by `.forceignore` and its `-meta.xml` file is not; this mode leaves both out. | Compared with sf |
 | `sf project list ignored` | none |  | Compared with sf |
 | `sf project retrieve preview` | none; reads the source tracking files | A component of the org that has no local files is never reported as ignored. | Compared with sf |
-| `sf project retrieve start` | `force fetch`, `force export` | `--single-package`; one `--package-name` value. The JSON result has `files`, `status`, `success` and `done`; it has no `fileProperties`. Requires `--metadata`, `--manifest`, `--source-dir` or `--package-name`. | Failure output compared with sf; result table follows the sf plugin source |
+| `sf project retrieve start` | `force fetch`, `force export` | `--single-package`; one `--package-name` value. The JSON result has `files`, `status`, `success` and `done`; it has no `fileProperties`, `id` or `messages`. Without `--metadata`, `--manifest`, `--source-dir` or `--package-name`, retrieves the changes in the org that source tracking reports; the org must track source. Retrieved components are written to the default package directory, also when they exist in another one. | Compared with sf |
 | `sf schema generate tab` | none |  | Compared with sf |
 | `sf sobject describe` | `force describe sobject --name <name> --json` |  | Compared with sf |
 | `sf sobject list` | `force sobject list` |  | Compared with sf |
@@ -447,6 +447,6 @@ A flag listed as unsupported returns an error that names the flag.
 
 | Feature | What is required |
 |---|---|
-| Source tracking | The tracking files in `<project>/.sf/orgs/<orgId>/` are read and written in the formats of `sf` (`sf/tracking.go`, `sf/gitstore.go`), and the tracking commands and the two preview commands use them. Deploy and retrieve do not use or update them yet, so they still need components to be named. |
+| Source tracking | Implemented for an org that tracks source: `project deploy start` and `project retrieve start` without named components deploy the local changes and retrieve the changes in the org, stop on conflicts unless `--ignore-conflicts` is given, and update the tracking files in `<project>/.sf/orgs/<orgId>/`, which are in the formats of `sf`. SOAP requests carry the client name `sf` sends (`sfdx toolbelt:`), because the org records the source members of a deploy only for that client. Not implemented: detection of moved files. |
 | `--coverage-formatters`, `--junit`, `--results-dir` on the deploy commands | Write coverage and JUnit files from the deploy result; `lib/junit` has a JUnit writer. |
 | Interactive prompts | `sf` prompts for a similar config name, for a command when a topic is given without one, and before some destructive actions. This mode prompts only before `org logout` and `package version promote`. |

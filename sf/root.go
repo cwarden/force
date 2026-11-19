@@ -107,6 +107,12 @@ func Run(args []string, out, errOut io.Writer) int {
 	lib.Log = silentLogger{}
 	defer func() { lib.Log = previousLog }()
 
+	// Deploys are recorded by the source tracking of an org only for the
+	// client name that sf sends.
+	previousClient := lib.SoapClientName
+	lib.SoapClientName = "sfdx toolbelt:"
+	defer func() { lib.SoapClientName = previousClient }()
+
 	// lib reports some failures by calling ErrorAndExit.  Print those in
 	// sf's format.  ErrorAndExit exits with status 1 after the handler.
 	previous := forceerror.ExitHandler

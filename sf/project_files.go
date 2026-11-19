@@ -129,6 +129,9 @@ type sourceSet struct {
 	roots []string
 	// ignore holds the .forceignore patterns of the project, or nil.
 	ignore *forceIgnore
+	// deletedPaths holds the files of the components a deploy deletes,
+	// relative to the project, keyed by type and name ("ApexClass###A").
+	deletedPaths map[string][]string
 }
 
 func newSourceSet() *sourceSet {
