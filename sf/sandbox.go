@@ -341,7 +341,7 @@ func (r *sandboxRun) frame(final string) {
 	progress := "0"
 	if r.latest != nil {
 		if status := text(r.latest.values["Status"]); status != "" {
-			info = append(info, [2]string{"Status", status})
+			info = append(info, [2]string{"Status", paint(r.cmd.OutOrStdout(), styleBold, status)})
 		}
 		if r.latest.values["CopyProgress"] != nil {
 			progress = displayValue(r.latest.values["CopyProgress"])
@@ -399,7 +399,8 @@ func (r *sandboxRun) unfinished(timedOut bool) {
 	if r.prod != nil {
 		arguments += " -o " + r.prod.Username
 	}
-	fmt.Fprintf(r.cmd.OutOrStdout(), "Run \"sf org resume sandbox%s\" to check for status.\nIf the org is ready, checking the status also authorizes the org for use with Salesforce CLI.\n", arguments)
+	w := r.cmd.OutOrStdout()
+	fmt.Fprintln(w, paint(w, styleDim, fmt.Sprintf("Run \"sf org resume sandbox%s\" to check for status.\nIf the org is ready, checking the status also authorizes the org for use with Salesforce CLI.", arguments)))
 }
 
 // tracking returns the tracksSource value for the sandbox.

@@ -299,3 +299,18 @@ func TestOrgResumeSandboxThatCannotBeResumed(t *testing.T) {
 		t.Errorf("not authorized yet: status %d\n%s", status, out)
 	}
 }
+
+func TestSandboxProgressDisplayColors(t *testing.T) {
+	org := newSandboxOrg(t)
+	org.processes = []string{sandboxProcessJSON("Processing", 27, false)}
+	t.Setenv("FORCE_COLOR", "1")
+	out, _, status := run("org", "resume", "sandbox", "-n", "dev1")
+	for _, want := range []string{
+		" \x1b[35m▶\x1b[39m Creating new sandbox \x1b[2m", " \x1b[2m◼\x1b[22m Refreshing org\n", " Status: \x1b[1mProcessing\x1b[22m\n",
+		"\x1b[2mRun \"sf org resume sandbox --job-id 0GR000000000001AAA -o me@example.com\" to check for status.\n",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("status %d, output lacks %q:\n%q", status, want, out)
+		}
+	}
+}

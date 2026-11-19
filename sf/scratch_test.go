@@ -333,6 +333,7 @@ Your scratch org is ready.
 }
 
 func TestStageFrameWrapsALongValueUnderItsStart(t *testing.T) {
+	t.Setenv("FORCE_COLOR", "0")
 	var b strings.Builder
 	writeStageFrame(&b, "Resuming Scratch Org", "", false, []stage{{label: "Done", state: "done"}}, [][2]string{
 		{"Request Id", "2SRRp000000FepxOAC (https://example-dev-hub-domain.my.salesforce.com/2SRRp000000FepxOAC)"},

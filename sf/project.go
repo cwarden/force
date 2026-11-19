@@ -581,18 +581,21 @@ func writeStageFrame(w io.Writer, title, subtitle string, messageBlock bool, sta
 		fmt.Fprintln(w)
 	}
 	for _, s := range stages {
+		// In a terminal sf colors the icons and dims the times and the
+		// stages that did not run.
+		timing := paint(w, styleDim, formatElapsed(s.elapsed))
 		switch s.state {
 		case "done":
-			fmt.Fprintf(w, " ✔ %s %s\n", s.label, formatElapsed(s.elapsed))
+			fmt.Fprintf(w, " %s %s %s\n", paint(w, styleGreen, "✔"), s.label, timing)
 		case "failed":
-			fmt.Fprintf(w, " ✘ %s %s\n", s.label, formatElapsed(s.elapsed))
+			fmt.Fprintf(w, " %s %s %s\n", paint(w, styleRed, "✘"), s.label, timing)
 		case "skipped":
-			fmt.Fprintf(w, " ◯ %s - Skipped\n", s.label)
+			fmt.Fprintf(w, " %s\n", paint(w, styleDim, "◯ "+s.label+" - Skipped"))
 		case "async":
 			// A stage that goes on after the command ends.
-			fmt.Fprintf(w, " ▶ %s %s\n", s.label, formatElapsed(s.elapsed))
+			fmt.Fprintf(w, " %s %s %s\n", paint(w, styleMagenta, "▶"), s.label, timing)
 		default:
-			fmt.Fprintf(w, " ◼ %s\n", s.label)
+			fmt.Fprintf(w, " %s %s\n", paint(w, styleDim, "◼"), s.label)
 		}
 		for _, detail := range s.details {
 			fmt.Fprintf(w, "   ▸ %s\n", detail)
