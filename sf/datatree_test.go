@@ -173,7 +173,7 @@ func TestDataCreateFile(t *testing.T) {
 		w.WriteHeader(http.StatusCreated)
 		io.WriteString(w, `{"id":"068000000000001AAA","success":true,"errors":[]}`)
 	}
-	org.rawQueries["FROM ContentVersion"] = `{"done":true,"totalSize":1,"records":[{"attributes":{"type":"ContentVersion"},"Id":"068000000000001AAA","ContentDocumentId":"069000000000001AAA","FileExtension":"txt","Title":"Greeting","PathOnClient":"hello.txt","FirstPublishLocationId":"001000000000001AAA"}]}`
+	org.rawQueries["FROM ContentVersion"] = `{"done":true,"totalSize":1,"records":[{"attributes":{"type":"ContentVersion"},"Id":"068000000000001AAA","ContentDocumentId":"069000000000001AAA","FileExtension":"txt","Title":"Greeting"}]}`
 	file := filepath.Join(t.TempDir(), "hello.txt")
 	os.WriteFile(file, []byte("hello\n"), 0o644)
 	expectRun(t, 0, "Created file with ContentDocumentId 069000000000001AAA.\nFile attached to record with ID 001000000000001AAA.\n",
@@ -181,8 +181,70 @@ func TestDataCreateFile(t *testing.T) {
 	if request["Title"] != "Greeting" || request["PathOnClient"] != "hello.txt" || request["VersionData"] != "aGVsbG8K" || request["FirstPublishLocationId"] != "001000000000001AAA" {
 		t.Errorf("request = %v", request)
 	}
+	if _, errOut, status := run("data", "create", "file", "-f", "missing.txt"); status != 2 || errOut != "Error (2): Parsing --file \n\tNo file found at missing.txt\nSee more help with --help\n\n\n" {
+		t.Errorf("missing file: status %d, stderr %q", status, errOut)
+	}
 	out, _, _ := run("data", "create", "file", "--file", file, "--json")
-	if !strings.Contains(out, `"ContentDocumentId": "069000000000001AAA"`) || strings.Contains(out, `"attributes"`) || request["Title"] != "hello.txt" {
+	// The result is the record as the org returns it, with its attributes.
+	if !strings.Contains(out, `"ContentDocumentId": "069000000000001AAA"`) || !strings.Contains(out, "\"result\": {\n    \"attributes\": {") || request["Title"] != "hello.txt" {
 		t.Errorf("json: %s, title %s", out, request["Title"])
+	}
+}
+
+func TestDataImportTreeListsTheErrorsOfTheRecords(t *testing.T) {
+	org := loggedInFakeOrg(t)
+	org.handlers["/services/data/v67.0/composite/tree/Contact"] = func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		io.WriteString(w, `{"hasErrors":true,"results":[{"referenceId":"BadRef1","errors":[{"statusCode":"REQUIRED_FIELD_MISSING","message":"Required fields are missing: [LastName]","fields":["LastName"]}]}]}`)
+	}
+	dir := t.TempDir()
+	file := filepath.Join(dir, "Bad.json")
+	os.WriteFile(file, []byte(`{"records":[{"attributes":{"type":"Contact","referenceId":"BadRef1"},"FirstName":"NoLastName"}]}`), 0o644)
+	out, errOut, status := run("data", "import", "tree", "-f", file)
+	want := `Tree import errors
+┌──────────────┬────────────────────────┬─────────────────────────────────────────┬──────────┐
+│ Reference ID │ Status Code            │ Error Message                           │ Fields   │
+├──────────────┼────────────────────────┼─────────────────────────────────────────┼──────────┤
+│ BadRef1      │ REQUIRED_FIELD_MISSING │ Required fields are missing: [LastName] │ LastName │
+└──────────────┴────────────────────────┴─────────────────────────────────────────┴──────────┘
+
+`
+	if status != 1 || out != want || errOut != "Error (SfError): Data Import failed\n\n\n" {
+		t.Errorf("status %d, stderr %q\n%s", status, errOut, out)
+	}
+	out, _, status = run("data", "import", "tree", "-f", file, "--json")
+	if status != 1 || !strings.Contains(out, `"name": "SfError"`) || !strings.Contains(out, `  "data": [
+    {
+      "referenceId": "BadRef1",
+      "StatusCode": "REQUIRED_FIELD_MISSING",
+      "Message": "Required fields are missing: [LastName]",
+      "fields": "LastName"
+    }
+  ],`) {
+		t.Errorf("json: status %d\n%s", status, out)
+	}
+
+	for _, c := range []struct {
+		args   []string
+		status int
+		want   string
+	}{
+		{[]string{"-f", "nope.json"}, 1, "Error (ENOENT): ENOENT: no such file or directory, open 'nope.json'\n\n\n"},
+		{[]string{"-f", file, "-p", "plan.json"}, 2, "Error (2): The following errors occurred:\n  --files cannot also be provided when using --plan\n  --plan cannot also be provided when using --files\nSee more help with --help\n\n\n"},
+	} {
+		if _, errOut, status := run(append([]string{"data", "import", "tree"}, c.args...)...); status != c.status || errOut != c.want {
+			t.Errorf("%v: status %d, stderr %q", c.args, status, errOut)
+		}
+	}
+}
+
+func TestRecordIDComesFromTheRecordURL(t *testing.T) {
+	record := orderedFields("attributes", orderedFields("type", "Account", "url", "/services/data/v67.0/sobjects/Account/001000000000001AAA"), "Name", "Acme")
+	if got := recordID(record); got != "001000000000001AAA" {
+		t.Errorf("recordID = %q", got)
+	}
+	record.Set("Id", "001000000000002AAA")
+	if got := recordID(record); got != "001000000000002AAA" {
+		t.Errorf("recordID with an Id field = %q", got)
 	}
 }

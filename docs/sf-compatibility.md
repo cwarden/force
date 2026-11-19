@@ -80,7 +80,7 @@ The files written by the `template generate` commands come from the salesforcedx
 | `sf config set` | `force active <account>` (for `target-org`) | An unknown config name is reported as a failure; sf asks whether a similar name was meant. | Compared with sf |
 | `sf config unset` | none |  | Compared with sf |
 | `sf data bulk results` | `force bulk2 results` |  | Compared with sf |
-| `sf data create file` | none | Uploads the file as base64 in a JSON request; sf sends a multipart request. | Follows the sf plugin source |
+| `sf data create file` | none | Uploads the file as base64 in a JSON request; sf sends a multipart request. | Compared with sf |
 | `sf data create record` | `force record create` |  | Compared with sf |
 | `sf data delete bulk` | `force bulk2 delete`, `force bulk2 hardDelete` | Prints the last frame of the progress display once. | Compared with sf |
 | `sf data delete record` | `force record delete` |  | Compared with sf |
@@ -91,7 +91,7 @@ The files written by the `template generate` commands come from the salesforcedx
 | `sf data get record` | `force record get` |  | Compared with sf |
 | `sf data import bulk` | `force bulk2 insert` | Prints the last frame of the progress display once. | Compared with sf |
 | `sf data import resume` | `force bulk2 job` |  | Compared with sf |
-| `sf data import tree` | none |  | Follows the sf plugin source |
+| `sf data import tree` | none |  | Compared with sf |
 | `sf data query` | `force query` |  | Compared with sf |
 | `sf data resume` | `force bulk job`, `force bulk batch` |  | Compared with sf |
 | `sf data search` | `force search` |  | Compared with sf |
@@ -129,7 +129,7 @@ The files written by the `template generate` commands come from the salesforcedx
 | `sf org enable tracking` | none; writes `tracksSource` to the authorization file |  | Compared with sf |
 | `sf org login web` | `force login` | `--browser`, `--client-app`, `--username`, `--scopes`. Uses the force connected app and callback port unless `--client-id` is given. | Not compared; needs a browser login |
 | `sf org logout` | `force logout` | `--client-app` is accepted and has no effect. | Compared with sf |
-| `sf org open` | `force open` | `--private`, `--browser`, `--source-file` | Follows the sf plugin source |
+| `sf org open` | `force open` | `--private`, `--browser`, `--source-file` | Compared with sf |
 | `sf package create` | `force package create` | `--no-namespace`, `--org-dependent`, `--error-notification-username` | Follows the sf plugin source |
 | `sf package delete` | none |  | Follows the sf plugin source |
 | `sf package install` | `force package install` | `--publish-wait`, `--skip-handlers`. Does not prompt about remote site settings; they are enabled. | Follows the sf plugin source |

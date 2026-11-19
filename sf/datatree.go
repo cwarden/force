@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -68,6 +69,19 @@ type treeExport struct {
 	shapes map[string]*sobjectShape
 }
 
+// recordID returns the Id of a queried record: the Id field, or the last
+// part of the URL in its attributes when the query did not select the Id.
+func recordID(record *orderedMap) string {
+	if id := text(record.values["Id"]); id != "" {
+		return id
+	}
+	if attributes, ok := record.values["attributes"].(*orderedMap); ok {
+		url := text(attributes.values["url"])
+		return url[strings.LastIndex(url, "/")+1:]
+	}
+	return ""
+}
+
 func recordType(record *orderedMap) string {
 	if attributes, ok := record.values["attributes"].(*orderedMap); ok {
 		return text(attributes.values["type"])
@@ -106,7 +120,7 @@ func (e *treeExport) register(record *orderedMap) error {
 		e.shapes[objectType] = shape
 		e.types = append(e.types, objectType)
 	}
-	id := text(record.values["Id"])
+	id := recordID(record)
 	if _, known := e.refs[id]; !known && id != "" {
 		e.counts[objectType]++
 		e.refs[id] = fmt.Sprintf("%sRef%d", objectType, e.counts[objectType])
@@ -138,7 +152,7 @@ func (e *treeExport) convert(record *orderedMap, keepChildren bool) *orderedMap 
 		case key == "attributes":
 			attributes := newOrderedMap()
 			attributes.Set("type", objectType)
-			attributes.Set("referenceId", e.refs[text(record.values["Id"])])
+			attributes.Set("referenceId", e.refs[recordID(record)])
 			converted.Set(key, attributes)
 		case key == "Id" || value == nil:
 		default:
@@ -181,7 +195,7 @@ func (e *treeExport) flatten(record *orderedMap) []*orderedMap {
 		for _, child := range children {
 			if field := shape.childFields[key]; field != "" {
 				if _, present := child.Get(field); !present {
-					child.Set(field, record.values["Id"])
+					child.Set(field, recordID(record))
 				}
 			}
 			result = append(result, e.flatten(child)...)
@@ -318,7 +332,12 @@ func newDataExportTreeCmd() *cobra.Command {
 					warn(cmd, fmt.Sprintf("Query returned more than 200 records. Run the command using the --plan flag instead.\nRecord Count: %d\nQuery: %s", len(records), queries[i]))
 				}
 				if len(records) == 0 {
-					warn(cmd, fmt.Sprintf("Query returned no results: %s", queries[i]))
+					// sf names the object of the query.
+					object := ""
+					if match := queryObjectPattern.FindStringSubmatch(queries[i]); match != nil {
+						object = match[1]
+					}
+					warn(cmd, fmt.Sprintf("The query for %s returned 0 records.", object))
 					continue
 				}
 				converted := make([]interface{}, 0, len(records))
@@ -353,6 +372,8 @@ func newDataExportTreeCmd() *cobra.Command {
 	return cmd
 }
 
+var queryObjectPattern = regexp.MustCompile(`(?i)from (\w+)`)
+
 // resolveRefs replaces "@<reference id>" values with the Ids of records
 // that were already imported.
 func resolveRefs(value interface{}, ids map[string]string) interface{} {
@@ -382,7 +403,7 @@ func resolveRefs(value interface{}, ids map[string]string) interface{} {
 func importTreeFile(org *targetOrg, path string, ids map[string]string) ([]*orderedMap, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return nil, fileSystemError("open", path, err)
 	}
 	parsed, err := parseOrderedJSON(data)
 	if err != nil {
@@ -434,6 +455,9 @@ func importTreeFile(org *targetOrg, path string, ids map[string]string) ([]*orde
 		}
 		body, err := org.Force.PostREST("/composite/tree/"+objectType, content)
 		if err != nil {
+			if failed := treeImportErrors(err); failed != nil {
+				return nil, failed
+			}
 			// sf reports a failed request under the API error, without
 			// the "data" field.
 			converted := apiError(err)
@@ -467,6 +491,50 @@ func importTreeFile(org *targetOrg, path string, ids map[string]string) ([]*orde
 	return results, nil
 }
 
+// treeImportFailure is a refused tree import: the errors of the records by
+// reference id.
+type treeImportFailure struct {
+	rows []*orderedMap
+}
+
+func (f *treeImportFailure) Error() string { return "Data Import failed" }
+
+// treeImportErrors reads the errors of the records from the response the
+// org gives when it refuses a tree import, or returns nil for another
+// error.
+func treeImportErrors(err error) *treeImportFailure {
+	message := err.Error()
+	start := strings.Index(message, "{")
+	if start < 0 {
+		return nil
+	}
+	var response struct {
+		HasErrors bool `json:"hasErrors"`
+		Results   []struct {
+			ReferenceId string `json:"referenceId"`
+			Errors      []struct {
+				StatusCode string   `json:"statusCode"`
+				Message    string   `json:"message"`
+				Fields     []string `json:"fields"`
+			} `json:"errors"`
+		} `json:"results"`
+	}
+	if json.Unmarshal([]byte(message[start:]), &response) != nil || !response.HasErrors {
+		return nil
+	}
+	failure := &treeImportFailure{}
+	for _, result := range response.Results {
+		for _, problem := range result.Errors {
+			fields := strings.Join(problem.Fields, ", ")
+			if fields == "" {
+				fields = "N/A"
+			}
+			failure.rows = append(failure.rows, orderedFields("referenceId", result.ReferenceId, "StatusCode", problem.StatusCode, "Message", problem.Message, "fields", fields))
+		}
+	}
+	return failure
+}
+
 func newDataImportTreeCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:         "tree",
@@ -476,17 +544,22 @@ func newDataImportTreeCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			files := splitList(cmd, "files")
 			plan, _ := cmd.Flags().GetString("plan")
-			if (len(files) == 0) == (plan == "") {
+			if len(files) > 0 && plan != "" {
+				return &Error{Message: "The following errors occurred:\n  --files cannot also be provided when using --plan\n  --plan cannot also be provided when using --files\nSee more help with --help", ExitCode: 2}
+			}
+			if len(files) == 0 && plan == "" {
 				return exactlyOneError("files", "plan")
 			}
 			if plan != "" {
 				data, err := os.ReadFile(plan)
 				if err != nil {
-					return err
+					return fileSystemError("open", plan, err)
 				}
 				var parts []struct {
-					Sobject string        `json:"sobject"`
-					Files   []interface{} `json:"files"`
+					Sobject     string        `json:"sobject"`
+					Files       []interface{} `json:"files"`
+					SaveRefs    *bool         `json:"saveRefs"`
+					ResolveRefs *bool         `json:"resolveRefs"`
 				}
 				if err := json.Unmarshal(data, &parts); err != nil {
 					return &Error{
@@ -498,6 +571,12 @@ func newDataImportTreeCmd() *cobra.Command {
 							"Make sure you're importing a plan definition file.",
 							"Get help with the import plan schema by running \"sf data import tree --help\".",
 						},
+					}
+				}
+				for _, part := range parts {
+					if part.SaveRefs != nil || part.ResolveRefs != nil {
+						warn(cmd, "The plan contains the 'saveRefs' and/or 'resolveRefs' properties. These properties will be ignored and can be removed.")
+						break
 					}
 				}
 				// Files in a plan are relative to the plan file.
@@ -519,6 +598,17 @@ func newDataImportTreeCmd() *cobra.Command {
 			results := []*orderedMap{}
 			for _, file := range files {
 				imported, err := importTreeFile(org, file, ids)
+				if failure, refused := err.(*treeImportFailure); refused {
+					// sf lists the errors of the records, then fails.
+					if !jsonRequested(cmd) {
+						table := make([][]string, 0, len(failure.rows))
+						for _, row := range failure.rows {
+							table = append(table, []string{text(row.values["referenceId"]), text(row.values["StatusCode"]), text(row.values["Message"]), text(row.values["fields"])})
+						}
+						printTable(cmd.OutOrStdout(), "Tree import errors", []string{"Reference ID", "Status Code", "Error Message", "Fields"}, table)
+					}
+					return &Error{Name: "SfError", Message: "Data Import failed", ExitCode: 1, Data: failure.rows}
+				}
 				if err != nil {
 					return err
 				}
@@ -554,7 +644,7 @@ func newDataCreateFileCmd() *cobra.Command {
 			}
 			data, err := os.ReadFile(file)
 			if err != nil {
-				return err
+				return flagParseError("", "file", "No file found at "+file)
 			}
 			title, _ := cmd.Flags().GetString("title")
 			parentID, _ := cmd.Flags().GetString("parent-id")
@@ -590,7 +680,7 @@ func newDataCreateFileCmd() *cobra.Command {
 			if err := json.Unmarshal([]byte(body), &created); err != nil || created.Id == "" {
 				return fmt.Errorf("the org did not return a ContentVersion Id")
 			}
-			queried, err := runQuery(org, "", "query", fmt.Sprintf("SELECT Id, ContentDocumentId, FileExtension, Title, PathOnClient, FirstPublishLocationId FROM ContentVersion WHERE Id='%s'", created.Id))
+			queried, err := runQuery(org, "", "query", fmt.Sprintf("SELECT Id, ContentDocumentId, Title, FileExtension FROM ContentVersion WHERE Id='%s'", created.Id))
 			if err != nil {
 				return apiError(err)
 			}
@@ -598,7 +688,6 @@ func newDataCreateFileCmd() *cobra.Command {
 			result.Set("Id", created.Id)
 			if records, _ := queried.values["records"].([]interface{}); len(records) > 0 {
 				if record, ok := records[0].(*orderedMap); ok {
-					record.Delete("attributes")
 					result = record
 				}
 			}
