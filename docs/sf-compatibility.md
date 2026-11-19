@@ -91,7 +91,7 @@ The files written by the `template generate` commands come from the salesforcedx
 | `sf data import bulk` | `force bulk2 insert` | Prints the last frame of the progress display once. | Compared with sf |
 | `sf data import resume` | `force bulk2 job` |  | Follows the sf plugin source |
 | `sf data import tree` | none |  | Follows the sf plugin source |
-| `sf data query` | `force query` | Child records from a subquery are printed as JSON in a table cell. | Compared with sf |
+| `sf data query` | `force query` |  | Compared with sf |
 | `sf data resume` | `force bulk job`, `force bulk batch` |  | Follows the sf plugin source |
 | `sf data search` | `force search` |  | Follows the sf plugin source |
 | `sf data update bulk` | `force bulk2 update` | Prints the last frame of the progress display once. | Compared with sf |

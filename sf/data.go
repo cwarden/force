@@ -196,6 +196,8 @@ func writeQueryCSV(w io.Writer, result *orderedMap) error {
 	records, _ := result.values["records"].([]interface{})
 	columns := recordColumns(records)
 	if len(columns) == 0 {
+		// sf writes the header line, which has no columns.
+		fmt.Fprintln(w)
 		return nil
 	}
 	writer := csv.NewWriter(w)
@@ -297,6 +299,14 @@ func newDataQueryCmd() *cobra.Command {
 			if jsonRequested(cmd) {
 				return emit(cmd, result, nil)
 			}
+			// sf lays out the table and the CSV file from the column
+			// metadata of the query, which it requests when the query
+			// returned records.
+			var fields []queryField
+			records, _ := result.values["records"].([]interface{})
+			if total := displayValue(result.values["totalSize"]); total != "0" && format != "json" {
+				fields = queryColumns(org, restBase(cmd), resource, soql)
+			}
 			out := cmd.OutOrStdout()
 			var buffer bytes.Buffer
 			switch format {
@@ -309,11 +319,17 @@ func newDataQueryCmd() *cobra.Command {
 					return err
 				}
 			case "csv":
-				if err := writeQueryCSV(&buffer, result); err != nil {
+				if len(fields) > 0 {
+					writeQueryCSVColumns(&buffer, result, fields)
+				} else if err := writeQueryCSV(&buffer, result); err != nil {
 					return err
 				}
 			default:
-				writeQueryHuman(&buffer, soql, result)
+				if len(fields) > 0 && len(records) > 0 {
+					writeQueryTable(&buffer, result, fields)
+				} else {
+					writeQueryHuman(&buffer, soql, result)
+				}
 			}
 			if outputFile, _ := cmd.Flags().GetString("output-file"); outputFile != "" {
 				if err := os.WriteFile(outputFile, buffer.Bytes(), 0o644); err != nil {

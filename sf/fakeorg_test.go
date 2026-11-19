@@ -20,6 +20,10 @@ type fakeOrg struct {
 	// rawQueries maps a substring of a SOQL query to a raw JSON response
 	// body, for tests that depend on the field order of records.
 	rawQueries map[string]string
+	// columnMetadata maps a substring of a SOQL query to the raw JSON
+	// response to a request for the columns of the query.  A query that
+	// matches no entry gets the records, without column metadata.
+	columnMetadata map[string]string
 	// handlers maps a URL path to a handler that replaces the default.
 	handlers map[string]http.HandlerFunc
 	requests []string
@@ -98,6 +102,14 @@ func (o *fakeOrg) serve(w http.ResponseWriter, r *http.Request) {
 		})
 	case strings.HasSuffix(strings.TrimRight(r.URL.Path, "/"), "/query"):
 		soql := r.URL.Query().Get("q")
+		if r.URL.Query().Get("columns") == "true" {
+			for fragment, body := range o.columnMetadata {
+				if strings.Contains(soql, fragment) {
+					w.Write([]byte(body))
+					return
+				}
+			}
+		}
 		for fragment, body := range o.rawQueries {
 			if strings.Contains(soql, fragment) {
 				w.Write([]byte(body))

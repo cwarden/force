@@ -123,7 +123,7 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [x] `template generate apex class`: templates other than `DefaultApexClass`
 - [ ] `org create scratch`: definition file key `objectSettings`, and keys other than `orgName`, `edition`, `country`, `language`, `adminEmail`, `description`, `hasSampleData`, `username`, `release`, `namespace`, `duration`, `durationDays`, `features`, `settings`
 - [ ] `org display`: scratch org fields other than the Dev Hub username and expiration date
-- [ ] `data query`: sf's layout for child records of a subquery
+- [x] `data query`: sf's layout for child records of a subquery, and columns from the column metadata of the query (`columns=true`)
 - [ ] `project convert source`: the order of elements in a composed custom object (sf writes the fields and other child components after the elements of the object file; this mode writes all elements in alphabetical order)
 - [ ] `project convert mdapi --metadata`, `--manifest`: a child component named on its own, such as `CustomField:Invoice__c.Amount__c` (only whole objects are selected)
 - [ ] Unknown metadata type name: the "Did you mean one of the following types?" line (needs sf's list of all type names)
