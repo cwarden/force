@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -153,9 +154,9 @@ func newPackageListCmd() *cobra.Command {
 				rows = append(rows, row)
 			}
 			return emit(cmd, results, func(w io.Writer) {
-				headers := []string{"Namespace Prefix", "Name", "Id", "Alias", "Description", "ContainerOptions"}
+				headers := []string{"Namespace Prefix", "Name", "Id", "Alias", "Description", "Container Options"}
 				if verbose {
-					headers = append(headers, "Package Id", "Converted From Package Id", "Org-Dependent Unlocked Package", "Error Notification Username", "Created By", "App Analytics Enabled")
+					headers = append(headers, "Package Id", "Converted From Package Id", "Org Dependent Unlocked Package", "Error Notification Username", "Created By", "App Analytics Enabled")
 				}
 				printTable(w, paint(w, style{"\x1b[34m", "\x1b[39m"}, fmt.Sprintf("Packages [%d]", len(rows))), headers, rows)
 			})
@@ -541,11 +542,16 @@ func newPackageUninstallCmd() *cobra.Command {
 	return cmd
 }
 
-const packageVersionFields = "Id, Package2Id, SubscriberPackageVersionId, Name, Package2.Name, Package2.NamespacePrefix, Package2.IsOrgDependent, Package2.ContainerOptions, Description, Tag, Branch, MajorVersion, MinorVersion, PatchVersion, BuildNumber, IsReleased, CreatedDate, LastModifiedDate, IsPasswordProtected, AncestorId, ValidationSkipped, ValidatedAsync, CreatedById, ConvertedFromVersionId, ReleaseVersion, BuildDurationInSeconds, HasMetadataRemoved, Language"
+const packageVersionFields = "Id, Package2Id, SubscriberPackageVersionId, Name, Package2.Name, Package2.NamespacePrefix, Package2.IsOrgDependent, Package2.ContainerOptions, Description, Tag, Branch, MajorVersion, MinorVersion, PatchVersion, BuildNumber, IsReleased, CreatedDate, LastModifiedDate, IsPasswordProtected, AncestorId, ValidationSkipped, ValidatedAsync, CreatedById, ConvertedFromVersionId, ReleaseVersion, BuildDurationInSeconds, HasMetadataRemoved"
+
+// packageVersionVerboseFields are the fields "package version list" reads in
+// addition to packageVersionFields when --verbose is given.
+const packageVersionVerboseFields = ", CodeCoverage, HasPassedCodeCoverageCheck, Language"
 
 // packageVersionResult converts a Package2Version record to the result sf
-// reports.
-func packageVersionResult(record *orderedMap, asJSON bool) *orderedMap {
+// reports.  sf reads the code coverage and the language only for --verbose,
+// and leaves the keys it has no value for out of the JSON result.
+func packageVersionResult(record *orderedMap, asJSON bool, verbose bool, ancestorVersions map[string]string) *orderedMap {
 	parent, _ := record.values["Package2"].(*orderedMap)
 	if parent == nil {
 		parent = newOrderedMap()
@@ -568,7 +574,11 @@ func packageVersionResult(record *orderedMap, asJSON bool) *orderedMap {
 	}
 	ancestorID := record.values["AncestorId"]
 	var ancestorVersion interface{}
-	if ancestorID == nil && !managed {
+	if ancestorID != nil {
+		if found, ok := ancestorVersions[text(ancestorID)]; ok {
+			ancestorVersion = found
+		}
+	} else if !managed {
 		ancestorID, ancestorVersion = "N/A", "N/A"
 	}
 	orgDependent := "No"
@@ -606,19 +616,88 @@ func packageVersionResult(record *orderedMap, asJSON bool) *orderedMap {
 	result.Set("CreatedDate", date(record.values["CreatedDate"]))
 	result.Set("LastModifiedDate", date(record.values["LastModifiedDate"]))
 	result.Set("InstallUrl", "https://login.salesforce.com/packaging/installPackage.apexp?p0="+subscriberID)
-	result.Set("CodeCoverage", "use --verbose for code coverage")
+	skipsCoverage := boolValue(parent.values["IsOrgDependent"]) || boolValue(record.values["ValidationSkipped"])
+	coverage := "use --verbose for code coverage"
+	if verbose {
+		coverage = ""
+		if skipsCoverage {
+			coverage = "N/A"
+		}
+		if detail, ok := record.values["CodeCoverage"].(*orderedMap); ok && detail.values["apexCodeCoveragePercentage"] != nil {
+			coverage = displayValue(detail.values["apexCodeCoveragePercentage"]) + "%"
+		}
+	}
+	result.Set("CodeCoverage", coverage)
+	if skipsCoverage {
+		result.Set("HasPassedCodeCoverageCheck", "N/A")
+	} else if verbose {
+		result.Set("HasPassedCodeCoverageCheck", record.values["HasPassedCodeCoverageCheck"])
+	}
 	result.Set("ValidationSkipped", record.values["ValidationSkipped"])
 	result.Set("ValidatedAsync", record.values["ValidatedAsync"])
 	result.Set("AncestorId", ancestorID)
-	result.Set("AncestorVersion", ancestorVersion)
+	if ancestorVersion != nil {
+		result.Set("AncestorVersion", ancestorVersion)
+	}
 	result.Set("Alias", aliasesOf(text(record.values["Id"]), subscriberID))
 	result.Set("IsOrgDependent", orgDependent)
-	result.Set("ReleaseVersion", record.values["ReleaseVersion"])
-	result.Set("BuildDurationInSeconds", record.values["BuildDurationInSeconds"])
+	releaseVersion := ""
+	switch value := record.values["ReleaseVersion"].(type) {
+	case nil:
+	case float64:
+		releaseVersion = strconv.FormatFloat(value, 'f', 1, 64)
+	default:
+		releaseVersion = displayValue(value)
+		if number, err := strconv.ParseFloat(releaseVersion, 64); err == nil {
+			releaseVersion = strconv.FormatFloat(number, 'f', 1, 64)
+		}
+	}
+	result.Set("ReleaseVersion", releaseVersion)
+	var buildDuration interface{} = ""
+	if record.values["BuildDurationInSeconds"] != nil {
+		buildDuration = record.values["BuildDurationInSeconds"]
+	}
+	result.Set("BuildDurationInSeconds", buildDuration)
 	result.Set("HasMetadataRemoved", metadataRemoved)
 	result.Set("CreatedBy", record.values["CreatedById"])
-	result.Set("Language", record.values["Language"])
+	if verbose {
+		result.Set("Language", record.values["Language"])
+	}
 	return result
+}
+
+// packageVersionNumbers returns the version numbers of the ancestors of the
+// given package versions, by the 04t Id of the ancestor.
+func packageVersionNumbers(org *targetOrg, records []*orderedMap) (map[string]string, error) {
+	versions := map[string]string{}
+	var ids []string
+	for _, record := range records {
+		if id := text(record.values["AncestorId"]); id != "" && versions[id] == "" {
+			versions[id] = "-"
+			ids = append(ids, id)
+		}
+	}
+	const chunk = 200
+	for start := 0; start < len(ids); start += chunk {
+		end := start + chunk
+		if end > len(ids) {
+			end = len(ids)
+		}
+		found, err := toolingRecords(org, fmt.Sprintf("SELECT SubscriberPackageVersionId, MajorVersion, MinorVersion, PatchVersion, BuildNumber FROM Package2Version WHERE SubscriberPackageVersionId IN (%s)", quoteIds(ids[start:end])))
+		if err != nil {
+			return nil, err
+		}
+		for _, record := range found {
+			versions[text(record.values["SubscriberPackageVersionId"])] = fmt.Sprintf("%s.%s.%s.%s", displayValue(record.values["MajorVersion"]),
+				displayValue(record.values["MinorVersion"]), displayValue(record.values["PatchVersion"]), displayValue(record.values["BuildNumber"]))
+		}
+	}
+	for id, version := range versions {
+		if version == "-" {
+			delete(versions, id)
+		}
+	}
+	return versions, nil
 }
 
 func resultCell(result *orderedMap, key string) string {
@@ -674,12 +753,16 @@ func newPackageVersionListCmd() *cobra.Command {
 			if orderBy == "" {
 				orderBy = "Package2Id, Branch, MajorVersion, MinorVersion, PatchVersion, BuildNumber"
 			}
-			records, err := toolingRecords(org, fmt.Sprintf("SELECT %s FROM Package2Version WHERE %s ORDER BY %s", packageVersionFields, strings.Join(conditions, " AND "), orderBy))
+			concise, _ := cmd.Flags().GetBool("concise")
+			verbose, _ := cmd.Flags().GetBool("verbose")
+			fields := packageVersionFields
+			if verbose {
+				fields += packageVersionVerboseFields
+			}
+			records, err := toolingRecords(org, fmt.Sprintf("SELECT %s FROM Package2Version WHERE %s ORDER BY %s", fields, strings.Join(conditions, " AND "), orderBy))
 			if err != nil {
 				return err
 			}
-			concise, _ := cmd.Flags().GetBool("concise")
-			verbose, _ := cmd.Flags().GetBool("verbose")
 			columns := [][2]string{
 				{"Package2Name", "Package Name"}, {"NamespacePrefix", "Namespace"}, {"Name", "Version Name"}, {"Version", "Version"},
 				{"SubscriberPackageVersionId", "Subscriber Package Version Id"}, {"Alias", "Alias"}, {"IsPasswordProtected", "Installation Key"},
@@ -692,16 +775,21 @@ func newPackageVersionListCmd() *cobra.Command {
 				columns = append(columns, [][2]string{
 					{"Package2Id", "Package Id"}, {"InstallUrl", "Installation URL"}, {"Id", "Package Version Id"}, {"CreatedDate", "Created Date"},
 					{"LastModifiedDate", "Last Modified Date"}, {"Tag", "Tag"}, {"Description", "Description"}, {"CodeCoverage", "Code Coverage"},
+					{"HasPassedCodeCoverageCheck", "Code Coverage Met"},
 					{"ConvertedFromVersionId", "Converted From Version Id"}, {"IsOrgDependent", "Org-Dependent Unlocked Package"},
 					{"ReleaseVersion", "Release Version"}, {"BuildDurationInSeconds", "Build Duration in Seconds"},
 					{"HasMetadataRemoved", "Managed Metadata Removed"}, {"CreatedBy", "Created By"}, {"Language", "Language"},
 				}...)
 			}
+			ancestorVersions, err := packageVersionNumbers(org, records)
+			if err != nil {
+				return err
+			}
 			results := make([]*orderedMap, 0, len(records))
 			rows := make([][]string, 0, len(records))
 			for _, record := range records {
-				results = append(results, packageVersionResult(record, true))
-				human := packageVersionResult(record, false)
+				results = append(results, packageVersionResult(record, true, verbose, ancestorVersions))
+				human := packageVersionResult(record, false, verbose, ancestorVersions)
 				row := make([]string, len(columns))
 				for i, column := range columns {
 					row[i] = resultCell(human, column[0])
@@ -744,12 +832,16 @@ func findPackageVersion(org *targetOrg, aliasOrID string) (*orderedMap, error) {
 	if strings.HasPrefix(id, "04t") {
 		field = "SubscriberPackageVersionId"
 	}
-	records, err := toolingRecords(org, fmt.Sprintf("SELECT %s FROM Package2Version WHERE %s = '%s'", packageVersionFields, field, strings.ReplaceAll(id, "'", `\'`)))
+	records, err := toolingRecords(org, fmt.Sprintf("SELECT %s, Language FROM Package2Version WHERE %s = '%s'", packageVersionFields, field, strings.ReplaceAll(id, "'", `\'`)))
 	if err != nil {
 		return nil, err
 	}
 	if len(records) == 0 {
-		return nil, newError("ErrorInvalidIdNoMatchingVersionId", "The package version ID '%s' is invalid, as a corresponding package version ID was not found", aliasOrID)
+		searched, other := "Subscriber Package Version Id", "Package Version Id"
+		if field == "Id" {
+			searched, other = other, searched
+		}
+		return nil, newError("ErrorInvalidIdNoMatchingVersionIdError", "The %s %s is invalid, as a corresponding %s was not found", searched, id, other)
 	}
 	return records[0], nil
 }
@@ -773,7 +865,7 @@ func newPackageVersionReportCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			result := packageVersionResult(record, true)
+			result := packageVersionResult(record, true, true, nil)
 			result.Set("CodeCoverage", "N/A")
 			return emit(cmd, result, func(w io.Writer) {
 				rows := [][]string{

@@ -20,6 +20,10 @@ import (
 func devHubSetup(t *testing.T) *fakeOrg {
 	t.Helper()
 	useTempHome(t)
+	// sf shows some times in the local time zone.
+	zone := time.Local
+	time.Local = time.UTC
+	t.Cleanup(func() { time.Local = zone })
 	org := newFakeOrg(t)
 	org.login(t, "--alias", "hub", "--set-default", "--set-default-dev-hub")
 	project := newProject(t, os.Getenv("HOME"))
@@ -50,12 +54,12 @@ func TestPackageList(t *testing.T) {
 			`{"Id":"0Ho000000000002AAA","SubscriberPackageId":"033000000000002AAA","Name":"Tools","Description":null,"NamespacePrefix":null,"ContainerOptions":"Unlocked","ConvertedFromPackageId":null,"IsOrgDependent":true,"PackageErrorUsername":null,"AppAnalyticsEnabled":false,"CreatedById":"005000000000001AAA","IsDeprecated":false}]}`)
 	}
 	expectRun(t, 0, `Packages [2]
-┌──────────────────┬─────────┬────────────────────┬─────────┬─────────────┬──────────────────┐
-│ Namespace Prefix │ Name    │ Id                 │ Alias   │ Description │ ContainerOptions │
-├──────────────────┼─────────┼────────────────────┼─────────┼─────────────┼──────────────────┤
-│ acme             │ Billing │ 0Ho000000000001AAA │ billing │ Invoices    │ Managed          │
-│                  │ Tools   │ 0Ho000000000002AAA │         │             │ Unlocked         │
-└──────────────────┴─────────┴────────────────────┴─────────┴─────────────┴──────────────────┘
+┌──────────────────┬─────────┬────────────────────┬─────────┬─────────────┬───────────────────┐
+│ Namespace Prefix │ Name    │ Id                 │ Alias   │ Description │ Container Options │
+├──────────────────┼─────────┼────────────────────┼─────────┼─────────────┼───────────────────┤
+│ acme             │ Billing │ 0Ho000000000001AAA │ billing │ Invoices    │ Managed           │
+│                  │ Tools   │ 0Ho000000000002AAA │         │             │ Unlocked          │
+└──────────────────┴─────────┴────────────────────┴─────────┴─────────────┴───────────────────┘
 
 `, "package", "list")
 	out, _, status := run("package", "list", "--json")
@@ -63,7 +67,7 @@ func TestPackageList(t *testing.T) {
 		t.Errorf("json: status %d\n%s", status, out)
 	}
 	out, _, _ = run("force:package:list", "--verbose", "-v", "hub")
-	if !strings.Contains(out, "│ Org-Dependent Unlocked Package │") || !strings.Contains(out, "033000000000002AAA") {
+	if !strings.Contains(out, "│ Org Dependent Unlocked Package │") || !strings.Contains(out, "033000000000002AAA") {
 		t.Errorf("verbose:\n%s", out)
 	}
 }
@@ -190,7 +194,7 @@ const packageVersionRecord = `{"Id":"05i000000000001AAA","Package2Id":"0Ho000000
 	`"Description":"First","Tag":null,"Branch":null,"MajorVersion":1,"MinorVersion":0,"PatchVersion":0,"BuildNumber":1,"IsReleased":false,` +
 	`"CreatedDate":"2026-01-02T03:04:05.000+0000","LastModifiedDate":"2026-01-03T03:04:05.000+0000","IsPasswordProtected":false,"AncestorId":null,` +
 	`"ValidationSkipped":false,"ValidatedAsync":false,"CreatedById":"005000000000001AAA","ConvertedFromVersionId":null,"ReleaseVersion":67.0,` +
-	`"BuildDurationInSeconds":120,"HasMetadataRemoved":false,"Language":"en_US"}`
+	`"BuildDurationInSeconds":120,"HasMetadataRemoved":false,"Language":"en_US","CodeCoverage":{"apexCodeCoveragePercentage":85},"HasPassedCodeCoverageCheck":true}`
 
 func TestPackageVersionListReportAndPromote(t *testing.T) {
 	org := devHubSetup(t)
@@ -226,8 +230,50 @@ func TestPackageVersionListReportAndPromote(t *testing.T) {
 	out, _, _ = run("package", "version", "list", "--json")
 	if !strings.Contains(out, `"IsReleased": false`) || !strings.Contains(out, `"CreatedDate": "2026-01-02 03:04"`) ||
 		!strings.Contains(out, `"InstallUrl": "https://login.salesforce.com/packaging/installPackage.apexp?p0=04t000000000001AAA"`) ||
-		!strings.Contains(out, `"HasMetadataRemoved": "No"`) {
+		!strings.Contains(out, `"HasMetadataRemoved": "No"`) || !strings.Contains(out, `"ReleaseVersion": "67.0"`) ||
+		!strings.Contains(out, `"CodeCoverage": "use --verbose for code coverage"`) {
 		t.Errorf("version list json:\n%s", out)
+	}
+	// sf reads these only for --verbose and leaves out keys without a value.
+	for _, absent := range []string{`"Language"`, `"HasPassedCodeCoverageCheck"`, `"AncestorVersion"`} {
+		if strings.Contains(out, absent) {
+			t.Errorf("version list json has %s:\n%s", absent, out)
+		}
+	}
+	if strings.Contains(soql, "CodeCoverage") {
+		t.Errorf("query without --verbose reads the code coverage: %s", soql)
+	}
+	out, _, _ = run("package", "version", "list", "--verbose")
+	if !strings.Contains(soql, ", CodeCoverage, HasPassedCodeCoverageCheck, Language FROM") ||
+		!strings.Contains(out, "│ Code Coverage │ Code Coverage Met │ Converted From Version Id │ Org-Dependent Unlocked Package │ Release Version │ Build Duration in Seconds │ Managed Metadata Removed │ Created By         │ Language │") ||
+		!strings.Contains(out, "│ 85%           │ true              │                           │ N/A                            │ 67.0            │ 120                       │ No                       │ 005000000000001AAA │ en_US    │") {
+		t.Errorf("verbose version list: query %s\n%s", soql, out)
+	}
+	org.handlers["/services/data/v67.0/tooling/query"] = func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Query().Get("q"), "SubscriberPackageVersionId IN ('04t000000000009AAA')") {
+			io.WriteString(w, `{"done":true,"totalSize":1,"records":[{"SubscriberPackageVersionId":"04t000000000009AAA","MajorVersion":0,"MinorVersion":9,"PatchVersion":0,"BuildNumber":2}]}`)
+			return
+		}
+		io.WriteString(w, `{"done":true,"totalSize":1,"records":[`+strings.Replace(packageVersionRecord, `"AncestorId":null`, `"AncestorId":"04t000000000009AAA"`, 1)+`]}`)
+	}
+	out, _, _ = run("package", "version", "list", "--json")
+	if !strings.Contains(out, "\"AncestorId\": \"04t000000000009AAA\",\n      \"AncestorVersion\": \"0.9.0.2\",") {
+		t.Errorf("ancestor version:\n%s", out)
+	}
+	org.handlers["/services/data/v67.0/tooling/query"] = func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"done":true,"totalSize":0,"records":[]}`)
+	}
+	_, errOut, status := run("package", "version", "report", "-p", "04t000000000000AAA")
+	if status != 1 || errOut != "Error (ErrorInvalidIdNoMatchingVersionIdError): The Subscriber Package Version Id 04t000000000000AAA is invalid, as a corresponding Package Version Id was not found\n\n\n" {
+		t.Errorf("missing version: status %d, stderr %q", status, errOut)
+	}
+	_, errOut, status = run("package", "version", "create", "report", "-i", "08c000000000000AAA")
+	if status != 10 || errOut != "Error (10): Cannot read properties of undefined (reading 'Status')\n\n\n" {
+		t.Errorf("missing request: status %d, stderr %q", status, errOut)
+	}
+	org.handlers["/services/data/v67.0/tooling/query"] = func(w http.ResponseWriter, r *http.Request) {
+		soql = r.URL.Query().Get("q")
+		io.WriteString(w, `{"done":true,"totalSize":1,"records":[`+packageVersionRecord+`]}`)
 	}
 
 	out, _, status = run("package", "version", "report", "-p", "04t000000000001AAA")
@@ -243,7 +289,7 @@ func TestPackageVersionListReportAndPromote(t *testing.T) {
 		t.Errorf("promote request = %s", promoted)
 	}
 	// Without --no-prompt the command asks, and an empty answer is "no".
-	_, errOut, status := run("package", "version", "promote", "-p", "05i000000000001AAA")
+	_, errOut, status = run("package", "version", "promote", "-p", "05i000000000001AAA")
 	if status != 1 || !strings.Contains(errOut, "Error (promote-deny): Promote operation denied") {
 		t.Errorf("declined promote: status %d, stderr %q", status, errOut)
 	}

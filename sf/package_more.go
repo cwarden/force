@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 )
@@ -309,15 +310,36 @@ func newPackageVersionUpdateCmd() *cobra.Command {
 	return cmd
 }
 
-const createRequestFields = "Id, Status, Package2Id, Package2.Name, Package2VersionId, Package2Version.SubscriberPackageVersionId, Package2Version.HasMetadataRemoved, Tag, Branch, CreatedDate, CreatedById"
+const createRequestFields = "Id, Status, Package2Id, Package2.Name, Package2VersionId, Package2Version.SubscriberPackageVersionId, Package2Version.HasPassedCodeCoverageCheck, Package2Version.CodeCoverage, Tag, Branch, " +
+	"Package2Version.MajorVersion, Package2Version.MinorVersion, Package2Version.PatchVersion, Package2Version.BuildNumber, " +
+	"CreatedDate, Package2Version.HasMetadataRemoved, CreatedById, IsConversionRequest, Package2Version.ConvertedFromVersionId"
 
 // createRequestResult converts a Package2VersionCreateRequest record to the
-// result sf reports.
-func createRequestResult(org *targetOrg, record *orderedMap) *orderedMap {
-	var subscriberID, hasMetadataRemoved interface{}
+// result sf reports.  sf reads the error messages of a request for the
+// report of one request and not for the list.  It formats the creation
+// time in the local time zone.
+func createRequestResult(org *targetOrg, record *orderedMap, withErrors bool) *orderedMap {
+	var subscriberID, hasMetadataRemoved, coverage, versionNumber, passedCoverage, convertedFrom interface{}
+	status := text(record.values["Status"])
 	if version, ok := record.values["Package2Version"].(*orderedMap); ok {
 		subscriberID = version.values["SubscriberPackageVersionId"]
 		hasMetadataRemoved = version.values["HasMetadataRemoved"]
+		if detail, ok := version.values["CodeCoverage"].(*orderedMap); ok {
+			coverage = detail.values["apexCodeCoveragePercentage"]
+		}
+		versionNumber = fmt.Sprintf("%s.%s.%s.%s", displayValue(version.values["MajorVersion"]), displayValue(version.values["MinorVersion"]),
+			displayValue(version.values["PatchVersion"]), displayValue(version.values["BuildNumber"]))
+		passedCoverage = version.values["HasPassedCodeCoverageCheck"]
+		convertedFrom = version.values["ConvertedFromVersionId"]
+	}
+	switch status {
+	case "Success":
+	case "Queued":
+		convertedFrom = "Request is queued. ID unavailable."
+	case "Error":
+		convertedFrom = "ID Unavailable"
+	default:
+		convertedFrom = "Request is in progress. ID unavailable."
 	}
 	var packageName interface{}
 	if parent, ok := record.values["Package2"].(*orderedMap); ok {
@@ -325,15 +347,18 @@ func createRequestResult(org *targetOrg, record *orderedMap) *orderedMap {
 	}
 	id := text(record.values["Id"])
 	errors := []interface{}{}
-	if text(record.values["Status"]) == "Error" {
+	if withErrors && status == "Error" {
 		messages, _ := toolingRecords(org, fmt.Sprintf("SELECT Message FROM Package2VersionCreateRequestError WHERE ParentRequest.Id = '%s'", id))
 		for _, message := range messages {
 			errors = append(errors, text(message.values["Message"]))
 		}
 	}
-	created := isoTime(text(record.values["CreatedDate"]))
-	if len(created) >= 16 {
-		created = strings.Replace(created[:16], "T", " ", 1)
+	created := text(record.values["CreatedDate"])
+	for _, layout := range []string{"2006-01-02T15:04:05.000-0700", time.RFC3339} {
+		if parsed, err := time.Parse(layout, created); err == nil {
+			created = parsed.Local().Format("2006-01-02 15:04")
+			break
+		}
 	}
 	result := newOrderedMap()
 	result.Set("Id", id)
@@ -347,7 +372,11 @@ func createRequestResult(org *targetOrg, record *orderedMap) *orderedMap {
 	result.Set("Error", errors)
 	result.Set("CreatedDate", created)
 	result.Set("HasMetadataRemoved", hasMetadataRemoved)
+	result.Set("CodeCoverage", coverage)
+	result.Set("VersionNumber", versionNumber)
+	result.Set("HasPassedCodeCoverageCheck", passedCoverage)
 	result.Set("CreatedBy", record.values["CreatedById"])
+	result.Set("ConvertedFromVersionId", convertedFrom)
 	return result
 }
 
@@ -384,9 +413,11 @@ func newPackageVersionCreateReportCmd() *cobra.Command {
 				return err
 			}
 			if len(records) == 0 {
-				return newError("PackageVersionCreateRequestNotFound", "No package version create request found for ID %s.", id)
+				// sf reads the status of the first record without checking
+				// that the query returned one.
+				return &Error{Name: "TypeError", Message: "Cannot read properties of undefined (reading 'Status')", ExitCode: 10, Label: "10"}
 			}
-			result := createRequestResult(org, records[0])
+			result := createRequestResult(org, records[0], true)
 			return emit(cmd, []*orderedMap{result}, func(w io.Writer) {
 				installURL := ""
 				if text(result.values["Status"]) == "Success" {
@@ -455,14 +486,14 @@ func newPackageVersionCreateListCmd() *cobra.Command {
 			if len(conditions) > 0 {
 				soql += " WHERE " + strings.Join(conditions, " AND ")
 			}
-			records, err := toolingRecords(org, soql+" ORDER BY CreatedDate")
+			records, err := toolingRecords(org, soql+" ORDER BY CreatedDate desc")
 			if err != nil {
 				return err
 			}
 			results := make([]*orderedMap, 0, len(records))
 			rows := make([][]string, 0, len(records))
 			for _, record := range records {
-				result := createRequestResult(org, record)
+				result := createRequestResult(org, record, false)
 				results = append(results, result)
 				rows = append(rows, []string{
 					resultCell(result, "Id"), resultCell(result, "Status"), resultCell(result, "Package2Id"), resultCell(result, "Package2VersionId"),

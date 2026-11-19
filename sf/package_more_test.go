@@ -90,7 +90,7 @@ func TestPackageVersionCreateRequests(t *testing.T) {
 			io.WriteString(w, `{"done":true,"totalSize":1,"records":[{"Id":"08c000000000002AAA","Status":"Error","Package2Id":"0Ho000000000001AAA","Package2":{"Name":"Billing"},"Package2VersionId":null,"Package2Version":null,"Tag":null,"Branch":null,"CreatedDate":"2026-01-02T03:04:05.000+0000","CreatedById":"005000000000001AAA"}]}`)
 			return
 		}
-		io.WriteString(w, `{"done":true,"totalSize":1,"records":[{"Id":"08c000000000001AAA","Status":"Success","Package2Id":"0Ho000000000001AAA","Package2":{"Name":"Billing"},"Package2VersionId":"05i000000000001AAA","Package2Version":{"SubscriberPackageVersionId":"04t000000000001AAA","HasMetadataRemoved":false},"Tag":"rc1","Branch":null,"CreatedDate":"2026-01-02T03:04:05.000+0000","CreatedById":"005000000000001AAA"}]}`)
+		io.WriteString(w, `{"done":true,"totalSize":1,"records":[{"Id":"08c000000000001AAA","Status":"Success","Package2Id":"0Ho000000000001AAA","Package2":{"Name":"Billing"},"Package2VersionId":"05i000000000001AAA","Package2Version":{"SubscriberPackageVersionId":"04t000000000001AAA","HasMetadataRemoved":false,"MajorVersion":1,"MinorVersion":2,"PatchVersion":0,"BuildNumber":3,"CodeCoverage":{"apexCodeCoveragePercentage":96},"HasPassedCodeCoverageCheck":true,"ConvertedFromVersionId":null},"Tag":"rc1","Branch":null,"CreatedDate":"2026-01-02T03:04:05.000+0000","CreatedById":"005000000000001AAA"}]}`)
 	}
 
 	expectRun(t, 0, tableText(t, "Package Version Create Request", [][]string{
@@ -116,8 +116,22 @@ func TestPackageVersionCreateRequests(t *testing.T) {
 	if !strings.Contains(soql, "CreatedDate = LAST_N_DAYS:7") {
 		t.Errorf("list query = %s", soql)
 	}
-	if _, _, status := run("package", "version", "create", "list", "-s", "Error", "--json"); status != 0 || !strings.Contains(soql, "Status = 'Error'") {
-		t.Errorf("status filter: status %d, query %s", status, soql)
+	if !strings.HasSuffix(soql, " ORDER BY CreatedDate desc") {
+		t.Errorf("list query order = %s", soql)
+	}
+	out, _, _ = run("package", "version", "create", "list", "--json")
+	if !strings.Contains(out, `"CodeCoverage": 96,
+      "VersionNumber": "1.2.0.3",
+      "HasPassedCodeCoverageCheck": true,
+      "CreatedBy": "005000000000001AAA",
+      "ConvertedFromVersionId": null`) {
+		t.Errorf("list json:\n%s", out)
+	}
+	// sf reads the error messages for the report of one request only.
+	out, _, status = run("package", "version", "create", "list", "-s", "Error", "--json")
+	if status != 0 || !strings.Contains(soql, "Status = 'Error'") || !strings.Contains(out, `"Error": [],`) || !strings.Contains(out, `"VersionNumber": null`) ||
+		!strings.Contains(out, `"ConvertedFromVersionId": "ID Unavailable"`) {
+		t.Errorf("status filter: status %d, query %s\n%s", status, soql, out)
 	}
 }
 
