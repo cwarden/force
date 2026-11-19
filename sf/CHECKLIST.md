@@ -276,21 +276,21 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [x] `template generate static-resource`
 - [ ] `template generate ui-bundle`
 
-### package (8 open, 8 done)
+### package (4 open, 12 done)
 
 - [ ] `package convert`
 - [x] `package delete` (follows the sf plugin source)
 - [x] `package install report` (follows the sf plugin source)
-- [ ] `package push-upgrade abort`
-- [ ] `package push-upgrade list`
-- [ ] `package push-upgrade report`
+- [x] `package push-upgrade abort` (follows the sf plugin source)
+- [x] `package push-upgrade list` (follows the sf plugin source; the output for a package without requests was compared with sf)
+- [x] `package push-upgrade report` (follows the sf plugin source)
 - [ ] `package push-upgrade schedule`
 - [x] `package uninstall report` (follows the sf plugin source)
 - [x] `package update` (follows the sf plugin source)
 - [x] `package version create list` (compared with sf against a Dev Hub)
 - [x] `package version create report` (follows the sf plugin source; the error for a missing request was compared with sf)
 - [x] `package version delete` (follows the sf plugin source)
-- [ ] `package version displayancestry`
+- [x] `package version displayancestry` (follows the sf plugin source; the errors for a missing package and a missing version were compared with sf)
 - [ ] `package version displaydependencies`
 - [ ] `package version retrieve`
 - [x] `package version update` (follows the sf plugin source)
@@ -358,12 +358,12 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [ ] `agent trace read`
 - [ ] `agent validate authoring-bundle`
 
-### force (4 open, 0 done)
+### force (3 open, 1 done)
 
 - [ ] `force lightning lwc test create`
 - [ ] `force lightning lwc test run`
 - [ ] `force lightning lwc test setup`
-- [ ] `force package push-upgrade list`
+- [x] `force package push-upgrade list` (alias of `package push-upgrade list`)
 
 ### ui-bundle (1 open, 0 done)
 

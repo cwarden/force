@@ -25,6 +25,7 @@ func newPackageCmd() *cobra.Command {
 		newPackageDeleteCmd(false),
 		newPackageListCmd(),
 		newPackageUpdateCmd(),
+		newPackagePushUpgradeCmd(),
 		withSubcommands(newPackageInstallCmd(), newPackageInstallReportCmd()),
 		newGroup("installed", "List installed packages.", newPackageInstalledListCmd()),
 		withSubcommands(newPackageUninstallCmd(), newPackageUninstallReportCmd()),
@@ -35,6 +36,7 @@ func newPackageCmd() *cobra.Command {
 			newPackageVersionReportCmd(),
 			newPackageVersionPromoteCmd(),
 			newPackageVersionUpdateCmd(),
+			newPackageVersionDisplayAncestryCmd(),
 		),
 	)
 }
