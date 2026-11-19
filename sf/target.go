@@ -154,6 +154,9 @@ func resolveOrg(cmd *cobra.Command, name, flagName, configKey string) (*targetOr
 			return nil, newError("InvalidApiVersionError", "%s", err.Error())
 		}
 		org.Force.Credentials.SessionOptions.ApiVersion = version
+		// These clients record the API version when they are created.
+		org.Force.Metadata = lib.NewForceMetadata(org.Force)
+		org.Force.Partner = lib.NewForcePartner(org.Force)
 	}
 	return org, nil
 }

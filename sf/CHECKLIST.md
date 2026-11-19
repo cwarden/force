@@ -24,17 +24,17 @@ Reference: `sf` 2.138.6. Update this file as each item is finished.
 - [x] `org login web` (not exercised against a live org yet)
 - [x] `org login jwt` (not exercised against a live org yet)
 - [x] `org login access-token`
-- [ ] `org open`
+- [x] `org open` (format taken from the sf plugin source; the local test server has no single-access endpoint)
 - [x] `org display user`
 - [ ] `org create scratch` (including definition file)
-- [ ] `org list limits`
-- [ ] `org list metadata`
-- [ ] `org list metadata-types`
+- [x] `org list limits` (format taken from the sf plugin source; the local test server has no limits resource)
+- [x] `org list metadata`
+- [x] `org list metadata-types`
 
 ## Step 4: data
-- [ ] `data query`
+- [x] `data query`
 - [ ] `data search`
-- [ ] `data get record`, `data create record`, `data update record`, `data delete record`
+- [x] `data get record`, `data create record`, `data update record`, `data delete record`
 - [ ] `data import bulk`, `data update bulk`, `data upsert bulk`, `data delete bulk`, `data export bulk`
 - [ ] `data import resume`, `data update resume`, `data upsert resume`, `data delete resume`, `data export resume`
 - [ ] `data bulk results`

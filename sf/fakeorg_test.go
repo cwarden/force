@@ -17,6 +17,9 @@ type fakeOrg struct {
 	// queries maps a substring of a SOQL query to the records returned.
 	// A query that matches no entry gets a 400 response.
 	queries map[string][]map[string]interface{}
+	// rawQueries maps a substring of a SOQL query to a raw JSON response
+	// body, for tests that depend on the field order of records.
+	rawQueries map[string]string
 	// handlers maps a URL path to a handler that replaces the default.
 	handlers map[string]http.HandlerFunc
 	requests []string
@@ -45,7 +48,8 @@ func newFakeOrg(t *testing.T) *fakeOrg {
 				"Profile": map[string]interface{}{"Name": "System Administrator"},
 			}},
 		},
-		handlers: map[string]http.HandlerFunc{},
+		rawQueries: map[string]string{},
+		handlers:   map[string]http.HandlerFunc{},
 	}
 	org.Server = httptest.NewServer(http.HandlerFunc(org.serve))
 	t.Cleanup(org.Close)
@@ -61,7 +65,9 @@ func (o *fakeOrg) serve(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]string{"access_token": fakeToken, "instance_url": o.URL})
 		return
 	}
-	if r.Header.Get("Authorization") != "Bearer "+fakeToken {
+	// SOAP requests carry the session ID in the request body.
+	isSOAP := strings.HasPrefix(r.URL.Path, "/services/Soap/")
+	if !isSOAP && r.Header.Get("Authorization") != "Bearer "+fakeToken {
 		w.WriteHeader(http.StatusUnauthorized)
 		json.NewEncoder(w).Encode([]map[string]string{{"errorCode": "INVALID_SESSION_ID", "message": "Session expired or invalid"}})
 		return
@@ -85,6 +91,12 @@ func (o *fakeOrg) serve(w http.ResponseWriter, r *http.Request) {
 		})
 	case strings.HasSuffix(strings.TrimRight(r.URL.Path, "/"), "/query"):
 		soql := r.URL.Query().Get("q")
+		for fragment, body := range o.rawQueries {
+			if strings.Contains(soql, fragment) {
+				w.Write([]byte(body))
+				return
+			}
+		}
 		for fragment, records := range o.queries {
 			if strings.Contains(soql, fragment) {
 				json.NewEncoder(w).Encode(map[string]interface{}{"done": true, "totalSize": len(records), "records": records})

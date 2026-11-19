@@ -15,6 +15,12 @@ type Error struct {
 	Message  string
 	ExitCode int
 	Actions  []string
+	// Label replaces Name in the human "Error (<label>):" line and in the
+	// "code" field of the JSON envelope.  sf prints the exit code there
+	// for some errors that have a name.
+	Label string
+	// Data is written as the "data" field of the JSON envelope.
+	Data interface{}
 }
 
 func (e *Error) Error() string {
@@ -60,15 +66,16 @@ func asError(err error) *Error {
 }
 
 type errorEnvelope struct {
-	Name        string   `json:"name"`
-	Message     string   `json:"message"`
-	ExitCode    int      `json:"exitCode"`
-	Actions     []string `json:"actions,omitempty"`
-	Context     string   `json:"context"`
-	Warnings    []string `json:"warnings"`
-	Code        string   `json:"code"`
-	Status      int      `json:"status"`
-	CommandName string   `json:"commandName"`
+	Name        string      `json:"name"`
+	Message     string      `json:"message"`
+	ExitCode    int         `json:"exitCode"`
+	Actions     []string    `json:"actions,omitempty"`
+	Context     string      `json:"context"`
+	Data        interface{} `json:"data,omitempty"`
+	Warnings    []string    `json:"warnings"`
+	Code        string      `json:"code"`
+	Status      int         `json:"status"`
+	CommandName string      `json:"commandName"`
 }
 
 // writeError prints err the way sf does and returns the exit status.  With
@@ -89,20 +96,28 @@ func writeError(out, errOut io.Writer, cmd *cobra.Command, err error, jsonOutput
 			name = "Error"
 		}
 		commandName := commandClassName(cmd)
+		code := name
+		if e.Label != "" {
+			code = e.Label
+		}
 		writeJSON(out, errorEnvelope{
 			Name:        name,
 			Message:     e.Message,
 			ExitCode:    e.ExitCode,
 			Actions:     e.Actions,
 			Context:     commandName,
+			Data:        e.Data,
 			Warnings:    warningsOf(cmd),
-			Code:        name,
+			Code:        code,
 			Status:      e.ExitCode,
 			CommandName: commandName,
 		})
 		return e.ExitCode
 	}
 	label := e.Name
+	if e.Label != "" {
+		label = e.Label
+	}
 	if label == "" {
 		label = fmt.Sprintf("%d", e.ExitCode)
 	}

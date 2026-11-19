@@ -83,6 +83,7 @@ func NewRootCmd() *cobra.Command {
 	root.AddCommand(
 		newAliasCmd(),
 		newConfigCmd(),
+		newDataCmd(),
 		newOrgCmd(),
 		newVersionCmd(),
 	)
@@ -192,6 +193,12 @@ func addTargetDevHubFlag(cmd *cobra.Command) {
 
 func addAPIVersionFlag(cmd *cobra.Command) {
 	cmd.Flags().String("api-version", "", "Override the api version used for api requests made by this command")
+}
+
+// missingFlagError is the error sf reports for a required flag that was not
+// given.
+func missingFlagError(name string) *Error {
+	return &Error{Message: fmt.Sprintf("Missing required flag %s\nSee more help with --help", name), ExitCode: 2}
 }
 
 // targetOrgFlag returns the value of --target-org, or of -u when only the
