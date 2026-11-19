@@ -41,10 +41,15 @@ var binName = "sf"
 // SetInvocation records how sf-compatible mode was started: argv0 as it was
 // typed, such as "sf", "/tmp/sf" or "./force", followed by the mode flag
 // when the mode was selected with it.  A name that cannot be written in a
-// message without quoting is replaced by "sf", or by "force" with the flag.
+// message without quoting, and the temporary binary of "go run", are
+// replaced by "sf", or by "force" with the flag.
 func SetInvocation(argv0 string, withModeFlag bool) {
 	name := argv0
-	if name == "" || strings.ContainsAny(name, " %\"'`") {
+	// "go run" starts a binary in a temporary directory that is removed
+	// when the program ends, so its path is of no use in a suggestion.
+	slashed := filepath.ToSlash(name)
+	temporary := strings.Contains(slashed, "/go-build") && strings.Contains(slashed, "/exe/")
+	if name == "" || temporary || strings.ContainsAny(name, " %\"'`") {
 		name = "sf"
 		if withModeFlag {
 			name = "force"

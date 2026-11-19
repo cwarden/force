@@ -381,6 +381,7 @@ func TestSuggestedCommandsNameTheBinaryThatWasStarted(t *testing.T) {
 		{"./force", true, "./force --sf"},
 		{"/opt/my tools/sf", false, "sf"},
 		{"./my force", true, "force --sf"},
+		{"/tmp/go-build3780294797/b001/exe/main", true, "force --sf"},
 	} {
 		if SetInvocation(c.argv0, c.modeFlag); binName != c.want {
 			t.Errorf("SetInvocation(%q, %v): binName = %q, want %q", c.argv0, c.modeFlag, binName, c.want)
