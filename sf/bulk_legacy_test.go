@@ -9,8 +9,8 @@ import (
 	"testing"
 )
 
-// The layout in this file follows the sf 2.138.6 data plugin source.  It was
-// not compared with sf against an org.
+// The layout in this file was compared with sf 2.138.6 against a scratch
+// org.
 
 const legacyNamespace = `xmlns="http://www.force.com/2009/06/asyncapi/dataload"`
 
@@ -40,13 +40,17 @@ func serveLegacyBulk(org *fakeOrg) (jobRequest *string, batchContent *string) {
 		xmlResponse(`<batchInfoList `+legacyNamespace+`>`+strings.Replace(batch, " "+legacyNamespace, "", 1)+`</batchInfoList>`)(w, r)
 	}
 	org.handlers["/services/async/67.0/job/750000000000001AAA/batch/751000000000001AAA"] = xmlResponse(batch)
+	org.handlers["/services/async/67.0/job/750000000000001AAA/batch/751000000000001AAA/result"] = func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/csv")
+		io.WriteString(w, "\"Id\",\"Success\",\"Created\",\"Error\"\n\"001000000000001AAA\",\"true\",\"false\",\"\"\n\"\",\"false\",\"false\",\"ENTITY_IS_DELETED:entity is deleted:--\"\n")
+	}
 	return &request, &content
 }
 
 func TestLegacyBulkStatus(t *testing.T) {
 	org := loggedInFakeOrg(t)
 	serveLegacyBulk(org)
-	want := "\n=== Job Status\n" +
+	want := "\n=== Job Status\n\n" +
 		"id:                      750000000000001AAA\n" +
 		"operation:               upsert\n" +
 		"object:                  Account\n" +
@@ -80,7 +84,7 @@ func TestLegacyBulkStatus(t *testing.T) {
 	}
 
 	out, _, status := run("force", "data", "bulk", "status", "-i", "750000000000001AAA", "-b", "751000000000001AAA")
-	if status != 0 || !strings.HasPrefix(out, "\n=== Batch Status\nid:                     751000000000001AAA\njobId:                  750000000000001AAA\nstate:                  Completed\n") {
+	if status != 0 || !strings.HasPrefix(out, "\n=== Batch Status\n\nid:                      751000000000001AAA\njobId:                   750000000000001AAA\nstate:                   Completed\n") {
 		t.Errorf("batch status: status %d\n%s", status, out)
 	}
 	_, errOut, status := run("data", "resume", "-i", "750000000000001AAA", "-b", "751000000000009AAA")
@@ -110,14 +114,17 @@ func TestLegacyBulkUpsertAndDelete(t *testing.T) {
 	}
 
 	out, _, status = run("force", "data", "bulk", "delete", "-f", file, "-s", "Account", "-w", "1")
-	if status != 0 || !strings.HasPrefix(out, "Batch #1 queued (Batch ID: 751000000000001AAA).\n\n\n=== Job Status\nid:") {
+	if status != 0 || !strings.HasPrefix(out, "Will poll the batch statuses every 5 seconds.\nTo fetch the status on your own, press CTRL+C and use the command:\nsf force data bulk status -i 750000000000001AAA -b 751000000000001AAA\n"+
+		"Batch #1 queued (Batch ID: 751000000000001AAA). \n\n\n=== Batch #1\n\n=== Upsert errors\n\nENTITY_IS_DELETED:entity is deleted:--\n=== Batch Status\n\nid:                      751000000000001AAA\n") ||
+		!strings.Contains(out, "apexProcessingTime:      0\n\n=== Job Status\n\nid:") {
 		t.Errorf("delete with wait: status %d\n%s", status, out)
 	}
 	if !strings.Contains(*request, "<operation>delete</operation>") {
 		t.Errorf("delete job request = %s", *request)
 	}
 	out, _, status = run("force", "data", "bulk", "delete", "-f", file, "-s", "Account", "--json")
-	if status != 0 || !strings.Contains(out, "\"result\": [\n    {\n      \"id\": \"751000000000001AAA\",\n      \"jobId\": \"750000000000001AAA\",") {
+	if status != 0 || !strings.Contains(out, "\"result\": [\n    {\n      \"$\": {\n        \"xmlns\": \"http://www.force.com/2009/06/asyncapi/dataload\"\n      },\n      \"id\": \"751000000000001AAA\",\n      \"jobId\": \"750000000000001AAA\",") ||
+		!strings.Contains(out, "\"apexProcessingTime\": \"0\"") {
 		t.Errorf("delete json: status %d\n%s", status, out)
 	}
 	_, errOut, status = run("force", "data", "bulk", "upsert", "-f", file, "-s", "Account")

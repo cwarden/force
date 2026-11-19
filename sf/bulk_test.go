@@ -59,6 +59,9 @@ func serveBulk(org *fakeOrg) *fakeBulk {
 	org.handlers[ingest+"/750000000000001AAA/failedResults"] = func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, "sf__Id,sf__Error,Name\n,REQUIRED_FIELD_MISSING,Two\n")
 	}
+	org.handlers[ingest+"/750000000000001AAA/unprocessedrecords"] = func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, "Name\n")
+	}
 	org.handlers[query] = func(w http.ResponseWriter, r *http.Request) {
 		json.NewDecoder(r.Body).Decode(&bulk.created)
 		io.WriteString(w, `{"id":"750000000000002AAA","state":"UploadComplete"}`)
@@ -201,12 +204,30 @@ func TestDataBulkFailureCases(t *testing.T) {
 
 func TestDataUpsertAndHardDeleteRequests(t *testing.T) {
 	_, bulk, file := bulkSetup(t)
-	_, errOut, status := run("data", "upsert", "bulk", "-f", file, "-s", "Account")
-	if status != 2 || !strings.Contains(errOut, "Missing required flag external-id") {
+	_, missing, missingStatus := run("data", "upsert", "bulk", "-f", file, "-s", "Account")
+	if errOut, status := missing, missingStatus; status != 2 || !strings.Contains(errOut, "Missing required flag external-id") {
 		t.Errorf("missing external id: status %d, stderr %q", status, errOut)
 	}
-	if _, errOut, status := run("data", "upsert", "bulk", "-f", file, "-s", "Account", "-i", "Ext__c", "--column-delimiter", "PIPE", "--line-ending", "CRLF", "--json"); status != 0 {
-		t.Fatalf("upsert: status %d, %s", status, errOut)
+	// The upsert and delete commands report the job and its records.
+	out, errOut, status := run("data", "upsert", "bulk", "-f", file, "-s", "Account", "-i", "Ext__c", "--column-delimiter", "PIPE", "--line-ending", "CRLF", "--json")
+	if status != 0 || !strings.Contains(out, `"jobInfo": {`) || !strings.Contains(out, `    "records": {
+      "successfulResults": [
+        {
+          "sf__Id": "001000000000001AAA",
+          "sf__Created": "true",
+          "Name": "One"
+        }
+      ],
+      "failedResults": [
+        {
+          "sf__Id": "",
+          "sf__Error": "REQUIRED_FIELD_MISSING",
+          "Name": "Two"
+        }
+      ],
+      "unprocessedRecords": []
+    }`) {
+		t.Fatalf("upsert: status %d, %s\n%s", status, errOut, out)
 	}
 	if bulk.created["operation"] != "upsert" || bulk.created["externalIdFieldName"] != "Ext__c" || bulk.created["columnDelimiter"] != "PIPE" || bulk.created["lineEnding"] != "CRLF" {
 		t.Errorf("upsert request = %v", bulk.created)
@@ -264,14 +285,16 @@ func TestDataExportBulk(t *testing.T) {
 	// the file.
 	resumeFile := filepath.Join(dir, "later.csv")
 	out, _, status = run("data", "export", "bulk", "-q", "SELECT Id FROM Account", "--output-file", resumeFile)
-	if status != 0 || !strings.HasSuffix(out, "Run \"sf data export resume --job-id 750000000000002AAA\" to resume the operation.\n") {
+	if status != 0 || !strings.HasSuffix(out, "Run \"sf data export resume --job-id 750000000000002AAA\" to get the latest status and results.\n") ||
+		!strings.Contains(out, " ✔ creating query job 0ms\n ✔ done 0ms\n\n Status: ⠁\n") {
 		t.Errorf("async export: status %d\n%s", status, out)
 	}
 	if _, err := os.Stat(resumeFile); !os.IsNotExist(err) {
 		t.Errorf("the output file exists before the job is resumed: %v", err)
 	}
 	out, _, status = run("data", "export", "resume", "-i", "750000000000002AAA")
-	if status != 0 || !strings.HasSuffix(out, "2 records written to "+resumeFile+"\n") {
+	if status != 0 || !strings.HasSuffix(out, "2 records written to "+resumeFile+"\n") ||
+		!strings.Contains(durationPattern.ReplaceAllString(out, "T"), " ✔ checking query job status T\n ✔ exporting records T\n\n Status: JobComplete\n Elapsed Time: T\n") {
 		t.Errorf("export resume: status %d\n%s", status, out)
 	}
 	if written, _ := os.ReadFile(resumeFile); !bytes.Equal(written, []byte(bulk.csv)) {

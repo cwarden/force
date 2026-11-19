@@ -164,16 +164,22 @@ func writeBulkProgress(w io.Writer, title string, stages []bulkStage, counts []s
 			fmt.Fprintf(w, " ✔ %s %dms\n", stage.label, stage.elapsed.Milliseconds())
 		case "failed":
 			fmt.Fprintf(w, " ✘ %s %dms\n", stage.label, stage.elapsed.Milliseconds())
+		case "skipped":
+			fmt.Fprintf(w, " ◯ %s - Skipped\n", stage.label)
 		default:
 			fmt.Fprintf(w, " ◼ %s\n", stage.label)
 		}
-		if i == 1 && stage.state != "" {
+		if i == 1 && stage.state != "" && counts != nil {
 			for _, count := range counts {
 				fmt.Fprintf(w, "   ▸ %s\n", count)
 			}
 		}
 	}
 	fmt.Fprintf(w, "\n Status: %s\n", status)
+	if jobID == "" {
+		fmt.Fprintf(w, " Elapsed Time: %dms\n\n", elapsed.Milliseconds())
+		return
+	}
 	job := fmt.Sprintf("%s (%s)", jobID, jobURL)
 	if hiddenURLMarks {
 		// sf surrounds the URL with zero-width spaces in export output.
@@ -247,7 +253,7 @@ func waitForIngestJob(org *targetOrg, jobID string, timeout time.Duration) (lib.
 
 // finishIngestJob waits for an ingest job and prints the outcome.  It is
 // used by the bulk commands and by their resume commands.
-func finishIngestJob(cmd *cobra.Command, org *targetOrg, operation bulkOperation, jobID string, timeout time.Duration, started time.Time, createTime time.Duration) error {
+func finishIngestJob(cmd *cobra.Command, org *targetOrg, operation bulkOperation, jobID string, timeout time.Duration, started time.Time, createTime time.Duration, resumed ...bool) error {
 	processStart := time.Now()
 	info, finished, err := waitForIngestJob(org, jobID, timeout)
 	if err != nil {
@@ -256,9 +262,18 @@ func finishIngestJob(cmd *cobra.Command, org *targetOrg, operation bulkOperation
 	processTime := time.Since(processStart)
 	out := cmd.OutOrStdout()
 	stages := []bulkStage{{"Creating ingest job", "done", createTime}, {"Processing the job", "done", processTime}}
+	title := operation.title
+	if len(resumed) > 0 && resumed[0] {
+		// A resumed job was created by another command.  sf titles the
+		// display of "data import resume" as an update.
+		stages[0].state = "skipped"
+		if operation.name == "import" {
+			title = "Updating data"
+		}
+	}
 	frame := func(counts []string) {
 		if !jsonRequested(cmd) {
-			writeBulkProgress(out, operation.title, stages, counts, string(info.State), jobID, bulkJobURL(org, jobID), time.Since(started), false)
+			writeBulkProgress(out, title, stages, counts, string(info.State), jobID, bulkJobURL(org, jobID), time.Since(started), false)
 		}
 	}
 	failedCounts := []string{"Processed records: ✘", "Successful records: ✘", "Failed records: ✘"}
@@ -305,15 +320,88 @@ func finishIngestJob(cmd *cobra.Command, org *targetOrg, operation bulkOperation
 			Message:  fmt.Sprintf("Job finished being processed but failed to process %d records.", info.NumberRecordsFailed),
 			ExitCode: 1,
 			Actions:  bulkJobActions(org, jobID, true),
+			Data:     orderedFields("jobId", jobID, "state", string(info.State)),
 		}
 	}
 	frame(counts)
+	if operation.name == "upsert" || operation.name == "delete" {
+		result, err := bulkJobResult(org, jobID)
+		if err != nil {
+			return err
+		}
+		return emit(cmd, result, nil)
+	}
 	result := newOrderedMap()
 	result.Set("jobId", jobID)
 	result.Set("processedRecords", info.NumberRecordsProcessed)
 	result.Set("successfulRecords", successful)
 	result.Set("failedRecords", info.NumberRecordsFailed)
 	return emit(cmd, result, nil)
+}
+
+// bulkJobResult returns the result the upsert and delete commands of sf
+// report: the job as the org describes it and, for a job that is
+// complete, its records by outcome.
+func bulkJobResult(org *targetOrg, jobID string) (*orderedMap, error) {
+	body, err := org.Force.GetREST("/jobs/ingest/" + jobID)
+	if err != nil {
+		return nil, apiError(err)
+	}
+	jobInfo, err := parseOrderedJSON([]byte(body))
+	if err != nil {
+		return nil, err
+	}
+	// A whole number such as the API version is printed without a
+	// fraction, as JavaScript prints it.
+	if info, ok := jobInfo.(*orderedMap); ok {
+		for _, key := range info.keys {
+			if number, isNumber := info.values[key].(json.Number); isNumber && strings.HasSuffix(string(number), ".0") {
+				info.values[key] = json.Number(strings.TrimSuffix(string(number), ".0"))
+			}
+		}
+	}
+	records := newOrderedMap()
+	fetches := []struct {
+		key   string
+		fetch func(string) ([]byte, error)
+	}{
+		{"successfulResults", org.Force.GetBulk2SuccessfulResults},
+		{"failedResults", org.Force.GetBulk2FailedResults},
+		{"unprocessedRecords", org.Force.GetBulk2UnprocessedRecords},
+	}
+	complete := false
+	if info, ok := jobInfo.(*orderedMap); ok {
+		complete = info.values["state"] == "JobComplete"
+	}
+	for _, f := range fetches {
+		rows := []interface{}{}
+		if complete {
+			data, err := f.fetch(jobID)
+			if err != nil {
+				return nil, apiError(err)
+			}
+			reader := csv.NewReader(bytes.NewReader(data))
+			reader.FieldsPerRecord = -1
+			lines, err := reader.ReadAll()
+			if err != nil {
+				return nil, err
+			}
+			for i, line := range lines {
+				if i == 0 {
+					continue
+				}
+				row := newOrderedMap()
+				for column, value := range line {
+					if column < len(lines[0]) {
+						row.Set(lines[0][column], value)
+					}
+				}
+				rows = append(rows, row)
+			}
+		}
+		records.Set(f.key, rows)
+	}
+	return orderedFields("jobInfo", jobInfo, "records", records), nil
 }
 
 var bulkDelimiters = map[string]lib.Bulk2ColumnDelimiter{
@@ -397,6 +485,11 @@ func newDataBulkIngestCmd(operation bulkOperation, short string) *cobra.Command 
 				}
 				result := newOrderedMap()
 				result.Set("jobId", job.Id)
+				if operation.name == "upsert" || operation.name == "delete" {
+					if result, err = bulkJobResult(org, job.Id); err != nil {
+						return err
+					}
+				}
 				return emit(cmd, result, func(w io.Writer) {
 					stages := []bulkStage{{"Creating ingest job", "done", createTime}, {"Processing the job", "", 0}}
 					writeBulkProgress(w, operation.title+" (async)", stages, nil, string(closed.State), job.Id, bulkJobURL(org, job.Id), time.Since(started), false)
@@ -468,7 +561,7 @@ func newDataBulkResumeCmd(operation bulkOperation, short string) *cobra.Command 
 				return err
 			}
 			minutes, _ := cmd.Flags().GetInt("wait")
-			return finishIngestJob(cmd, org, operation, entry.JobId, time.Duration(minutes)*time.Minute, time.Now(), 0)
+			return finishIngestJob(cmd, org, operation, entry.JobId, time.Duration(minutes)*time.Minute, time.Now(), 0, true)
 		},
 	}
 	addResumeFlags(cmd)
@@ -519,13 +612,22 @@ var delimiterRunes = map[string]rune{"BACKQUOTE": '`', "CARET": '^', "COMMA": ',
 
 // finishExportJob waits for a query job, writes the records to the output
 // file and prints the outcome.
-func finishExportJob(cmd *cobra.Command, org *targetOrg, jobID string, output bulkOutputInfo, timeout time.Duration, started time.Time, createTime time.Duration) error {
+func finishExportJob(cmd *cobra.Command, org *targetOrg, jobID string, output bulkOutputInfo, timeout time.Duration, started time.Time, createTime time.Duration, resumed ...bool) error {
 	out := cmd.OutOrStdout()
 	stages := []bulkStage{{"creating query job", "done", createTime}, {"processing the job", "done", 0}, {"exporting records", "", 0}}
+	resuming := len(resumed) > 0 && resumed[0]
 	frame := func(status string) {
-		if !jsonRequested(cmd) {
-			writeBulkProgress(out, "Exporting data", stages, nil, status, jobID, bulkJobURL(org, jobID), time.Since(started), true)
+		if jsonRequested(cmd) {
+			return
 		}
+		if resuming {
+			// The display of the resume command has two stages and no
+			// job id.
+			check := bulkStage{"checking query job status", stages[1].state, stages[1].elapsed}
+			writeBulkProgress(out, "Exporting data", []bulkStage{check, stages[2]}, nil, status, "", "", time.Since(started), true)
+			return
+		}
+		writeBulkProgress(out, "Exporting data", stages, nil, status, jobID, bulkJobURL(org, jobID), time.Since(started), true)
 	}
 	processStart := time.Now()
 	deadline := processStart.Add(timeout)
@@ -674,9 +776,11 @@ func newDataExportBulkCmd() *cobra.Command {
 				result.Set("jobId", job.Id)
 				result.Set("filePath", outputFile)
 				return emit(cmd, result, func(w io.Writer) {
-					stages := []bulkStage{{"creating query job", "done", createTime}, {"processing the job", "", 0}, {"exporting records", "", 0}}
-					writeBulkProgress(w, "Exporting data (async)", stages, nil, string(job.State), job.Id, bulkJobURL(org, job.Id), time.Since(started), true)
-					fmt.Fprintf(w, "Run \"sf data export resume --job-id %s\" to resume the operation.\n", job.Id)
+					// sf has no state of the job to show here and shows a
+					// frame of its spinner in its place.
+					stages := []bulkStage{{"creating query job", "done", createTime}, {"done", "done", 0}}
+					writeBulkProgress(w, "Exporting data (async)", stages, nil, "⠁", job.Id, bulkJobURL(org, job.Id), time.Since(started), true)
+					fmt.Fprintf(w, "Run \"sf data export resume --job-id %s\" to get the latest status and results.\n", job.Id)
 				})
 			}
 			return finishExportJob(cmd, org, job.Id, output, timeout, started, createTime)
@@ -696,6 +800,9 @@ func newDataExportBulkCmd() *cobra.Command {
 	return cmd
 }
 
+// exportResumeWait is the time data export resume waits for the job.
+var exportResumeWait = 30 * time.Second
+
 func newDataExportResumeCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:         "resume",
@@ -714,7 +821,8 @@ func newDataExportResumeCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return finishExportJob(cmd, org, entry.JobId, *entry.OutputInfo, 0, time.Now(), 0)
+			// sf waits 30 seconds for the job.
+			return finishExportJob(cmd, org, entry.JobId, *entry.OutputInfo, exportResumeWait, time.Now(), 0, true)
 		},
 	}
 	addJSONFlag(cmd)
@@ -747,10 +855,11 @@ func newDataBulkResultsCmd() *cobra.Command {
 						Name:     "InvalidIdError",
 						Message:  fmt.Sprintf("Can't find a bulk job with ID %s.", jobID),
 						ExitCode: 1,
+						// The actions of sf are one text of several paragraphs.
 						Actions: []string{
-							"Ensure the ID is from a previously run bulk ingest job, and not a query job.",
-							"Run this command and verify that the job ID for the bulk command exists in your org:",
-							fmt.Sprintf("sf org open --target-org %s --path \"/lightning/setup/AsyncApiJobStatus/page?address=%%2F750\"", org.Username),
+							"- Ensure the ID is from a previously run bulk ingest job, and not a query job.\n\n" +
+								"- Run this command and verify that the job ID for the bulk command exists in your org:\n\n" +
+								fmt.Sprintf("sf org open --target-org %s --path \"/lightning/setup/AsyncApiJobStatus/page?address=%%2F750\"", org.Username),
 						},
 					}
 				}

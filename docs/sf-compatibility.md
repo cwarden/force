@@ -79,30 +79,30 @@ The files written by the `template generate` commands come from the salesforcedx
 | `sf config list` | `force active` (for the default org) |  | Compared with sf |
 | `sf config set` | `force active <account>` (for `target-org`) | An unknown config name is reported as a failure; sf asks whether a similar name was meant. | Compared with sf |
 | `sf config unset` | none |  | Compared with sf |
-| `sf data bulk results` | `force bulk2 results` |  | Follows the sf plugin source |
+| `sf data bulk results` | `force bulk2 results` |  | Compared with sf |
 | `sf data create file` | none | Uploads the file as base64 in a JSON request; sf sends a multipart request. | Follows the sf plugin source |
 | `sf data create record` | `force record create` |  | Compared with sf |
 | `sf data delete bulk` | `force bulk2 delete`, `force bulk2 hardDelete` | Prints the last frame of the progress display once. | Compared with sf |
 | `sf data delete record` | `force record delete` |  | Compared with sf |
-| `sf data delete resume` | `force bulk2 job` |  | Follows the sf plugin source |
+| `sf data delete resume` | `force bulk2 job` |  | Compared with sf |
 | `sf data export bulk` | `force bulk2 query` | Prints the last frame of the progress display once. | Compared with sf |
-| `sf data export resume` | `force bulk2 job` |  | Follows the sf plugin source |
+| `sf data export resume` | `force bulk2 job` |  | Compared with sf |
 | `sf data export tree` | none | With several `--query` values each file is named after the object type of its query; sf names it after the query text. | Compared with sf |
 | `sf data get record` | `force record get` |  | Compared with sf |
 | `sf data import bulk` | `force bulk2 insert` | Prints the last frame of the progress display once. | Compared with sf |
-| `sf data import resume` | `force bulk2 job` |  | Follows the sf plugin source |
+| `sf data import resume` | `force bulk2 job` |  | Compared with sf |
 | `sf data import tree` | none |  | Follows the sf plugin source |
 | `sf data query` | `force query` |  | Compared with sf |
-| `sf data resume` | `force bulk job`, `force bulk batch` |  | Follows the sf plugin source |
+| `sf data resume` | `force bulk job`, `force bulk batch` |  | Compared with sf |
 | `sf data search` | `force search` |  | Compared with sf |
 | `sf data update bulk` | `force bulk2 update` | Prints the last frame of the progress display once. | Compared with sf |
 | `sf data update record` | `force record update` |  | Compared with sf |
-| `sf data update resume` | `force bulk2 job` |  | Follows the sf plugin source |
+| `sf data update resume` | `force bulk2 job` |  | Compared with sf |
 | `sf data upsert bulk` | `force bulk2 upsert` | Prints the last frame of the progress display once. | Compared with sf |
-| `sf data upsert resume` | `force bulk2 job` |  | Follows the sf plugin source |
-| `sf force data bulk delete` | `force bulk delete` | Sends the file as one batch; sf splits it into batches of 10,000 records. | Follows the sf plugin source |
-| `sf force data bulk status` | `force bulk job`, `force bulk batch` |  | Follows the sf plugin source |
-| `sf force data bulk upsert` | `force bulk upsert` | Sends the file as one batch. | Follows the sf plugin source |
+| `sf data upsert resume` | `force bulk2 job` |  | Compared with sf |
+| `sf force data bulk delete` | `force bulk delete` | Sends the file as one batch; sf splits it into batches of 10,000 records. | Compared with sf |
+| `sf force data bulk status` | `force bulk job`, `force bulk batch` |  | Compared with sf |
+| `sf force data bulk upsert` | `force bulk upsert` | Sends the file as one batch. | Compared with sf |
 | `sf org assign permset` | none |  | Compared with sf |
 | `sf org assign permsetlicense` | none |  | Compared with sf |
 | `sf org auth show-access-token` | none |  | Compared with sf |

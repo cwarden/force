@@ -1,6 +1,8 @@
 package sf
 
 import (
+	"bytes"
+	"encoding/csv"
 	"fmt"
 	"io"
 	"os"
@@ -27,21 +29,27 @@ func newForceLegacyCmd() *cobra.Command {
 	)
 }
 
-// styledHeader prints a header in the form sf uses: "=== Title".
+// styledHeader prints a header in the form sf uses: "=== Title" and an
+// empty line.
 func styledHeader(w io.Writer, title string) {
-	fmt.Fprintf(w, "%s%s\n", paint(w, styleDim, "=== "), paint(w, styleBold, title))
+	fmt.Fprintf(w, "%s%s\n\n", paint(w, styleDim, "=== "), paint(w, styleBold, title))
 }
 
 // styledObject prints "key: value" lines with the values aligned.
 func styledObject(w io.Writer, object *orderedMap) {
 	width := 0
 	for _, key := range object.keys {
-		if len(key) > width {
+		if len(key) > width && key != "$" {
 			width = len(key)
 		}
 	}
 	width += 2
 	for _, key := range object.keys {
+		if key == "$" {
+			// The XML namespace of the response is part of the JSON
+			// result only.
+			continue
+		}
 		fmt.Fprintf(w, "%s:%s%s\n", paint(w, style{"\x1b[34m", "\x1b[39m"}, key), strings.Repeat(" ", width-len(key)-1), displayValue(object.values[key]))
 	}
 }
@@ -54,14 +62,15 @@ func legacyJobInfo(job lib.JobInfo) *orderedMap {
 		}
 	}
 	number := func(key string, value int) { info.Set(key, fmt.Sprintf("%d", value)) }
+	info.Set("$", legacyXMLNamespace())
 	set("id", job.Id)
 	set("operation", job.Operation)
 	set("object", job.Object)
-	set("externalIdFieldName", job.ExternalIdFieldName)
 	set("createdById", job.CreatedById)
 	set("createdDate", job.CreatedDate)
 	set("systemModstamp", job.SystemModStamp)
 	set("state", job.State)
+	set("externalIdFieldName", job.ExternalIdFieldName)
 	set("concurrencyMode", job.ConcurrencyMode)
 	set("contentType", job.ContentType)
 	number("numberBatchesQueued", job.NumberBatchesQueued)
@@ -79,8 +88,15 @@ func legacyJobInfo(job lib.JobInfo) *orderedMap {
 	return info
 }
 
+// legacyXMLNamespace is the "$" member sf reports with a job or a batch: the
+// attributes of the root element of the Bulk API response.
+func legacyXMLNamespace() *orderedMap {
+	return orderedFields("xmlns", "http://www.force.com/2009/06/asyncapi/dataload")
+}
+
 func legacyBatchInfo(batch lib.BatchInfo) *orderedMap {
 	info := newOrderedMap()
+	info.Set("$", legacyXMLNamespace())
 	info.Set("id", batch.Id)
 	info.Set("jobId", batch.JobId)
 	info.Set("state", batch.State)
@@ -91,6 +107,9 @@ func legacyBatchInfo(batch lib.BatchInfo) *orderedMap {
 	info.Set("systemModstamp", batch.SystemModstamp)
 	info.Set("numberRecordsProcessed", fmt.Sprintf("%d", batch.NumberRecordsProcessed))
 	info.Set("numberRecordsFailed", fmt.Sprintf("%d", batch.NumberRecordsFailed))
+	info.Set("totalProcessingTime", fmt.Sprintf("%d", batch.TotalProcessingTime))
+	info.Set("apiActiveProcessingTime", fmt.Sprintf("%d", batch.ApiActiveProcessingTime))
+	info.Set("apexProcessingTime", fmt.Sprintf("%d", batch.ApexProcessingTime))
 	return info
 }
 
@@ -221,11 +240,13 @@ func newLegacyBulkIngestCmd(operation, short string) *cobra.Command {
 			minutes, _ := cmd.Flags().GetInt("wait")
 			deadline := time.Now().Add(time.Duration(minutes) * time.Minute)
 			if !jsonRequested(cmd) {
-				fmt.Fprintf(out, "Batch #1 queued (Batch ID: %s).\n\n", batch.Id)
+				fmt.Fprintf(out, "Will poll the batch statuses every 5 seconds.\nTo fetch the status on your own, press CTRL+C and use the command:\nsf force data bulk status -i %s -b %s\n", created.Id, batch.Id)
+				fmt.Fprintf(out, "Batch #1 queued (Batch ID: %s). \n\n", batch.Id)
 			}
 			sleep := pollDelays()
+			var current lib.BatchInfo
 			for {
-				current, err := org.Force.GetBatchInfo(created.Id, batch.Id)
+				current, err = org.Force.GetBatchInfo(created.Id, batch.Id)
 				if err != nil {
 					stop("error")
 					return apiError(err)
@@ -248,8 +269,40 @@ func newLegacyBulkIngestCmd(operation, short string) *cobra.Command {
 				stop("error")
 				return apiError(err)
 			}
+			// The errors of the records of the batch are listed before
+			// its status.
+			var recordErrors []string
+			if results, resultErr := org.Force.RetrieveBulkQuery(created.Id, batch.Id); resultErr == nil {
+				reader := csv.NewReader(bytes.NewReader(results))
+				reader.FieldsPerRecord = -1
+				if lines, csvErr := reader.ReadAll(); csvErr == nil && len(lines) > 0 {
+					column := -1
+					for i, name := range lines[0] {
+						if name == "Error" {
+							column = i
+						}
+					}
+					for _, line := range lines[1:] {
+						if column >= 0 && column < len(line) && line[column] != "" {
+							recordErrors = append(recordErrors, line[column])
+						}
+					}
+				}
+			}
 			info := legacyJobInfo(finished)
-			err = emit(cmd, []*orderedMap{info}, func(w io.Writer) { writeLegacyStatus(w, "Job Status", info) })
+			err = emit(cmd, []*orderedMap{info}, func(w io.Writer) {
+				fmt.Fprintln(w)
+				styledHeader(w, "Batch #1")
+				if len(recordErrors) > 0 {
+					styledHeader(w, "Upsert errors")
+					for _, message := range recordErrors {
+						fmt.Fprintln(w, message)
+					}
+				}
+				styledHeader(w, "Batch Status")
+				styledObject(w, legacyBatchInfo(current))
+				writeLegacyStatus(w, "Job Status", info)
+			})
 			stop("done")
 			return err
 		},
