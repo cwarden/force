@@ -372,7 +372,19 @@ func addAPIVersionFlag(cmd *cobra.Command) {
 // missingFlagError is the error sf reports for a required flag that was not
 // given.
 func missingFlagError(name string) *Error {
-	return &Error{Message: fmt.Sprintf("Missing required flag %s\nSee more help with --help", name), ExitCode: 2}
+	return &Error{Message: fmt.Sprintf("The following error occurred:\n  Missing required flag %s\nSee more help with --help", name), ExitCode: 2}
+}
+
+// integerInRange returns the error sf reports for an integer flag outside
+// its range.
+func integerInRange(flag string, value, min, max int) error {
+	switch {
+	case value < min:
+		return &Error{Message: fmt.Sprintf("Parsing --%s \n\tExpected an integer greater than or equal to %d but received: %d\nSee more help with --help", flag, min, value), ExitCode: 2}
+	case value > max:
+		return &Error{Message: fmt.Sprintf("Parsing --%s \n\tExpected an integer less than or equal to %d but received: %d\nSee more help with --help", flag, max, value), ExitCode: 2}
+	}
+	return nil
 }
 
 // targetOrgFlag returns the value of --target-org, or of -u when only the

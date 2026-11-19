@@ -186,8 +186,10 @@ func newApexGetLogCmd() *cobra.Command {
 			logID, _ := cmd.Flags().GetString("log-id")
 			number, _ := cmd.Flags().GetInt("number")
 			outputDir, _ := cmd.Flags().GetString("output-dir")
-			if cmd.Flags().Changed("number") && (number < 1 || number > 25) {
-				return &Error{Message: fmt.Sprintf("Parsing --number \n\tExpected an integer between 1 and 25 but received: %d\nSee more help with --help", number), ExitCode: 2}
+			if cmd.Flags().Changed("number") {
+				if err := integerInRange("number", number, 1, 25); err != nil {
+					return err
+				}
 			}
 			org, err := resolveTargetOrg(cmd)
 			if err != nil {
@@ -333,10 +335,10 @@ func newApexTraceCreateCmd() *cobra.Command {
 				return missingFlagError("debug-level")
 			}
 			if logType != "DEVELOPER_LOG" && logType != "USER_DEBUG" {
-				return &Error{Message: fmt.Sprintf("Expected --log-type=%s to be one of: DEVELOPER_LOG, USER_DEBUG\nSee more help with --help", logType), ExitCode: 2}
+				return &Error{Message: fmt.Sprintf("Expected --log-type=%s to be one of: DEVELOPER_LOG, USER_DEBUG\nSee more help with --help", logType), ExitCode: 1}
 			}
-			if duration < 1 || duration > 1440 {
-				return &Error{Message: fmt.Sprintf("Parsing --duration \n\tExpected an integer between 1 and 1440 but received: %d\nSee more help with --help", duration), ExitCode: 2}
+			if err := integerInRange("duration", duration, 1, 1440); err != nil {
+				return err
 			}
 			org, err := resolveTargetOrg(cmd)
 			if err != nil {

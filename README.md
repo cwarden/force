@@ -36,7 +36,7 @@ values of `sf` (`~/.sfdx` and `~/.sf`), and prints output in the format of
     sf project deploy start --source-dir force-app
     force --sf org list # the same mode without the symlink
 
-101 `sf` commands are implemented.
+109 `sf` commands are implemented.
 [docs/sf-compatibility.md](docs/sf-compatibility.md) lists them with the
 `force` command each corresponds to, the flags that are not supported, and the
 `sf` commands that are not implemented. [docs/sf/sf.md](docs/sf/sf.md) has the

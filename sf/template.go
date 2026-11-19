@@ -20,10 +20,20 @@ const templateAPIVersion = "66.0"
 func newTemplateCmd() *cobra.Command {
 	return newGroup("template", "Commands to create metadata from templates.",
 		newGroup("generate", "Create metadata from templates.",
+			newGroup("analytics", "Create Analytics templates.", newTemplateAnalyticsCmd()),
 			newGroup("apex", "Create Apex classes and triggers.",
 				newTemplateApexClassCmd(),
 				newTemplateApexTriggerCmd(),
 			),
+			newGroup("lightning", "Create Lightning bundles.",
+				newTemplateLightningComponentCmd(),
+				newTemplateAuraBundleCmd("app", "Generate a Lightning App.", "LightningApp"),
+				newTemplateAuraBundleCmd("event", "Generate a Lightning Event.", "LightningEvent"),
+				newTemplateAuraBundleCmd("interface", "Generate a Lightning Interface.", "LightningInterface"),
+				newTemplateLightningTestCmd(),
+			),
+			newTemplateProjectCmd(),
+			newTemplateStaticResourceCmd(),
 			newGroup("visualforce", "Create Visualforce pages and components.",
 				newTemplateVisualforceCmd("page", "Generate a Visualforce Page.", "visualforcepage", "DefaultVFPage.page", "_page.page-meta.xml"),
 				newTemplateVisualforceCmd("component", "Generate a Visualforce Component.", "visualforcecomponent", "DefaultVFComponent.component", "_component.component-meta.xml"),
@@ -32,7 +42,10 @@ func newTemplateCmd() *cobra.Command {
 	)
 }
 
-var templateVariable = regexp.MustCompile(`<%=\s*(\w+)\s*%>`)
+var (
+	templateVariable    = regexp.MustCompile(`<%[=-]\s*(\w+)\s*%>`)
+	templateConditional = regexp.MustCompile(`(?s)<% if \((\w+)\) \{ %>(.*?)<% \} %>`)
+)
 
 // renderTemplate reads a file of the embedded templates and replaces each
 // <%= name %> with the value of the variable.
@@ -41,7 +54,17 @@ func renderTemplate(directory, file string, variables map[string]string) (string
 	if err != nil {
 		return "", err
 	}
-	return templateVariable.ReplaceAllStringFunc(string(content), func(match string) string {
+	// <% if (name) { %>text<% } %> keeps the text when the variable has a
+	// value.  The templates use no other control flow, except the flexipage
+	// templates, which no command renders yet.
+	text := templateConditional.ReplaceAllStringFunc(string(content), func(match string) string {
+		parts := templateConditional.FindStringSubmatch(match)
+		if variables[parts[1]] == "" {
+			return ""
+		}
+		return parts[2]
+	})
+	return templateVariable.ReplaceAllStringFunc(text, func(match string) string {
 		return variables[templateVariable.FindStringSubmatch(match)[1]]
 	}), nil
 }
@@ -88,7 +111,10 @@ func writeTemplates(cmd *cobra.Command, files []generatedFile) error {
 	}
 	result := templateResult{OutputDir: absolute, Created: []string{}}
 	for _, file := range files {
-		path := filepath.Join(absolute, file.name)
+		path := filepath.Join(absolute, filepath.FromSlash(file.name))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			return err
+		}
 		if err := os.WriteFile(path, []byte(file.content), 0o644); err != nil {
 			return err
 		}
@@ -147,7 +173,7 @@ func newTemplateApexClassCmd() *cobra.Command {
 				}
 			}
 			if !valid {
-				return &Error{Message: fmt.Sprintf("Expected --template=%s to be one of: %s\nSee more help with --help", template, strings.Join(apexClassTemplates, ", ")), ExitCode: 2}
+				return &Error{Message: fmt.Sprintf("Expected --template=%s to be one of: %s\nSee more help with --help", template, strings.Join(apexClassTemplates, ", ")), ExitCode: 1}
 			}
 			files, err := renderFiles("apexclass", map[string]string{"apiName": name, "apiVersion": apiVersion},
 				[2]string{name + ".cls", template + ".cls"}, [2]string{name + ".cls-meta.xml", "_class.cls-meta.xml"})
@@ -190,7 +216,7 @@ func newTemplateApexTriggerCmd() *cobra.Command {
 					}
 				}
 				if !valid {
-					return &Error{Message: fmt.Sprintf("Expected --event=%s to be one of: %s\nSee more help with --help", event, strings.Join(triggerEvents, ", ")), ExitCode: 2}
+					return &Error{Message: fmt.Sprintf("Expected --event=%s to be one of: %s\nSee more help with --help", event, strings.Join(triggerEvents, ", ")), ExitCode: 1}
 				}
 			}
 			files, err := renderFiles("apextrigger", map[string]string{"triggername": name, "sobject": sobject, "triggerEvents": strings.Join(events, ","), "apiVersion": apiVersion},

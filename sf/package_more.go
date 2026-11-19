@@ -447,7 +447,7 @@ func newPackageVersionCreateListCmd() *cobra.Command {
 				switch status {
 				case "Queued", "InProgress", "Success", "Error":
 				default:
-					return &Error{Message: fmt.Sprintf("Expected --status=%s to be one of: Queued, InProgress, Success, Error\nSee more help with --help", status), ExitCode: 2}
+					return &Error{Message: fmt.Sprintf("Expected --status=%s to be one of: Queued, InProgress, Success, Error\nSee more help with --help", status), ExitCode: 1}
 				}
 				conditions = append(conditions, fmt.Sprintf("Status = '%s'", status))
 			}

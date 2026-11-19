@@ -382,11 +382,11 @@ func newOrgGeneratePasswordCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			length, _ := cmd.Flags().GetInt("length")
 			complexity, _ := cmd.Flags().GetInt("complexity")
-			if complexity < 0 || complexity > 5 {
-				return &Error{Message: fmt.Sprintf("Parsing --complexity \n\tExpected an integer between 0 and 5 but received: %d\nSee more help with --help", complexity), ExitCode: 2}
+			if err := integerInRange("complexity", complexity, 0, 5); err != nil {
+				return err
 			}
-			if length < 8 || length > 100 {
-				return &Error{Message: fmt.Sprintf("Parsing --length \n\tExpected an integer between 8 and 100 but received: %d\nSee more help with --help", length), ExitCode: 2}
+			if err := integerInRange("length", length, 8, 100); err != nil {
+				return err
 			}
 			if length < 20 {
 				warn(cmd, "Starting in Summer '26, this command will fail if you specify a password length below 20. For now, the command is generating a password of length 20 instead of the requested length.")

@@ -486,6 +486,11 @@ func newProjectDeployStartCmd(validate bool) *cobra.Command {
 			}
 			testLevel, _ := cmd.Flags().GetString("test-level")
 			tests := splitList(cmd, "tests")
+			switch testLevel {
+			case "", "NoTestRun", "RunSpecifiedTests", "RunLocalTests", "RunAllTestsInOrg", "RunRelevantTests":
+			default:
+				return &Error{Message: fmt.Sprintf("Expected --test-level=%s to be one of: NoTestRun, RunSpecifiedTests, RunLocalTests, RunAllTestsInOrg, RunRelevantTests\nSee more help with --help", testLevel), ExitCode: 1}
+			}
 			if testLevel == "RunSpecifiedTests" && len(tests) == 0 {
 				return newError("NoTestsSpecifiedError", "You must specify tests using the --tests flag if the --test-level flag is set to RunSpecifiedTests.")
 			}

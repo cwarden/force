@@ -159,7 +159,7 @@ func TestTemplateGenerateApexClassFromOtherTemplates(t *testing.T) {
 		t.Errorf("MyError.cls = %q", class)
 	}
 	_, errOut, status := run("template", "generate", "apex", "class", "-n", "X", "-t", "NoSuchTemplate")
-	if status != 2 || !strings.Contains(errOut, "Expected --template=NoSuchTemplate to be one of: ApexException, ApexUnitTest, BasicUnitTest, DefaultApexClass, InboundEmailService") {
+	if status != 1 || !strings.Contains(errOut, "Expected --template=NoSuchTemplate to be one of: ApexException, ApexUnitTest, BasicUnitTest, DefaultApexClass, InboundEmailService") {
 		t.Errorf("unknown template: status %d, stderr %q", status, errOut)
 	}
 }
@@ -179,7 +179,7 @@ func TestTemplateGenerateTriggerAndVisualforce(t *testing.T) {
 		t.Errorf("trigger meta = %q", meta)
 	}
 	_, errOut, status := run("template", "generate", "apex", "trigger", "-n", "X", "-e", "sometimes")
-	if status != 2 || !strings.Contains(errOut, "Expected --event=sometimes to be one of: before insert,") {
+	if status != 1 || !strings.Contains(errOut, "Expected --event=sometimes to be one of: before insert,") {
 		t.Errorf("bad event: status %d, stderr %q", status, errOut)
 	}
 
@@ -201,7 +201,7 @@ func TestTemplateGenerateTriggerAndVisualforce(t *testing.T) {
 		t.Errorf("component meta = %q", component)
 	}
 	_, errOut, status = run("template", "generate", "visualforce", "page", "-n", "NoLabel")
-	if status != 2 || errOut != "Error (2): Missing required flag label\nSee more help with --help\n\n\n" {
+	if status != 2 || errOut != "Error (2): The following error occurred:\n  Missing required flag label\nSee more help with --help\n\n\n" {
 		t.Errorf("missing label: status %d, stderr %q", status, errOut)
 	}
 }

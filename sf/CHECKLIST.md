@@ -111,6 +111,7 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [ ] `project deploy start`, `project deploy validate`: `--verbose`, `--ignore-conflicts`, `--single-package`
 - [ ] `project deploy quick`, `project deploy resume`: `--verbose`
 - [ ] `project retrieve start`: `--ignore-conflicts`, `--wait`
+- [ ] `template generate project`: the `agent`, `nativemobile`, `reactinternalapp` and `reactexternalapp` templates
 - [ ] `template generate apex trigger`, `template generate visualforce page`, `template generate visualforce component`: `--template`
 
 ## Unimplemented Behavior Of Implemented Commands
@@ -230,18 +231,18 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [ ] `schema generate sobject`
 - [ ] `schema generate tab`
 
-### template (11 open, 0 done)
+### template (3 open, 8 done)
 
-- [ ] `template generate analytics template`
+- [x] `template generate analytics template`
 - [ ] `template generate digital-experience site`
 - [ ] `template generate flexipage`
-- [ ] `template generate lightning app`
-- [ ] `template generate lightning component`
-- [ ] `template generate lightning event`
-- [ ] `template generate lightning interface`
-- [ ] `template generate lightning test`
-- [ ] `template generate project`
-- [ ] `template generate static-resource`
+- [x] `template generate lightning app`
+- [x] `template generate lightning component`
+- [x] `template generate lightning event`
+- [x] `template generate lightning interface`
+- [x] `template generate lightning test`
+- [x] `template generate project` (the `agent`, `nativemobile` and React app templates are not supported)
+- [x] `template generate static-resource`
 - [ ] `template generate ui-bundle`
 
 ### package (8 open, 8 done)

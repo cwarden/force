@@ -110,7 +110,7 @@ func TestPackageCreateRecordsThePackageInTheProject(t *testing.T) {
 		t.Errorf("sfdx-project.json = %s", data)
 	}
 	_, errOut, status := run("package", "create", "-n", "X", "-t", "Other", "-r", "force-app")
-	if status != 2 || !strings.Contains(errOut, "Expected --package-type=Other to be one of: Managed, Unlocked") {
+	if status != 1 || !strings.Contains(errOut, "Expected --package-type=Other to be one of: Managed, Unlocked") {
 		t.Errorf("bad type: status %d, stderr %q", status, errOut)
 	}
 }

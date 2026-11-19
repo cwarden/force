@@ -210,7 +210,7 @@ func newOrgLoginAccessTokenCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			instanceURL, _ := cmd.Flags().GetString("instance-url")
 			if instanceURL == "" {
-				return &Error{Message: "Missing required flag instance-url\nSee more help with --help", ExitCode: 2}
+				return missingFlagError("instance-url")
 			}
 			token := os.Getenv("SF_ACCESS_TOKEN")
 			if token == "" {
@@ -256,7 +256,7 @@ func newOrgLoginJwtCmd() *cobra.Command {
 			clientID, _ := cmd.Flags().GetString("client-id")
 			for flag, value := range map[string]string{"username": username, "jwt-key-file": keyFile, "client-id": clientID} {
 				if value == "" {
-					return &Error{Message: fmt.Sprintf("Missing required flag %s\nSee more help with --help", flag), ExitCode: 2}
+					return missingFlagError(flag)
 				}
 			}
 			instanceURL := loginInstanceURL(cmd)

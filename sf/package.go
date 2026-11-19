@@ -244,7 +244,7 @@ func newPackageCreateCmd() *cobra.Command {
 				}
 			}
 			if packageType != "Managed" && packageType != "Unlocked" {
-				return &Error{Message: fmt.Sprintf("Expected --package-type=%s to be one of: Managed, Unlocked\nSee more help with --help", packageType), ExitCode: 2}
+				return &Error{Message: fmt.Sprintf("Expected --package-type=%s to be one of: Managed, Unlocked\nSee more help with --help", packageType), ExitCode: 1}
 			}
 			org, err := resolveTargetDevHub(cmd)
 			if err != nil {
@@ -449,13 +449,13 @@ func newPackageInstallCmd() *cobra.Command {
 			securityTypes := map[string]string{"AllUsers": "full", "AdminsOnly": "none"}
 			upgradeTypes := map[string]string{"DeprecateOnly": "deprecate-only", "Mixed": "mixed-mode", "Delete": "delete-only"}
 			if _, ok := securityTypes[securityType]; !ok {
-				return &Error{Message: fmt.Sprintf("Expected --security-type=%s to be one of: AllUsers, AdminsOnly\nSee more help with --help", securityType), ExitCode: 2}
+				return &Error{Message: fmt.Sprintf("Expected --security-type=%s to be one of: AllUsers, AdminsOnly\nSee more help with --help", securityType), ExitCode: 1}
 			}
 			if _, ok := upgradeTypes[upgradeType]; !ok {
-				return &Error{Message: fmt.Sprintf("Expected --upgrade-type=%s to be one of: DeprecateOnly, Mixed, Delete\nSee more help with --help", upgradeType), ExitCode: 2}
+				return &Error{Message: fmt.Sprintf("Expected --upgrade-type=%s to be one of: DeprecateOnly, Mixed, Delete\nSee more help with --help", upgradeType), ExitCode: 1}
 			}
 			if apexCompile != "all" && apexCompile != "package" {
-				return &Error{Message: fmt.Sprintf("Expected --apex-compile=%s to be one of: all, package\nSee more help with --help", apexCompile), ExitCode: 2}
+				return &Error{Message: fmt.Sprintf("Expected --apex-compile=%s to be one of: all, package\nSee more help with --help", apexCompile), ExitCode: 1}
 			}
 			org, err := resolveTargetOrg(cmd)
 			if err != nil {

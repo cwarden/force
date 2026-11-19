@@ -136,7 +136,7 @@ func TestOrgListMetadata(t *testing.T) {
 		t.Errorf("no results: status %d, stdout %q, stderr %q", status, out, errOut)
 	}
 	_, errOut, status = run("org", "list", "metadata")
-	if status != 2 || errOut != "Error (2): Missing required flag metadata-type\nSee more help with --help\n\n\n" {
+	if status != 2 || errOut != "Error (2): The following error occurred:\n  Missing required flag metadata-type\nSee more help with --help\n\n\n" {
 		t.Errorf("missing flag: status %d, stderr %q", status, errOut)
 	}
 }

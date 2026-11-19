@@ -41,7 +41,7 @@ The files written by the `template generate` commands come from the salesforcedx
 
 - `--json` prints the `sf` envelope: `{"status", "result", "warnings"}`. Result fields keep the order of the API response, as in `sf`.
 - An error prints `Error (<name>): <message>` on stderr, or with `--json` an envelope with `name`, `message`, `exitCode`, `context`, `code`, `status` and `commandName`. The envelope has no `stack` or `cause` field, and `data` holds only `errorCode` and `message`.
-- Exit status follows `sf`: 2 for a flag error, 127 for an unknown command, 100 for failing Apex tests, 1 for other failures.
+- Exit status follows `sf`: 2 for a missing or malformed flag, 1 for a flag value outside its list of options, 127 for an unknown command, 100 for failing Apex tests, 1 for other failures.
 - Color is used when `FORCE_COLOR` is set to a value other than `0`, when `COLORTERM=truecolor`, or when the output is a terminal. `NO_COLOR` and `FORCE_COLOR=0` turn it off.
 - `sf` redraws a progress display while it waits for a bulk job, deploy, retrieve or scratch org. This mode prints the last frame once.
 - `--flags-dir` reads one file per flag; a file name can be the long or the short name of the flag.
@@ -149,8 +149,16 @@ The files written by the `template generate` commands come from the salesforcedx
 | `sf project retrieve start` | `force fetch`, `force export` | `--single-package`; one `--package-name` value. The JSON result has `files`, `status`, `success` and `done`; it has no `fileProperties`. Requires `--metadata`, `--manifest`, `--source-dir` or `--package-name`. | Failure output compared with sf; result table follows the sf plugin source |
 | `sf sobject describe` | `force describe sobject --name <name> --json` |  | Compared with sf |
 | `sf sobject list` | `force sobject list` |  | Compared with sf |
+| `sf template generate analytics template` | none |  | Compared with sf |
 | `sf template generate apex class` | `force create apexclass` |  | Compared with sf |
 | `sf template generate apex trigger` | `force create apextrigger` |  | Compared with sf |
+| `sf template generate lightning app` | none |  | Compared with sf |
+| `sf template generate lightning component` | none |  | Compared with sf |
+| `sf template generate lightning event` | none |  | Compared with sf |
+| `sf template generate lightning interface` | none |  | Compared with sf |
+| `sf template generate lightning test` | none |  | Compared with sf |
+| `sf template generate project` | none | The `agent`, `nativemobile`, `reactinternalapp` and `reactexternalapp` project templates. | Compared with sf |
+| `sf template generate static-resource` | none |  | Compared with sf |
 | `sf template generate visualforce component` | `force create apexcomponent` |  | Compared with sf |
 | `sf template generate visualforce page` | `force create apexpage` |  | Compared with sf |
 | `sf version` | `force version` | Prints the sf release this mode matches and the force version in place of the Node.js version. | Compared with sf |
@@ -217,7 +225,7 @@ A flag listed as unsupported returns an error that names the flag.
 
 ## sf Commands Not Implemented
 
-138 of the 239 commands of `sf` 2.138.6 and its bundled and install-on-first-use plugins are not implemented. Third-party plugins and the retired Functions plugin are not counted. Running one of these commands prints the message `sf` prints for an unknown command and exits with status 127.
+130 of the 239 commands of `sf` 2.138.6 and its bundled and install-on-first-use plugins are not implemented. Third-party plugins and the retired Functions plugin are not counted. Running one of these commands prints the message `sf` prints for an unknown command and exits with status 127.
 
 ### org
 
@@ -291,17 +299,9 @@ A flag listed as unsupported returns an error that names the flag.
 
 | sf command | Summary | What is required |
 |---|---|---|
-| `sf template generate analytics template` | Generate a simple Analytics template. | Render the files of the matching archive in `sf/templates`, as the four implemented `template generate` commands do. Three templates use EJS control flow (`<% if %>`), which the renderer does not handle yet. |
-| `sf template generate digital-experience site` | Generate an Experience Cloud site. | Render the files of the matching archive in `sf/templates`, as the four implemented `template generate` commands do. Three templates use EJS control flow (`<% if %>`), which the renderer does not handle yet. |
-| `sf template generate flexipage` | Generate a FlexiPage, also known as a Lightning page. | Render the files of the matching archive in `sf/templates`, as the four implemented `template generate` commands do. Three templates use EJS control flow (`<% if %>`), which the renderer does not handle yet. |
-| `sf template generate lightning app` | Generate a Lightning App. | Render the files of the matching archive in `sf/templates`, as the four implemented `template generate` commands do. Three templates use EJS control flow (`<% if %>`), which the renderer does not handle yet. |
-| `sf template generate lightning component` | Generate a bundle for an Aura component or a Lightning web component. | Render the files of the matching archive in `sf/templates`, as the four implemented `template generate` commands do. Three templates use EJS control flow (`<% if %>`), which the renderer does not handle yet. |
-| `sf template generate lightning event` | Generate a Lightning Event. | Render the files of the matching archive in `sf/templates`, as the four implemented `template generate` commands do. Three templates use EJS control flow (`<% if %>`), which the renderer does not handle yet. |
-| `sf template generate lightning interface` | Generate a Lightning Interface. | Render the files of the matching archive in `sf/templates`, as the four implemented `template generate` commands do. Three templates use EJS control flow (`<% if %>`), which the renderer does not handle yet. |
-| `sf template generate lightning test` | Generate a Lightning test. | Render the files of the matching archive in `sf/templates`, as the four implemented `template generate` commands do. Three templates use EJS control flow (`<% if %>`), which the renderer does not handle yet. |
-| `sf template generate project` | Generate a Salesforce DX project. | Render the files of the `project` archive in `sf/templates`; the React app templates are not in the source repository of the templates. |
-| `sf template generate static-resource` | Generate a static resource. | Render the files of the matching archive in `sf/templates`, as the four implemented `template generate` commands do. Three templates use EJS control flow (`<% if %>`), which the renderer does not handle yet. |
-| `sf template generate ui-bundle` | Generate a UI bundle, which contains the code and metadata to build a UI experience that uses non-native Salesforce frameworks, such as React. | Render the files of the matching archive in `sf/templates`, as the four implemented `template generate` commands do. Three templates use EJS control flow (`<% if %>`), which the renderer does not handle yet. |
+| `sf template generate digital-experience site` | Generate an Experience Cloud site. | Render the files of the matching archive in `sf/templates`. The flexipage templates use EJS loops, which the renderer does not handle; the digital experience site command also creates the site in an org. |
+| `sf template generate flexipage` | Generate a FlexiPage, also known as a Lightning page. | Render the files of the matching archive in `sf/templates`. The flexipage templates use EJS loops, which the renderer does not handle; the digital experience site command also creates the site in an org. |
+| `sf template generate ui-bundle` | Generate a UI bundle, which contains the code and metadata to build a UI experience that uses non-native Salesforce frameworks, such as React. | Render the files of the matching archive in `sf/templates`. The flexipage templates use EJS loops, which the renderer does not handle; the digital experience site command also creates the site in an org. |
 
 ### package
 

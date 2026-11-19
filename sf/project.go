@@ -420,7 +420,7 @@ func newProjectGenerateManifestCmd() *cobra.Command {
 			fileNames := map[string]string{"": "package.xml", "package": "package.xml", "pre": "destructiveChangesPre.xml", "post": "destructiveChangesPost.xml", "destroy": "destructiveChanges.xml"}
 			fileName, ok := fileNames[manifestType]
 			if !ok {
-				return &Error{Message: fmt.Sprintf("Expected --type=%s to be one of: pre, post, destroy, package\nSee more help with --help", manifestType), ExitCode: 2}
+				return &Error{Message: fmt.Sprintf("Expected --type=%s to be one of: pre, post, destroy, package\nSee more help with --help", manifestType), ExitCode: 1}
 			}
 			if name != "" {
 				fileName = name

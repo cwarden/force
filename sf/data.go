@@ -274,7 +274,7 @@ func newDataQueryCmd() *cobra.Command {
 			}
 			format, _ := cmd.Flags().GetString("result-format")
 			if format != "human" && format != "csv" && format != "json" {
-				return &Error{Message: fmt.Sprintf("Expected --result-format=%s to be one of: human, csv, json\nSee more help with --help", format), ExitCode: 2}
+				return &Error{Message: fmt.Sprintf("Expected --result-format=%s to be one of: human, csv, json\nSee more help with --help", format), ExitCode: 1}
 			}
 			org, err := resolveTargetOrg(cmd)
 			if err != nil {
@@ -712,7 +712,7 @@ func newDataSearchCmd() *cobra.Command {
 			}
 			format, _ := cmd.Flags().GetString("result-format")
 			if format != "human" && format != "csv" && format != "json" {
-				return &Error{Message: fmt.Sprintf("Expected --result-format=%s to be one of: human, csv, json\nSee more help with --help", format), ExitCode: 2}
+				return &Error{Message: fmt.Sprintf("Expected --result-format=%s to be one of: human, csv, json\nSee more help with --help", format), ExitCode: 1}
 			}
 			org, err := resolveTargetOrg(cmd)
 			if err != nil {

@@ -218,7 +218,7 @@ func TestDataUpsertAndHardDeleteRequests(t *testing.T) {
 		t.Errorf("hard delete operation = %v", bulk.created["operation"])
 	}
 	_, errOut, status = run("data", "import", "bulk", "-f", file, "-s", "Account", "--column-delimiter", "COLON")
-	if status != 2 || !strings.Contains(errOut, "Expected --column-delimiter=COLON to be one of: BACKQUOTE, CARET, COMMA, PIPE, SEMICOLON, TAB") {
+	if status != 1 || !strings.Contains(errOut, "Expected --column-delimiter=COLON to be one of: BACKQUOTE, CARET, COMMA, PIPE, SEMICOLON, TAB") {
 		t.Errorf("bad delimiter: status %d, stderr %q", status, errOut)
 	}
 }

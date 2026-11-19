@@ -328,12 +328,12 @@ func bulkFormatFlags(cmd *cobra.Command) (lib.Bulk2ColumnDelimiter, lib.Bulk2Lin
 	if delimiter != "" {
 		known, ok := bulkDelimiters[delimiter]
 		if !ok {
-			return "", "", &Error{Message: fmt.Sprintf("Expected --column-delimiter=%s to be one of: BACKQUOTE, CARET, COMMA, PIPE, SEMICOLON, TAB\nSee more help with --help", delimiter), ExitCode: 2}
+			return "", "", &Error{Message: fmt.Sprintf("Expected --column-delimiter=%s to be one of: BACKQUOTE, CARET, COMMA, PIPE, SEMICOLON, TAB\nSee more help with --help", delimiter), ExitCode: 1}
 		}
 		columnDelimiter = known
 	}
 	if lineEnding != "" && lineEnding != "CRLF" && lineEnding != "LF" {
-		return "", "", &Error{Message: fmt.Sprintf("Expected --line-ending=%s to be one of: CRLF, LF\nSee more help with --help", lineEnding), ExitCode: 2}
+		return "", "", &Error{Message: fmt.Sprintf("Expected --line-ending=%s to be one of: CRLF, LF\nSee more help with --help", lineEnding), ExitCode: 1}
 	}
 	return columnDelimiter, lib.Bulk2LineEnding(lineEnding), nil
 }
@@ -641,7 +641,7 @@ func newDataExportBulkCmd() *cobra.Command {
 			}
 			format, _ := cmd.Flags().GetString("result-format")
 			if format != "csv" && format != "json" {
-				return &Error{Message: fmt.Sprintf("Expected --result-format=%s to be one of: csv, json\nSee more help with --help", format), ExitCode: 2}
+				return &Error{Message: fmt.Sprintf("Expected --result-format=%s to be one of: csv, json\nSee more help with --help", format), ExitCode: 1}
 			}
 			delimiter, lineEnding, err := bulkFormatFlags(cmd)
 			if err != nil {

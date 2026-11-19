@@ -157,7 +157,7 @@ func apexTestRequest(cmd *cobra.Command) (*orderedMap, error) {
 	switch testLevel {
 	case "RunLocalTests", "RunAllTestsInOrg", "RunSpecifiedTests":
 	default:
-		return nil, &Error{Message: fmt.Sprintf("Expected --test-level=%s to be one of: RunLocalTests, RunAllTestsInOrg, RunSpecifiedTests\nSee more help with --help", testLevel), ExitCode: 2}
+		return nil, &Error{Message: fmt.Sprintf("Expected --test-level=%s to be one of: RunLocalTests, RunAllTestsInOrg, RunSpecifiedTests\nSee more help with --help", testLevel), ExitCode: 1}
 	}
 	request := newOrderedMap()
 	classItem := func(name string) *orderedMap {
@@ -858,7 +858,7 @@ func testResultFormat(cmd *cobra.Command) (string, error) {
 	case "human", "tap", "junit", "json":
 		return format, nil
 	}
-	return "", &Error{Message: fmt.Sprintf("Expected --result-format=%s to be one of: human, tap, junit, json\nSee more help with --help", format), ExitCode: 2}
+	return "", &Error{Message: fmt.Sprintf("Expected --result-format=%s to be one of: human, tap, junit, json\nSee more help with --help", format), ExitCode: 1}
 }
 
 // perTestCoverageJSON is the content of the per-run code coverage file: one

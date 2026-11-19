@@ -142,7 +142,7 @@ func newOrgCreateScratchCmd() *cobra.Command {
 			if release, ok := request.Get("Release"); ok {
 				release := strings.ToLower(displayValue(release))
 				if release != "preview" && release != "previous" {
-					return &Error{Message: fmt.Sprintf("Expected --release=%s to be one of: preview, previous\nSee more help with --help", release), ExitCode: 2}
+					return &Error{Message: fmt.Sprintf("Expected --release=%s to be one of: preview, previous\nSee more help with --help", release), ExitCode: 1}
 				}
 				request.Set("Release", strings.ToUpper(release[:1])+release[1:])
 			}
