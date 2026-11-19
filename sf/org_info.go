@@ -14,7 +14,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/ForceCLI/force/desktop"
-	"github.com/ForceCLI/force/lib"
 )
 
 const securityWarning = "This command will expose sensitive information that allows for subsequent activity using your current authenticated session.\nSharing this information is equivalent to logging someone in under the current credential, resulting in unintended access and escalation of privilege.\nFor additional information, please review the authorization section of the https://developer.salesforce.com/docs/atlas.en-us.sfdx_dev.meta/sfdx_dev/sfdx_dev_auth_web_flow.htm."
@@ -321,11 +320,10 @@ type metadataTypeResult struct {
 }
 
 type metadataTypesResult struct {
+	MetadataObjects       []metadataTypeResult `json:"metadataObjects"`
 	OrganizationNamespace string               `json:"organizationNamespace"`
 	PartialSaveAllowed    bool                 `json:"partialSaveAllowed"`
 	TestRequired          bool                 `json:"testRequired"`
-	MetadataObjects       []metadataTypeResult `json:"metadataObjects"`
-	MetadataVersion       string               `json:"metadataVersion"`
 }
 
 func newOrgListMetadataTypesCmd() *cobra.Command {
@@ -348,7 +346,6 @@ func newOrgListMetadataTypesCmd() *cobra.Command {
 				PartialSaveAllowed:    describe.PartialSaveAllowed,
 				TestRequired:          describe.TestRequired,
 				MetadataObjects:       make([]metadataTypeResult, 0, len(describe.MetadataObjects)),
-				MetadataVersion:       lib.ApiVersionNumber(),
 			}
 			for _, object := range describe.MetadataObjects {
 				children := object.ChildXmlNames

@@ -21,7 +21,11 @@ func apiError(err error) error {
 	}
 	var forceErrors lib.ForceErrors
 	if errors.As(err, &forceErrors) && len(forceErrors) > 0 {
-		return namedAPIError(forceErrors[0].ErrorCode, forceErrors[0].Message)
+		e := namedAPIError(forceErrors[0].ErrorCode, forceErrors[0].Message)
+		if len(forceErrors[0].Fields) > 0 {
+			e.Data.(*orderedMap).Set("fields", forceErrors[0].Fields)
+		}
+		return e
 	}
 	// lib reports a response it cannot parse as "unhandled error: <status>
 	// <body>".  sf names these errors ERROR_HTTP_<status>.
@@ -35,11 +39,15 @@ func apiError(err error) error {
 
 var unhandledErrorPattern = regexp.MustCompile(`(?s)^unhandled error: (\d+) (.*)$`)
 
+// namedAPIError is an error of the Salesforce API the way sf reports it:
+// the error code is the name in the JSON envelope, the exit status takes
+// its place in the human message and in "code", and the data is the error
+// as the API sent it.
 func namedAPIError(code, message string) *Error {
 	data := newOrderedMap()
-	data.Set("errorCode", code)
 	data.Set("message", message)
-	return &Error{Name: code, Message: message, ExitCode: 1, Data: data}
+	data.Set("errorCode", code)
+	return &Error{Name: code, Label: "1", Message: message, ExitCode: 1, Data: data}
 }
 
 // parseOrderedJSON decodes JSON and keeps the key order of objects.  Objects

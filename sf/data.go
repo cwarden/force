@@ -164,10 +164,9 @@ func selectClauseColumns(soql string) []string {
 func writeQueryHuman(w io.Writer, soql string, result *orderedMap) {
 	records, _ := result.values["records"].([]interface{})
 	total := displayValue(result.values["totalSize"])
+	// A query without records, such as SELECT COUNT(), has no table: sf
+	// prints an empty line and the total.
 	columns := recordColumns(records)
-	if len(columns) == 0 && total != "0" {
-		columns = selectClauseColumns(soql)
-	}
 	if len(columns) == 0 {
 		fmt.Fprintln(w)
 	} else {
@@ -259,6 +258,18 @@ func queryError(err error) error {
 	converted := apiError(err)
 	if e, ok := converted.(*Error); ok && e.Name != "" {
 		e.Label = "1"
+	}
+	return converted
+}
+
+// wrappedAPIError converts an API error for the commands of sf that wrap
+// it in an error of their own with the same name and message: "data get
+// record" and "data delete record".  The name is then shown in the human
+// message and in "code", and the error has no data.
+func wrappedAPIError(err error) error {
+	converted := apiError(err)
+	if e, ok := converted.(*Error); ok {
+		e.Label, e.Data = "", nil
 	}
 	return converted
 }
@@ -545,7 +556,9 @@ func newDataCreateRecordCmd() *cobra.Command {
 			stop := startSpinner(cmd, fmt.Sprintf("Creating record for %s", sobject))
 			body, err := org.Force.PostREST(restBase(cmd)+"/sobjects/"+sobject, content)
 			if err != nil {
-				stop("failed")
+				// sf ends the line of this command with "Error" and
+				// those of the update and delete commands with "Failed".
+				stop("Error")
 				return apiError(err)
 			}
 			result, err := parseOrderedJSON([]byte(body))
@@ -606,7 +619,7 @@ func newDataGetRecordCmd() *cobra.Command {
 			body, err := org.Force.GetREST(restBase(cmd) + "/sobjects/" + sobject + "/" + id)
 			if err != nil {
 				stop("failed")
-				return apiError(err)
+				return wrappedAPIError(err)
 			}
 			result, err := parseOrderedJSON([]byte(body))
 			if err != nil {
@@ -666,7 +679,7 @@ func newDataUpdateRecordCmd() *cobra.Command {
 				return err
 			}
 			if _, err := org.Force.PatchREST(restBase(cmd)+"/sobjects/"+sobject+"/"+id, content); err != nil {
-				stop("failed")
+				stop("Failed")
 				return apiError(err)
 			}
 			err = emit(cmd, saveResult(id), func(w io.Writer) {
@@ -701,8 +714,8 @@ func newDataDeleteRecordCmd() *cobra.Command {
 				return err
 			}
 			if _, err := org.Force.DeleteREST(restBase(cmd) + "/sobjects/" + sobject + "/" + id); err != nil {
-				stop("failed")
-				return apiError(err)
+				stop("Failed")
+				return wrappedAPIError(err)
 			}
 			err = emit(cmd, saveResult(id), func(w io.Writer) {
 				fmt.Fprintf(w, "Successfully deleted record: %s.\n", id)

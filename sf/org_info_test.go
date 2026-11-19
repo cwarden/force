@@ -166,7 +166,7 @@ Partial Save Allowed: true
 Test Required: false
 `, "org", "list", "metadata-types")
 	out, _, status := run("org", "list", "metadata-types", "--json")
-	if status != 0 || !strings.Contains(out, `"organizationNamespace": "ns"`) || !strings.Contains(out, `"metadataVersion": "67.0"`) ||
+	if status != 0 || !strings.Contains(out, `"organizationNamespace": "ns"`) || strings.Contains(out, `"metadataVersion"`) || !strings.Contains(out, "\"result\": {\n    \"metadataObjects\": [") ||
 		!strings.Contains(out, "\"xmlName\": \"CustomObject\",\n        \"childXmlNames\": [\n          \"CustomField\",\n          \"ListView\"\n        ]") {
 		t.Errorf("json: status %d\n%s", status, out)
 	}

@@ -103,13 +103,9 @@ func TestDataQueryCountAndEmptyResults(t *testing.T) {
 	org := loggedInFakeOrg(t)
 	org.rawQueries["COUNT()"] = `{"done":true,"totalSize":7,"records":[]}`
 	org.rawQueries["nosuch"] = `{"done":true,"totalSize":0,"records":[]}`
-	expectRun(t, 0, `┌─────────┐
-│ COUNT() │
-├─────────┤
-└─────────┘
-
-Total number of records retrieved: 7.
-`, "data", "query", "-q", "SELECT COUNT() FROM Account")
+	// Against an org, sf prints no table for a count: an empty line and
+	// the total.
+	expectRun(t, 0, "\nTotal number of records retrieved: 7.\n", "data", "query", "-q", "SELECT COUNT() FROM Account")
 	expectRun(t, 0, "\nTotal number of records retrieved: 0.\n", "data", "query", "-q", "SELECT Id FROM Account WHERE Name = 'nosuch'")
 }
 
@@ -285,5 +281,31 @@ func TestDataRecordCommands(t *testing.T) {
 	_, errOut, status = run("data", "get", "record", "-s", "Account")
 	if status != 2 || !strings.Contains(errOut, "Exactly one of the following must be provided: --where, --record-id") {
 		t.Errorf("no id: status %d, stderr %q", status, errOut)
+	}
+}
+
+func TestRecordCommandsReportAPIErrorsAsSfDoes(t *testing.T) {
+	org := loggedInFakeOrg(t)
+	org.handlers["/services/data/v67.0/sobjects/Contact"] = func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		io.WriteString(w, `[{"message":"Required fields are missing: [LastName]","errorCode":"REQUIRED_FIELD_MISSING","fields":["LastName"]}]`)
+	}
+	// A create or update error keeps the exit status as its label, and
+	// its data is the error of the API.
+	_, errOut, status := run("data", "create", "record", "-s", "Contact", "-v", "FirstName=x")
+	if status != 1 || errOut != "Creating record for Contact... Error\nError (1): Required fields are missing: [LastName]\n\n\n" {
+		t.Errorf("create: status %d, stderr %q", status, errOut)
+	}
+	out, _, _ := run("data", "create", "record", "-s", "Contact", "-v", "FirstName=x", "--json")
+	for _, want := range []string{`"name": "REQUIRED_FIELD_MISSING"`, `"code": "1"`, `  "data": {
+    "message": "Required fields are missing: [LastName]",
+    "errorCode": "REQUIRED_FIELD_MISSING",
+    "fields": [
+      "LastName"
+    ]
+  },`} {
+		if !strings.Contains(out, want) {
+			t.Errorf("create json lacks %s:\n%s", want, out)
+		}
 	}
 }

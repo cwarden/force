@@ -2,9 +2,7 @@ package sf
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
-	"github.com/ForceCLI/force/lib"
 	"io"
 	"os"
 	"path/filepath"
@@ -42,7 +40,7 @@ func newApexRunCmd() *cobra.Command {
 			if file, _ := cmd.Flags().GetString("file"); file != "" {
 				code, err = os.ReadFile(file)
 				if err != nil {
-					return err
+					return &Error{Message: "File not found at the specified path: " + file, ExitCode: 1}
 				}
 			} else {
 				fmt.Fprintln(cmd.OutOrStdout(), "Start typing Apex code. Press the Enter key after each line, then press CTRL+D when finished.")
@@ -570,19 +568,5 @@ func newApexGetCompileStatusCmd() *cobra.Command {
 // report it: the error code is the name in the JSON envelope, and the exit
 // status takes its place in the human message and in "code".
 func apexAPIError(err error) error {
-	converted := apiError(err)
-	if e, ok := converted.(*Error); ok && e.Label == "" {
-		e.Label = "1"
-		// The data of the error is the error of the API as it came:
-		// the message, the code and the fields.
-		var forceErrors lib.ForceErrors
-		if errors.As(err, &forceErrors) && len(forceErrors) > 0 {
-			data := orderedFields("message", forceErrors[0].Message, "errorCode", forceErrors[0].ErrorCode)
-			if len(forceErrors[0].Fields) > 0 {
-				data.Set("fields", forceErrors[0].Fields)
-			}
-			e.Data = data
-		}
-	}
-	return converted
+	return apiError(err)
 }

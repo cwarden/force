@@ -177,6 +177,7 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
   - [x] The bulk resume commands, `data bulk results` and the `force data bulk` commands
   - [x] `data import tree`, `data export tree`, `data create file` (without `--parent-id`) and `org open --url-only`
   - [x] `org generate password`, `org auth show-user-password --json` and `api request graphql` (with `--include`, sf prints the headers in the order received and the protocol as HTTP/1.1; this mode prints them sorted and the protocol the connection used)
+  - [x] Against a real org instead of a local server: the `data` record and query commands, `sobject list`, `sobject describe`, `org list metadata`, `org list metadata-types` and `apex run`
   - [ ] `apex tail log`, the package commands
 
 ## Unimplemented Commands
