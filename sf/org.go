@@ -38,7 +38,7 @@ func newOrgCmd() *cobra.Command {
 			newOrgAuthShowCmd("show-user-password", "Display the locally stored password of an org user.", "OrgAuthShowUserPassword"),
 		),
 		newGroup("assign", "Assign permission sets and licenses.", newOrgAssignPermsetCmd(), newOrgAssignPermsetLicenseCmd()),
-		newGroup("create", "Create scratch orgs, sandboxes, users and org shapes.", newOrgCreateScratchCmd(), newOrgCreateUserCmd(), newOrgCreateShapeCmd(), newOrgCreateSandboxCmd()),
+		newGroup("create", "Create scratch orgs, sandboxes, users, org shapes and snapshots.", newOrgCreateScratchCmd(), newOrgCreateUserCmd(), newOrgCreateShapeCmd(), newOrgCreateSandboxCmd(), newOrgCreateSnapshotCmd()),
 		newGroup("delete", "Delete scratch orgs, sandboxes, snapshots and org shapes.", newOrgDeleteScratchCmd(), newOrgDeleteSnapshotCmd(), newOrgDeleteShapeCmd(), newOrgDeleteSandboxCmd()),
 		newGroup("get", "Get details about a snapshot.", newOrgGetSnapshotCmd()),
 		newGroup("disable", "Disable source tracking.", newOrgTrackingCmd(false)),

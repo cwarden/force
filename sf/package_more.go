@@ -215,6 +215,71 @@ func setIfChanged(cmd *cobra.Command, fields *orderedMap, flag, field string) {
 	}
 }
 
+// checkRecommendedVersion checks a new recommended version of a package as
+// sf does: when the package has a recommended version already, the new one
+// must be a version of the package that has an ancestor and is connected
+// to the previous one in the ancestry of the package.
+func checkRecommendedVersion(org *targetOrg, packageRecordID, recommended string) error {
+	packages, err := toolingRecords(org, fmt.Sprintf("SELECT RecommendedVersionId FROM Package2 WHERE Id = '%s'", packageRecordID))
+	if err != nil {
+		return err
+	}
+	if len(packages) == 0 {
+		return nil
+	}
+	prior := text(packages[0].values["RecommendedVersionId"])
+	if prior == "" || prior == recommended {
+		return nil
+	}
+	versions, err := toolingRecords(org, fmt.Sprintf("SELECT SubscriberPackageVersionId, AncestorId FROM Package2Version WHERE Package2Id = '%s'", packageRecordID))
+	if err != nil {
+		return err
+	}
+	switch len(versions) {
+	case 0:
+		return newError("NoPackageVersionsForGivenPackage2FoundError", "No package versions were found for the given Package 2 ID (0Ho). At least one released package version must exist.")
+	case 1:
+		return nil
+	}
+	target, previous := trimTo15(recommended), trimTo15(prior)
+	neighbors := map[string][]string{}
+	hasAncestor := map[string]bool{}
+	inPackage := map[string]bool{}
+	for _, version := range versions {
+		id := trimTo15(text(version.values["SubscriberPackageVersionId"]))
+		inPackage[id] = true
+		if _, ok := neighbors[id]; !ok {
+			neighbors[id] = nil
+		}
+		if ancestor := trimTo15(text(version.values["AncestorId"])); ancestor != "" {
+			hasAncestor[id] = true
+			neighbors[id] = append(neighbors[id], ancestor)
+			neighbors[ancestor] = append(neighbors[ancestor], id)
+		}
+	}
+	if _, ok := neighbors[target]; !ok {
+		return newError("UnassociatedRecommendedVersionError", "The provided recommended version isn't associated with this package.")
+	}
+	if hasAncestor[target] && inPackage[previous] {
+		visited := map[string]bool{target: true}
+		stack := []string{target}
+		for len(stack) > 0 {
+			node := stack[len(stack)-1]
+			stack = stack[:len(stack)-1]
+			for _, neighbor := range neighbors[node] {
+				if neighbor == previous {
+					return nil
+				}
+				if !visited[neighbor] {
+					visited[neighbor] = true
+					stack = append(stack, neighbor)
+				}
+			}
+		}
+	}
+	return newError("RecommendedVersionNotAncestorOfPriorVersionError", "The new recommended version is not a descendant of the previous recommended version. To bypass this check, use the --skip-ancestor-check CLI flag.")
+}
+
 func newPackageUpdateCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:         "update",
@@ -222,9 +287,6 @@ func newPackageUpdateCmd() *cobra.Command {
 		Args:        cobra.NoArgs,
 		Annotations: map[string]string{commandNameAnnotation: "PackageUpdateCommand"},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := unsupportedFlags(cmd, "skip-ancestor-check"); err != nil {
-				return err
-			}
 			packageFlag, _ := cmd.Flags().GetString("package")
 			if packageFlag == "" {
 				return missingFlagError("package")
@@ -242,6 +304,22 @@ func newPackageUpdateCmd() *cobra.Command {
 			if cmd.Flags().Changed("enable-app-analytics") {
 				enabled, _ := cmd.Flags().GetBool("enable-app-analytics")
 				fields.Set("AppAnalyticsEnabled", enabled)
+			}
+			skipCheck, _ := cmd.Flags().GetBool("skip-ancestor-check")
+			recommended, hasRecommended := fields.Get("RecommendedVersionId")
+			if hasRecommended {
+				trimmed := strings.TrimSpace(text(recommended))
+				if !strings.HasPrefix(trimmed, "04t") || (len(trimmed) != 15 && len(trimmed) != 18) {
+					return newError("InvalidRecommendedVersionError", "Provide a valid subscriber package version (04t) for the recommended version.")
+				}
+			}
+			switch {
+			case skipCheck && !hasRecommended:
+				return newError("SkipAncestorCheckRequiresRecommendedVersionIdError", "The skip ancestor check requires a recommended version ID.")
+			case !skipCheck && hasRecommended:
+				if err := checkRecommendedVersion(org, id, text(recommended)); err != nil {
+					return err
+				}
 			}
 			if err := patchToolingRecord(org, "Package2", id, fields); err != nil {
 				return err
@@ -462,9 +540,6 @@ func newPackageVersionCreateListCmd() *cobra.Command {
 		Args:        cobra.NoArgs,
 		Annotations: map[string]string{commandNameAnnotation: "PackageVersionCreateListCommand"},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := unsupportedFlags(cmd, "show-conversions-only", "verbose"); err != nil {
-				return err
-			}
 			org, err := resolveTargetDevHub(cmd)
 			if err != nil {
 				return err
@@ -482,6 +557,11 @@ func newPackageVersionCreateListCmd() *cobra.Command {
 				}
 				conditions = append(conditions, fmt.Sprintf("Status = '%s'", status))
 			}
+			conversions, _ := cmd.Flags().GetBool("show-conversions-only")
+			if conversions {
+				conditions = append(conditions, "IsConversionRequest = true ")
+			}
+			verbose, _ := cmd.Flags().GetBool("verbose")
 			soql := "SELECT " + createRequestFields + " FROM Package2VersionCreateRequest"
 			if len(conditions) > 0 {
 				soql += " WHERE " + strings.Join(conditions, " AND ")
@@ -491,23 +571,72 @@ func newPackageVersionCreateListCmd() *cobra.Command {
 				return err
 			}
 			results := make([]*orderedMap, 0, len(records))
-			rows := make([][]string, 0, len(records))
 			for _, record := range records {
-				result := createRequestResult(org, record, false)
-				results = append(results, result)
-				rows = append(rows, []string{
-					resultCell(result, "Id"), resultCell(result, "Status"), resultCell(result, "Package2Id"), resultCell(result, "Package2VersionId"),
-					resultCell(result, "SubscriberPackageVersionId"), resultCell(result, "Tag"), resultCell(result, "Branch"),
-					resultCell(result, "CreatedDate"), resultCell(result, "CreatedBy"),
-				})
+				results = append(results, createRequestResult(org, record, false))
+			}
+			if verbose && len(results) > 0 {
+				// The name and the number of each version, read from the
+				// versions.  sf warns and goes on when this fails.
+				var ids []string
+				for _, result := range results {
+					if id := resultCell(result, "Package2VersionId"); id != "" {
+						ids = append(ids, id)
+					}
+				}
+				names := map[string][2]string{}
+				var failure error
+				for start := 0; start < len(ids) && failure == nil; start += 200 {
+					end := start + 200
+					if end > len(ids) {
+						end = len(ids)
+					}
+					versions, err := toolingRecords(org, fmt.Sprintf("SELECT Id, Name, MajorVersion, MinorVersion, PatchVersion, BuildNumber FROM Package2Version WHERE Id IN (%s)", quoteIds(ids[start:end])))
+					if err != nil {
+						failure = err
+						break
+					}
+					for _, version := range versions {
+						names[text(version.values["Id"])] = [2]string{text(version.values["Name"]), fmt.Sprintf("%s.%s.%s.%s", displayValue(version.values["MajorVersion"]),
+							displayValue(version.values["MinorVersion"]), displayValue(version.values["PatchVersion"]), displayValue(version.values["BuildNumber"]))}
+					}
+				}
+				if failure != nil {
+					message := failure.Error()
+					if converted, ok := failure.(*Error); ok {
+						message = converted.Message
+					}
+					warn(cmd, "error when retrieving verbose data (package name and version) due to: "+message)
+				} else {
+					for _, result := range results {
+						if found, ok := names[resultCell(result, "Package2VersionId")]; ok {
+							result.Set("VersionName", found[0])
+							result.Set("VersionNumber", found[1])
+						}
+					}
+				}
+			}
+			headers := []string{"Id", "Status", "Package Id", "Package Version Id", "Subscriber Package Version Id", "Tag", "Branch", "Created Date", "Created By"}
+			keys := []string{"Id", "Status", "Package2Id", "Package2VersionId", "SubscriberPackageVersionId", "Tag", "Branch", "CreatedDate", "CreatedBy"}
+			if conversions {
+				headers, keys = append(headers, "Converted From Version Id"), append(keys, "ConvertedFromVersionId")
+			}
+			if verbose {
+				headers, keys = append(headers, "Version Name", "Version Number"), append(keys, "VersionName", "VersionNumber")
+			}
+			rows := make([][]string, 0, len(results))
+			for _, result := range results {
+				row := make([]string, len(keys))
+				for i, key := range keys {
+					row[i] = resultCell(result, key)
+				}
+				rows = append(rows, row)
 			}
 			if len(rows) == 0 {
 				warn(cmd, "No results found")
 				return emit(cmd, results, nil)
 			}
 			return emit(cmd, results, func(w io.Writer) {
-				printTable(w, paint(w, style{"\x1b[34m", "\x1b[39m"}, fmt.Sprintf("Package Version Create Requests  [%d]", len(rows))),
-					[]string{"Id", "Status", "Package Id", "Package Version Id", "Subscriber Package Version Id", "Tag", "Branch", "Created Date", "Created By"}, rows)
+				printTable(w, paint(w, style{"\x1b[34m", "\x1b[39m"}, fmt.Sprintf("Package Version Create Requests  [%d]", len(rows))), headers, rows)
 			})
 		},
 	}

@@ -1,6 +1,7 @@
 package sf
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
@@ -64,6 +65,101 @@ func snapshotDate(value string) string {
 	return value
 }
 
+// printSnapshot prints one snapshot as a table of field names and values.
+func printSnapshot(w io.Writer, record *orderedMap) {
+	var rows [][]string
+	for _, key := range record.keys {
+		value := record.values[key]
+		if key == "attributes" {
+			continue
+		}
+		content, isText := value.(string)
+		if key == "Error" && !isText {
+			continue
+		}
+		if key == "LastModifiedDate" || key == "CreatedDate" {
+			content = snapshotDateTime(content)
+		}
+		rows = append(rows, []string{titleFromCamelCase(key), content})
+	}
+	printTable(w, "", []string{"Name", "Value"}, rows)
+}
+
+func newOrgCreateSnapshotCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:         "snapshot",
+		Short:       "Create a snapshot of a scratch org.",
+		Args:        cobra.NoArgs,
+		Annotations: map[string]string{commandNameAnnotation: "SnapshotCreate"},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			source, _ := cmd.Flags().GetString("source-org")
+			name, _ := cmd.Flags().GetString("name")
+			var missing []string
+			if name == "" {
+				missing = append(missing, "name")
+			}
+			if source == "" {
+				missing = append(missing, "source-org")
+			}
+			if len(missing) > 0 {
+				return missingFlagsError(missing...)
+			}
+			// The source org is an org Id, or a username or alias of an
+			// authorized org.
+			if !strings.HasPrefix(source, "00D") {
+				org, err := loadOrg(source)
+				if err != nil || org.Fields.String("orgId") == "" {
+					return flagParseError("", "source-org", "No org found for "+source)
+				}
+				source = org.Fields.String("orgId")
+			}
+			hub, err := resolveTargetDevHub(cmd)
+			if err != nil {
+				return err
+			}
+			request := orderedFields("SourceOrg", source)
+			if cmd.Flags().Changed("description") {
+				description, _ := cmd.Flags().GetString("description")
+				request.Set("Description", description)
+			}
+			request.Set("SnapshotName", name)
+			request.Set("Content", "metadatadata")
+			body, err := json.Marshal(request)
+			if err != nil {
+				return err
+			}
+			response, err := hub.Force.PostREST("/sobjects/OrgSnapshot", string(body))
+			if err != nil {
+				converted := apiError(err)
+				// A Dev Hub without the feature does not have the object.
+				if e, ok := converted.(*Error); ok && e.Name == "NOT_FOUND" {
+					e.Message = "Scratch Org Snapshots isn't enabled for your Dev Hub."
+				}
+				return converted
+			}
+			var created struct {
+				ID      string `json:"id"`
+				Success bool   `json:"success"`
+			}
+			if json.Unmarshal([]byte(response), &created) != nil || !created.Success {
+				return newError("SfError", "An error while created the org snapshot")
+			}
+			record, err := snapshotByNameOrID(hub, created.ID)
+			if err != nil {
+				return err
+			}
+			return emit(cmd, record, func(w io.Writer) { printSnapshot(w, record) })
+		},
+	}
+	addJSONFlag(cmd)
+	addAPIVersionFlag(cmd)
+	cmd.Flags().StringP("source-org", "o", "", "ID or locally authenticated username or alias of scratch org to snapshot.")
+	cmd.Flags().StringP("name", "n", "", "Unique name of snapshot.")
+	cmd.Flags().StringP("description", "d", "", "Description of snapshot.")
+	addTargetDevHubFlag(cmd)
+	return cmd
+}
+
 func newOrgListSnapshotCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:         "snapshot",
@@ -125,24 +221,7 @@ func newOrgGetSnapshotCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return emit(cmd, record, func(w io.Writer) {
-				var rows [][]string
-				for _, key := range record.keys {
-					value := record.values[key]
-					if key == "attributes" {
-						continue
-					}
-					content, isText := value.(string)
-					if key == "Error" && !isText {
-						continue
-					}
-					if key == "LastModifiedDate" || key == "CreatedDate" {
-						content = snapshotDateTime(content)
-					}
-					rows = append(rows, []string{titleFromCamelCase(key), content})
-				}
-				printTable(w, "", []string{"Name", "Value"}, rows)
-			})
+			return emit(cmd, record, func(w io.Writer) { printSnapshot(w, record) })
 		},
 	}
 	addJSONFlag(cmd)

@@ -117,6 +117,7 @@ The files written by the `template generate` commands come from the salesforcedx
 | `sf org resume sandbox` | none | The output for a sandbox that is not ready was compared with sf. Logging in to a finished sandbox was not. The progress display is printed once, when the command ends. | Compared with sf |
 | `sf org resume scratch` | none; reads `~/.sf/scratch-create-cache.json` and finishes the request as `force login scratch` does | The output follows a transcript of `sf`; this mode was not run against a Dev Hub. The case of an org that is not ready follows the plugin source. | Follows the sf plugin source |
 | `sf org create shape` | none |  | Follows the sf plugin source |
+| `sf org create snapshot` | none | Not compared with sf: the Dev Hub used for the comparison did not have snapshots enabled. | Follows the sf plugin source |
 | `sf org create user` | none; creates the user with the SCIM API and writes its authorization file | An org that was authorized with the JWT flow. | Compared with sf |
 | `sf org delete shape` | none |  | Follows the sf plugin source |
 | `sf org delete snapshot` | none | The Dev Hub used for the comparison did not have snapshots enabled: the error for that case was compared, and the tables follow the plugin source. Dates are formatted for the en-US locale. | Follows the sf plugin source |
@@ -143,9 +144,9 @@ The files written by the `template generate` commands come from the salesforcedx
 | `sf org login web` | `force login` | `--browser`, `--client-app`, `--username`, `--scopes`. Uses the force connected app and callback port unless `--client-id` is given. | Not compared; needs a browser login |
 | `sf org logout` | `force logout` | `--client-app` is accepted and has no effect. | Compared with sf |
 | `sf org open` | `force open` | `--private`, `--browser`, `--source-file` | Compared with sf |
-| `sf package create` | `force package create` | `--no-namespace`, `--org-dependent`, `--error-notification-username` | Follows the sf plugin source |
+| `sf package create` | `force package create` |  | Follows the sf plugin source |
 | `sf package delete` | none |  | Follows the sf plugin source |
-| `sf package install` | `force package install` | `--publish-wait`, `--skip-handlers`. Does not prompt about remote site settings; they are enabled. | Follows the sf plugin source |
+| `sf package install` | `force package install` | `--publish-wait`. Does not prompt about remote site settings; they are enabled. | Follows the sf plugin source |
 | `sf package install report` | none |  | Follows the sf plugin source |
 | `sf package installed list` | `force package installed` |  | Follows the sf plugin source |
 | `sf package list` | `force package list` |  | Compared with sf |
@@ -155,14 +156,14 @@ The files written by the `template generate` commands come from the salesforcedx
 | `sf package push-upgrade schedule` | none | Not compared with sf: it upgrades a package in subscriber orgs. | Follows the sf plugin source |
 | `sf package uninstall` | `force package uninstall` |  | Follows the sf plugin source |
 | `sf package uninstall report` | none |  | Follows the sf plugin source |
-| `sf package update` | none | `--skip-ancestor-check` | Follows the sf plugin source |
+| `sf package update` | none |  | Follows the sf plugin source |
 | `sf package version create` | `force package version create` | `--installation-key`, `--definition-file`, `--branch`, `--post-install-script`, `--post-install-url`, `--releasenotes-url`, `--uninstall-script`, `--language`, `--generate-pkg-zip`, `--skip-ancestor-check`, `--verbose`. `--wait` is accepted; the command always waits. | Follows the sf plugin source |
-| `sf package version create list` | none | `--show-conversions-only`, `--verbose` | Compared with sf |
+| `sf package version create list` | none | `--show-conversions-only` and `--verbose` follow the plugin source and were not compared with sf. | Compared with sf |
 | `sf package version create report` | none | Only the error for a request that does not exist was compared with sf. | Follows the sf plugin source |
 | `sf package version delete` | none |  | Follows the sf plugin source |
 | `sf package version displayancestry` | none | Only the errors for a package and a package version that do not exist were compared with sf. | Follows the sf plugin source |
 | `sf package version displaydependencies` | none | Not compared with sf. | Follows the sf plugin source |
-| `sf package version list` | `force package version list` | `--show-conversions-only`. The Dev Hub used for the comparison had no version with an ancestor, so the ancestor version number follows the plugin source. | Compared with sf |
+| `sf package version list` | `force package version list` | The Dev Hub used for the comparison had no version with an ancestor, so the ancestor version number follows the plugin source, as does `--show-conversions-only`. | Compared with sf |
 | `sf package version promote` | `force package version release` |  | Follows the sf plugin source |
 | `sf package version report` | `force package version get` | `--verbose` is accepted and adds nothing. Only the error for a version that does not exist was compared with sf. | Follows the sf plugin source |
 | `sf package version retrieve` | none | Not compared with sf: it needs a package version whose developer package zip can be downloaded. The rows are listed in the order this mode writes the files. | Follows the sf plugin source |
@@ -267,14 +268,13 @@ A flag listed as unsupported returns an error that names the flag.
 
 ## sf Commands Not Implemented
 
-91 of the 239 commands of `sf` 2.138.6 and its bundled and install-on-first-use plugins are not implemented. Third-party plugins and the retired Functions plugin are not counted. Running one of these commands prints the message `sf` prints for an unknown command and exits with status 127.
+90 of the 239 commands of `sf` 2.138.6 and its bundled and install-on-first-use plugins are not implemented. Third-party plugins and the retired Functions plugin are not counted. Running one of these commands prints the message `sf` prints for an unknown command and exits with status 127.
 
 ### org
 
 | sf command | Summary | What is required |
 |---|---|---|
 | `sf org create agent-user` | Create the default Salesforce user that is used to run an agent. | Create an agent User record and assign permission sets. |
-| `sf org create snapshot` | Create a snapshot of a scratch org. | Create an OrgSnapshot record in the Dev Hub. |
 | `sf org open agent` | Open an agent in your org's Agentforce Builder UI in a browser. | Build the Agentforce Builder URL for an agent and open it as `org open` does. |
 
 ### project

@@ -87,12 +87,13 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [ ] `org create scratch`: `--client-id`, `--no-ancestors`, `--source-org`, `--snapshot`
 - [ ] `org login web`: `--browser`, `--client-app`, `--username`, `--scopes`
 - [ ] `org open`: `--private`, `--browser`, `--source-file`
-- [ ] `package create`: `--no-namespace`, `--org-dependent`, `--error-notification-username`
-- [ ] `package install`: `--publish-wait`, `--skip-handlers`
+- [x] `package create`: `--no-namespace`, `--org-dependent`, `--error-notification-username`
+- [x] `package install`: `--skip-handlers`
+- [ ] `package install`: `--publish-wait`
 - [ ] `package version create`: `--installation-key`, `--definition-file`, `--branch`, `--post-install-script`, `--post-install-url`, `--releasenotes-url`, `--uninstall-script`, `--language`, `--generate-pkg-zip`, `--skip-ancestor-check`, `--verbose`
-- [ ] `package update`: `--skip-ancestor-check`
-- [ ] `package version create list`: `--show-conversions-only`, `--verbose`
-- [ ] `package version list`: `--show-conversions-only`
+- [x] `package update`: `--skip-ancestor-check`, and the ancestor check of a new recommended version
+- [x] `package version create list`: `--show-conversions-only`, `--verbose`
+- [x] `package version list`: `--show-conversions-only`
 - [x] `project convert mdapi`: `--manifest`, `--metadata-dir`, `--metadata`
 - [x] `project convert source`: `--package-name`
 - [x] `project deploy start`, `project deploy validate`: `--coverage-formatters`, `--junit`, `--results-dir` (the `html` and `html-spa` formats are not supported)
@@ -184,7 +185,7 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 
 163 commands of sf 2.138.6 and its bundled and install-on-first-use plugins. `docs/sf-compatibility.md` says what each needs. Commands under "dev" and most under "CLI management" manage the Node.js CLI and its plugins and do not apply to force.
 
-### org (3 open, 24 done)
+### org (2 open, 25 done)
 
 - [x] `org assign permset` (follows the sf plugin source)
 - [x] `org assign permsetlicense` (follows the sf plugin source)
@@ -194,7 +195,7 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [ ] `org create agent-user`
 - [x] `org create sandbox` (`--async` output compared with sf; waiting and the login to the sandbox follow the source)
 - [x] `org create shape` (follows the sf plugin source)
-- [ ] `org create snapshot`
+- [x] `org create snapshot` (follows the sf plugin source; not compared with sf)
 - [x] `org create user` (compared with sf against a scratch org; an org authorized with the JWT flow is refused)
 - [x] `org delete sandbox` (follows the sf plugin source; not compared with sf)
 - [x] `org delete scratch` (follows the sf plugin source)

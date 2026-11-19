@@ -17,7 +17,7 @@ sf org [flags]
 * [sf](sf.md)	 - sf-compatible mode of the force CLI
 * [sf org assign](sf_org_assign.md)	 - Assign permission sets and licenses.
 * [sf org auth](sf_org_auth.md)	 - Show stored credentials of an org.
-* [sf org create](sf_org_create.md)	 - Create scratch orgs, sandboxes, users and org shapes.
+* [sf org create](sf_org_create.md)	 - Create scratch orgs, sandboxes, users, org shapes and snapshots.
 * [sf org delete](sf_org_delete.md)	 - Delete scratch orgs, sandboxes, snapshots and org shapes.
 * [sf org disable](sf_org_disable.md)	 - Disable source tracking.
 * [sf org display](sf_org_display.md)	 - Display information about an org.

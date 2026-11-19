@@ -236,9 +236,6 @@ func newPackageCreateCmd() *cobra.Command {
 		Args:        cobra.NoArgs,
 		Annotations: map[string]string{commandNameAnnotation: "PackageCreateCommand"},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := unsupportedFlags(cmd, "org-dependent", "error-notification-username", "no-namespace"); err != nil {
-				return err
-			}
 			name, _ := cmd.Flags().GetString("name")
 			packageType, _ := cmd.Flags().GetString("package-type")
 			path, _ := cmd.Flags().GetString("path")
@@ -271,9 +268,20 @@ func newPackageCreateCmd() *cobra.Command {
 			request := newOrderedMap()
 			request.Set("Name", name)
 			request.Set("ContainerOptions", packageType)
+			if noNamespace, _ := cmd.Flags().GetBool("no-namespace"); noNamespace {
+				namespace = ""
+			}
 			request.Set("NamespacePrefix", namespace)
 			if description != "" {
 				request.Set("Description", description)
+			}
+			if cmd.Flags().Changed("org-dependent") {
+				orgDependent, _ := cmd.Flags().GetBool("org-dependent")
+				request.Set("IsOrgDependent", orgDependent)
+			}
+			if cmd.Flags().Changed("error-notification-username") {
+				username, _ := cmd.Flags().GetString("error-notification-username")
+				request.Set("PackageErrorUsername", username)
 			}
 			content, err := encodeJSON(request)
 			if err != nil {
@@ -441,7 +449,7 @@ func newPackageInstallCmd() *cobra.Command {
 		Args:        cobra.NoArgs,
 		Annotations: map[string]string{commandNameAnnotation: "Install"},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := unsupportedFlags(cmd, "publish-wait", "skip-handlers"); err != nil {
+			if err := unsupportedFlags(cmd, "publish-wait"); err != nil {
 				return err
 			}
 			packageFlag, _ := cmd.Flags().GetString("package")
@@ -472,6 +480,14 @@ func newPackageInstallCmd() *cobra.Command {
 			request.Set("Password", installationKey)
 			request.Set("ApexCompileType", apexCompile)
 			request.Set("SecurityType", securityTypes[securityType])
+			if handlers, _ := cmd.Flags().GetStringArray("skip-handlers"); len(handlers) > 0 {
+				for _, handler := range handlers {
+					if handler != "FeatureEnforcement" {
+						return &Error{Message: fmt.Sprintf("Expected --skip-handlers=%s to be one of: FeatureEnforcement\nSee more help with --help", handler), ExitCode: 1}
+					}
+				}
+				request.Set("SkipHandlers", strings.Join(handlers, ","))
+			}
 			request.Set("UpgradeType", upgradeTypes[upgradeType])
 			request.Set("NameConflictResolution", "Block")
 			request.Set("EnableRss", true)
@@ -719,9 +735,6 @@ func newPackageVersionListCmd() *cobra.Command {
 		Args:        cobra.NoArgs,
 		Annotations: map[string]string{commandNameAnnotation: "PackageVersionListCommand"},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := unsupportedFlags(cmd, "show-conversions-only"); err != nil {
-				return err
-			}
 			org, err := resolveTargetDevHub(cmd)
 			if err != nil {
 				return err
@@ -750,6 +763,10 @@ func newPackageVersionListCmd() *cobra.Command {
 			if days, _ := cmd.Flags().GetInt("modified-last-days"); cmd.Flags().Changed("modified-last-days") {
 				conditions = append(conditions, fmt.Sprintf("LastModifiedDate = LAST_N_DAYS:%d", days))
 			}
+			conversions, _ := cmd.Flags().GetBool("show-conversions-only")
+			if conversions {
+				conditions = append(conditions, "ConvertedFromVersionId != null")
+			}
 			if branch, _ := cmd.Flags().GetString("branch"); branch != "" {
 				conditions = append(conditions, fmt.Sprintf("Branch = '%s'", strings.ReplaceAll(branch, "'", `\'`)))
 			}
@@ -772,6 +789,9 @@ func newPackageVersionListCmd() *cobra.Command {
 				{"SubscriberPackageVersionId", "Subscriber Package Version Id"}, {"Alias", "Alias"}, {"IsPasswordProtected", "Installation Key"},
 				{"IsReleased", "Released"}, {"ValidationSkipped", "Validation Skipped"}, {"ValidatedAsync", "Validated Async"},
 				{"AncestorId", "Ancestor"}, {"AncestorVersion", "Ancestor Version"}, {"Branch", "Branch"},
+			}
+			if conversions && !verbose {
+				columns = append(columns, [2]string{"ConvertedFromVersionId", "Converted From Version Id"})
 			}
 			if concise {
 				columns = [][2]string{{"Package2Id", "Package Id"}, {"Version", "Version"}, {"SubscriberPackageVersionId", "Subscriber Package Version Id"}, {"IsReleased", "Released"}}

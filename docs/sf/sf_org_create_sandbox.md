@@ -28,5 +28,5 @@ sf org create sandbox [flags]
 
 ### SEE ALSO
 
-* [sf org create](sf_org_create.md)	 - Create scratch orgs, sandboxes, users and org shapes.
+* [sf org create](sf_org_create.md)	 - Create scratch orgs, sandboxes, users, org shapes and snapshots.
 

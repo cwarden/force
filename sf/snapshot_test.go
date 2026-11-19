@@ -1,6 +1,7 @@
 package sf
 
 import (
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -71,5 +72,50 @@ func TestOrgListSnapshotWhenTheDevHubHasNoSnapshots(t *testing.T) {
 		if !strings.Contains(out, want) {
 			t.Errorf("json lacks %s:\n%s", want, out)
 		}
+	}
+}
+
+func TestOrgCreateSnapshot(t *testing.T) {
+	org := devHubSetup(t)
+	previous := time.Local
+	time.Local = time.UTC
+	t.Cleanup(func() { time.Local = previous })
+	request := ""
+	org.handlers["/services/data/v67.0/sobjects/OrgSnapshot"] = func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		request = string(body)
+		w.WriteHeader(http.StatusCreated)
+		io.WriteString(w, `{"id":"0Oo000000000001AAA","success":true,"errors":[]}`)
+	}
+	org.queries["FROM OrgSnapshot WHERE Id = '0Oo000000000001AAA'"] = []map[string]interface{}{{
+		"attributes": map[string]interface{}{"type": "OrgSnapshot"}, "Id": "0Oo000000000001AAA", "SnapshotName": "nightly", "Description": "After the seed data", "Status": "In Progress",
+		"SourceOrg": "00D000000000000", "CreatedDate": "2026-01-02T15:04:05.000+0000", "LastModifiedDate": "2026-01-02T15:04:05.000+0000", "ExpirationDate": nil, "Error": nil,
+	}}
+	// The alias of an authorized org gives its org Id.
+	out, errOut, status := run("org", "create", "snapshot", "-o", "hub", "-n", "nightly", "-d", "After the seed data")
+	if status != 0 || !strings.Contains(out, "│ Snapshot Name      │ nightly ") || !strings.Contains(out, "│ Status             │ In Progress ") {
+		t.Errorf("create: status %d, stderr %q\n%s", status, errOut, out)
+	}
+	if request != `{"SourceOrg":"00D000000000000","Description":"After the seed data","SnapshotName":"nightly","Content":"metadatadata"}` {
+		t.Errorf("request = %s", request)
+	}
+	if _, _, status = run("force:org:snapshot:create", "-o", "00D000000000009", "-n", "nightly", "--json"); status != 0 || request != `{"SourceOrg":"00D000000000009","SnapshotName":"nightly","Content":"metadatadata"}` {
+		t.Errorf("org id: status %d, request %s", status, request)
+	}
+	_, errOut, status = run("org", "create", "snapshot", "-o", "nobody", "-n", "nightly")
+	if status != 2 || !strings.Contains(errOut, "No org found for nobody") {
+		t.Errorf("unknown org: status %d, stderr %q", status, errOut)
+	}
+	_, errOut, status = run("org", "create", "snapshot")
+	if status != 2 || !strings.Contains(errOut, "Missing required flag name") || !strings.Contains(errOut, "Missing required flag source-org") {
+		t.Errorf("no flags: status %d, stderr %q", status, errOut)
+	}
+	org.handlers["/services/data/v67.0/sobjects/OrgSnapshot"] = func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		io.WriteString(w, `[{"message":"The requested resource does not exist","errorCode":"NOT_FOUND"}]`)
+	}
+	_, errOut, status = run("org", "create", "snapshot", "-o", "hub", "-n", "nightly")
+	if status != 1 || !strings.Contains(errOut, "Scratch Org Snapshots isn't enabled for your Dev Hub.") {
+		t.Errorf("not enabled: status %d, stderr %q", status, errOut)
 	}
 }

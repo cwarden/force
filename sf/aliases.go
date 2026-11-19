@@ -78,6 +78,7 @@ var legacyCommandIds = map[string]string{
 	"force:org:shape:create":                "org:create:shape",
 	"force:org:shape:delete":                "org:delete:shape",
 	"force:org:shape:list":                  "org:list:shape",
+	"force:org:snapshot:create":             "org:create:snapshot",
 	"force:org:snapshot:delete":             "org:delete:snapshot",
 	"force:org:snapshot:get":                "org:get:snapshot",
 	"force:org:snapshot:list":               "org:list:snapshot",
