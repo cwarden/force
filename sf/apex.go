@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -17,7 +18,7 @@ import (
 func newApexCmd() *cobra.Command {
 	return newGroup("apex", "Use the apex commands to create Apex classes, execute anonymous blocks, view your logs, run Apex tests, and view Apex test results.",
 		withSubcommands(newApexRunCmd(), newApexRunTestCmd()),
-		newGroup("get", "Fetch Apex debug logs and test results.", newApexGetLogCmd(), newApexGetTestCmd()),
+		newGroup("get", "Fetch Apex debug logs and test results.", newApexGetLogCmd(), newApexGetTestCmd(), newApexGetCompileStatusCmd()),
 		newGroup("list", "List Apex debug logs.", newApexListLogCmd()),
 		newGroup("tail", "Tail Apex debug logs.", newApexTailLogCmd()),
 		newGroup("trace", "Manage trace flags.", newApexTraceCreateCmd(), newApexTraceListCmd(), newApexTraceDeleteCmd()),
@@ -491,6 +492,69 @@ func newApexTraceDeleteCmd() *cobra.Command {
 	}
 	addJSONFlag(cmd)
 	cmd.Flags().StringP("trace-flag-id", "i", "", "ID of the trace flag to delete.")
+	addAPIVersionFlag(cmd)
+	addTargetOrgFlag(cmd)
+	return cmd
+}
+
+func newApexGetCompileStatusCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:         "compile-status",
+		Short:       "Fetches the compilation status for Apex classes that are currently invalid or have compilation warnings.",
+		Args:        cobra.NoArgs,
+		Annotations: map[string]string{commandNameAnnotation: "GetCompileStatus"},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			org, err := resolveTargetOrg(cmd)
+			if err != nil {
+				return err
+			}
+			if version, _ := cmd.Flags().GetString("api-version"); version != "" {
+				if number, err := strconv.ParseFloat(version, 64); err == nil && number < 68 {
+					return newError("SfError", "Apex compile results available in API versions 68.0 and above")
+				}
+			}
+			body, err := org.Force.PostREST("/tooling/apexCompileResults", "{}")
+			if !jsonRequested(cmd) {
+				fmt.Fprintln(cmd.ErrOrStderr(), "Retrieving Apex compilation results... done")
+			}
+			if err != nil {
+				return apiError(err)
+			}
+			result, err := parseOrderedJSON([]byte(body))
+			if err != nil {
+				return err
+			}
+			return emit(cmd, result, func(w io.Writer) {
+				response, _ := result.(*orderedMap)
+				var results []interface{}
+				if response != nil {
+					results, _ = response.values["results"].([]interface{})
+				}
+				if len(results) == 0 {
+					fmt.Fprintln(w, "No Apex compiler issues found.")
+					return
+				}
+				positions := func(value interface{}) string {
+					items, _ := value.([]interface{})
+					lines := make([]string, 0, len(items))
+					for _, item := range items {
+						if problem, ok := item.(*orderedMap); ok {
+							lines = append(lines, fmt.Sprintf("L%v:C%v - %s", problem.values["line"], problem.values["column"], text(problem.values["message"])))
+						}
+					}
+					return strings.Join(lines, "\n")
+				}
+				rows := make([][]string, 0, len(results))
+				for _, item := range results {
+					if entry, ok := item.(*orderedMap); ok {
+						rows = append(rows, []string{text(entry.values["name"]), text(entry.values["namespace"]), fmt.Sprint(entry.values["success"]), positions(entry.values["problems"]), positions(entry.values["warnings"])})
+					}
+				}
+				printTable(w, "Compile Status Results:", []string{"Name", "Namespace", "Success", "Problems", "Warnings"}, rows)
+			})
+		},
+	}
+	addJSONFlag(cmd)
 	addAPIVersionFlag(cmd)
 	addTargetOrgFlag(cmd)
 	return cmd

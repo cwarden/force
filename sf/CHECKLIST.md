@@ -227,9 +227,9 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [x] `data export tree`
 - [x] `data import tree` (follows the sf plugin source)
 
-### apex (1 open, 1 done)
+### apex (0 open, 2 done)
 
-- [ ] `apex get compile-status`
+- [x] `apex get compile-status` (compared with sf against a scratch org without compile problems; the table of problems follows the plugin source)
 - [x] `apex get test`
 
 ### logic (2 open, 0 done)

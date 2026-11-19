@@ -57,6 +57,7 @@ The files written by the `template generate` commands come from the salesforcedx
 | `sf alias list` | none; reads `~/.sfdx/alias.json` |  | Compared with sf |
 | `sf alias set` | none; writes `~/.sfdx/alias.json` |  | Compared with sf |
 | `sf alias unset` | none; writes `~/.sfdx/alias.json` | Does not prompt before `--all`. | Compared with sf |
+| `sf apex get compile-status` | none; one request to the Tooling API resource `apexCompileResults` | The table for a result with problems follows the plugin source; the org used for the comparison had none. | Compared with sf |
 | `sf apex get log` | `force log <id>` |  | Follows the sf plugin source |
 | `sf apex get test` | none (`force test` prints results when it runs) |  | Compared with sf |
 | `sf apex list log` | `force log list` |  | Follows the sf plugin source |
@@ -239,7 +240,7 @@ A flag listed as unsupported returns an error that names the flag.
 
 ## sf Commands Not Implemented
 
-117 of the 239 commands of `sf` 2.138.6 and its bundled and install-on-first-use plugins are not implemented. Third-party plugins and the retired Functions plugin are not counted. Running one of these commands prints the message `sf` prints for an unknown command and exits with status 127.
+116 of the 239 commands of `sf` 2.138.6 and its bundled and install-on-first-use plugins are not implemented. Third-party plugins and the retired Functions plugin are not counted. Running one of these commands prints the message `sf` prints for an unknown command and exits with status 127.
 
 ### org
 
@@ -271,12 +272,6 @@ A flag listed as unsupported returns an error that names the flag.
 | `sf project deploy pipeline resume` | Resume watching a pipeline deploy operation. | DevOps Center API; no force code exists. |
 | `sf project deploy pipeline start` | Deploy changes from a branch to the pipeline stage’s org. | DevOps Center API; no force code exists. |
 | `sf project deploy pipeline validate` | Perform a validate-only deployment from a branch to the pipeline stage’s org. | DevOps Center API; no force code exists. |
-
-### apex
-
-| sf command | Summary | What is required |
-|---|---|---|
-| `sf apex get compile-status` | Fetches the compilation status for Apex classes that are currently invalid or have compilation warnings. | Query ApexClass and ApexTrigger for invalid components. |
 
 ### logic
 

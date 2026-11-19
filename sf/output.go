@@ -123,8 +123,10 @@ func printStyledTable(w io.Writer, title string, headers []string, rows [][]stri
 	}
 	for _, row := range rows {
 		for i, cell := range row {
-			if i < len(widths) && runewidth.StringWidth(cell) > widths[i] {
-				widths[i] = runewidth.StringWidth(cell)
+			for _, part := range strings.Split(cell, "\n") {
+				if i < len(widths) && runewidth.StringWidth(part) > widths[i] {
+					widths[i] = runewidth.StringWidth(part)
+				}
 			}
 		}
 	}
@@ -161,7 +163,26 @@ func printStyledTable(w io.Writer, title string, headers []string, rows [][]stri
 		if rowStyle != nil {
 			cellStyle = rowStyle(i)
 		}
-		fmt.Fprintln(w, line(row, cellStyle))
+		// A cell with several lines makes the row that many lines high.
+		height := 1
+		for _, cell := range row {
+			if lines := strings.Count(cell, "\n") + 1; lines > height {
+				height = lines
+			}
+		}
+		if height == 1 {
+			fmt.Fprintln(w, line(row, cellStyle))
+			continue
+		}
+		for n := 0; n < height; n++ {
+			cells := make([]string, len(row))
+			for c, cell := range row {
+				if parts := strings.Split(cell, "\n"); n < len(parts) {
+					cells[c] = parts[n]
+				}
+			}
+			fmt.Fprintln(w, line(cells, cellStyle))
+		}
 	}
 	fmt.Fprintln(w, border("└", "┴", "┘"))
 	fmt.Fprintln(w)

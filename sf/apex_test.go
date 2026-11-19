@@ -395,3 +395,48 @@ func TestApexTraceCommands(t *testing.T) {
 		t.Error("no DELETE request was made")
 	}
 }
+
+func TestApexGetCompileStatus(t *testing.T) {
+	org := loggedInFakeOrg(t)
+	response := `{"results":[],"status":"OK"}`
+	var requestBody string
+	org.handlers["/services/data/v67.0/tooling/apexCompileResults"] = func(w http.ResponseWriter, r *http.Request) {
+		data, _ := io.ReadAll(r.Body)
+		requestBody = r.Method + " " + string(data)
+		w.Write([]byte(response))
+	}
+	out, errOut, status := run("apex", "get", "compile-status")
+	if status != 0 || out != "No Apex compiler issues found.\n" || errOut != "Retrieving Apex compilation results... done\n" {
+		t.Errorf("status %d, stdout %q, stderr %q", status, out, errOut)
+	}
+	if requestBody != "POST {}" {
+		t.Errorf("request = %q", requestBody)
+	}
+	expectRun(t, 0, `{
+  "status": 0,
+  "result": {
+    "results": [],
+    "status": "OK"
+  },
+  "warnings": []
+}
+`, "apex", "get", "compile-status", "--json")
+
+	_, errOut, status = run("apex", "get", "compile-status", "--api-version", "60.0")
+	if status != 1 || errOut != "Error (SfError): Apex compile results available in API versions 68.0 and above\n\n\n" {
+		t.Errorf("old version: status %d, stderr %q", status, errOut)
+	}
+
+	// The layout of a result with problems follows the plugin source; it
+	// was not compared with sf.
+	response = `{"results":[{"name":"Broken","namespace":"","success":false,"problems":[{"line":3,"column":12,"message":"Variable does not exist: x"},{"line":9,"column":1,"message":"Missing return"}],"warnings":[]}],"status":"OK"}`
+	expectRun(t, 0, `Compile Status Results:
+┌────────┬───────────┬─────────┬─────────────────────────────────────┬──────────┐
+│ Name   │ Namespace │ Success │ Problems                            │ Warnings │
+├────────┼───────────┼─────────┼─────────────────────────────────────┼──────────┤
+│ Broken │           │ false   │ L3:C12 - Variable does not exist: x │          │
+│        │           │         │ L9:C1 - Missing return              │          │
+└────────┴───────────┴─────────┴─────────────────────────────────────┴──────────┘
+
+`, "apex", "get", "compile-status")
+}
