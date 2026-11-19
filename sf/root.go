@@ -56,9 +56,9 @@ func Execute() {
 
 // Run executes the sf command tree and returns the exit status.
 func Run(args []string, out, errOut io.Writer) int {
-	args = normalizeArgs(args)
-	jsonOutput := hasJSONFlag(args)
 	root := NewRootCmd()
+	args = normalizeArgsFor(root, args)
+	jsonOutput := hasJSONFlag(args)
 	root.SetArgs(args)
 	root.SetContext(context.WithValue(context.Background(), runStateKey{}, &runState{}))
 	root.SetOut(out)
@@ -121,8 +121,12 @@ func NewRootCmd() *cobra.Command {
 // "org login".
 func newGroup(use, short string, children ...*cobra.Command) *cobra.Command {
 	group := &cobra.Command{
-		Use:   use,
-		Short: short,
+		Use:         use,
+		Short:       short,
+		Annotations: map[string]string{topicAnnotation: "true"},
+		// An unknown command under a topic is reported as an unknown
+		// command even when flags follow it.
+		FParseErrWhitelist: cobra.FParseErrWhitelist{UnknownFlags: true},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 {
 				id := strings.Join(append(strings.Fields(cmd.CommandPath())[1:], args...), " ")
@@ -155,6 +159,27 @@ func normalizeFlagName(f *pflag.FlagSet, name string) pflag.NormalizedName {
 		return pflag.NormalizedName(current)
 	}
 	return pflag.NormalizedName(name)
+}
+
+const topicAnnotation = "sfTopic"
+
+// normalizeArgsFor is normalizeArgs for a command tree.  A legacy id is not
+// rewritten when the words already name a command of the tree that is at
+// least as long: "project generate manifest" is a command, although
+// "project generate" is a legacy id of "template generate project".
+func normalizeArgsFor(root *cobra.Command, args []string) []string {
+	if len(args) == 0 || strings.HasPrefix(args[0], "-") {
+		return args
+	}
+	words := append(strings.Split(args[0], ":"), args[1:]...)
+	positional := 0
+	for positional < len(words) && !strings.HasPrefix(words[positional], "-") {
+		positional++
+	}
+	if found, _, err := root.Find(words[:positional]); err == nil && found != root && found.Annotations[topicAnnotation] == "" {
+		return words
+	}
+	return normalizeArgs(args)
 }
 
 // normalizeArgs converts the colon form of a command id ("org:login:web") to

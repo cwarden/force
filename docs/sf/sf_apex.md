@@ -15,7 +15,7 @@ sf apex [flags]
 ### SEE ALSO
 
 * [sf](sf.md)	 - sf-compatible mode of the force CLI
-* [sf apex get](sf_apex_get.md)	 - Fetch Apex debug logs.
+* [sf apex get](sf_apex_get.md)	 - Fetch Apex debug logs and test results.
 * [sf apex list](sf_apex_list.md)	 - List Apex debug logs.
 * [sf apex run](sf_apex_run.md)	 - Execute anonymous Apex code entered on the command line or from a local file.
 * [sf apex tail](sf_apex_tail.md)	 - Tail Apex debug logs.

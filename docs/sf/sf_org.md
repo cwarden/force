@@ -15,6 +15,7 @@ sf org [flags]
 ### SEE ALSO
 
 * [sf](sf.md)	 - sf-compatible mode of the force CLI
+* [sf org auth](sf_org_auth.md)	 - Show stored credentials of an org.
 * [sf org create](sf_org_create.md)	 - Create scratch orgs.
 * [sf org display](sf_org_display.md)	 - Display information about an org.
 * [sf org list](sf_org_list.md)	 - List all orgs you've created or authenticated to.

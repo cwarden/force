@@ -69,7 +69,7 @@ func TestLegacyIdsOfImplementedCommandsResolve(t *testing.T) {
 			continue
 		}
 		checked++
-		args := normalizeArgs([]string{legacy})
+		args := normalizeArgsFor(NewRootCmd(), []string{legacy})
 		found, _, err := NewRootCmd().Find(args)
 		if err != nil || strings.Join(strings.Fields(found.CommandPath())[1:], ":") != current {
 			t.Errorf("legacy id %s resolves to %v, want %s (err %v)", legacy, args, current, err)
@@ -77,5 +77,18 @@ func TestLegacyIdsOfImplementedCommandsResolve(t *testing.T) {
 	}
 	if checked < 40 {
 		t.Errorf("only %d legacy ids point at implemented commands", checked)
+	}
+}
+
+func TestACommandIsNotRewrittenAsALegacyId(t *testing.T) {
+	// "project:generate" is a legacy id of "template generate project".
+	root := NewRootCmd()
+	got := normalizeArgsFor(root, []string{"project", "generate", "manifest", "-p", "force-app"})
+	if strings.Join(got, " ") != "project generate manifest -p force-app" {
+		t.Errorf("args = %v", got)
+	}
+	got = normalizeArgsFor(root, []string{"project:generate", "-n", "x"})
+	if strings.Join(got, " ") != "template generate project -n x" {
+		t.Errorf("legacy id args = %v", got)
 	}
 }

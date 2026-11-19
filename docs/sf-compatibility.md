@@ -52,9 +52,10 @@ Logins, aliases and config values written by this mode were read by `sf` 2.138.6
 | `sf alias set` | none; writes `~/.sfdx/alias.json` |  | Compared with sf |
 | `sf alias unset` | none; writes `~/.sfdx/alias.json` | Does not prompt before `--all`. | Compared with sf |
 | `sf apex get log` | `force log <id>` |  | Follows the sf plugin source |
+| `sf apex get test` | none (`force test` prints results when it runs) |  | Compared with sf |
 | `sf apex list log` | `force log list` |  | Follows the sf plugin source |
 | `sf apex run` | `force apex` |  | Compared with sf |
-| `sf apex run test` | `force test` | `--output-dir`, `--detailed-coverage` | Compared with sf |
+| `sf apex run test` | `force test` |  | Compared with sf |
 | `sf apex tail log` | `force log tail` | `--debug-level`. `--color` is accepted and has no effect. | Follows the sf plugin source |
 | `sf apex trace create` | `force trace start` | This command is in plugin-apex versions newer than the one bundled with sf 2.138.6. | Follows the sf plugin source |
 | `sf apex trace delete` | `force trace delete` | As above. | Follows the sf plugin source |
@@ -86,8 +87,11 @@ Logins, aliases and config values written by this mode were read by `sf` 2.138.6
 | `sf force data bulk delete` | `force bulk delete` | Sends the file as one batch; sf splits it into batches of 10,000 records. | Follows the sf plugin source |
 | `sf force data bulk status` | `force bulk job`, `force bulk batch` |  | Follows the sf plugin source |
 | `sf force data bulk upsert` | `force bulk upsert` | Sends the file as one batch. | Follows the sf plugin source |
+| `sf org auth show-access-token` | none |  | Compared with sf |
+| `sf org auth show-sfdx-auth-url` | none |  | Error output compared with sf; the URL format follows the sf source |
+| `sf org auth show-user-password` | none | No command of this mode stores a password, so it finds one only in an authorization file that sf wrote. | Follows the sf plugin source |
 | `sf org create scratch` | `force login scratch` | `--async`, `--client-id`, `--no-ancestors`, `--track-source`, `--source-org`, `--snapshot`; definition file key `objectSettings`. | Follows the sf plugin source |
-| `sf org display` | `force whoami`, `force active` | `--verbose` is accepted and adds nothing. Scratch org fields are limited to the Dev Hub username and expiration date. | Compared with sf |
+| `sf org display` | `force whoami`, `force active` | Scratch org fields are limited to the Dev Hub username and expiration date. | Compared with sf |
 | `sf org display user` | `force whoami` |  | Compared with sf |
 | `sf org list` | `force logins --sfdx` | `--clean` and `--verbose` are accepted and have no effect. The connection status of every org is checked with one request to the org. | Compared with sf |
 | `sf org list auth` | `force logins` |  | Compared with sf |
@@ -96,6 +100,7 @@ Logins, aliases and config values written by this mode were read by `sf` 2.138.6
 | `sf org list metadata-types` | `force describe metadata` |  | Compared with sf |
 | `sf org login access-token` | none (`SF_ACCESS_TOKEN` and `SF_INSTANCE_URL` in force) |  | Compared with sf |
 | `sf org login jwt` | `force login -u <user> -k <key> --connected-app-client-id <id>` |  | Not compared; no JWT-enabled org was available |
+| `sf org login sfdx-url` | none |  | Follows the sf plugin source |
 | `sf org login web` | `force login` | `--browser`, `--client-app`, `--username`, `--scopes`. Uses the force connected app and callback port unless `--client-id` is given. | Not compared; needs a browser login |
 | `sf org logout` | `force logout` | `--client-app` is accepted and has no effect. | Compared with sf |
 | `sf org open` | `force open` | `--private`, `--browser`, `--source-file` | Follows the sf plugin source |
@@ -114,8 +119,10 @@ Logins, aliases and config values written by this mode were read by `sf` 2.138.6
 | `sf project deploy quick` | `force quickdeploy` | `--use-most-recent` | Follows the sf plugin source |
 | `sf project deploy report` | `force deploys status` | `--use-most-recent`, `--coverage-formatters`, `--junit`, `--results-dir` | Follows the sf plugin source |
 | `sf project deploy resume` | `force deploys watch` | `--use-most-recent`, `--coverage-formatters`, `--junit`, `--results-dir` | Follows the sf plugin source |
-| `sf project deploy start` | `force push`, `force import` | `--pre-destructive-changes`, `--post-destructive-changes`, `--coverage-formatters`, `--junit`, `--results-dir`. Requires `--source-dir`, `--metadata`, `--manifest` or `--metadata-dir`; there is no source tracking. `.forceignore` is not read. Prints the last frame of the progress display once. | Queued output and progress layout compared with sf; result tables follow the sf plugin source |
+| `sf project deploy start` | `force push`, `force import` | `--pre-destructive-changes`, `--post-destructive-changes`, `--coverage-formatters`, `--junit`, `--results-dir`. Requires `--source-dir`, `--metadata`, `--manifest` or `--metadata-dir`; there is no source tracking. Prints the last frame of the progress display once. | Queued output and progress layout compared with sf; result tables follow the sf plugin source |
 | `sf project deploy validate` | `force import --checkonly` | As `project deploy start`. | As `project deploy start` |
+| `sf project generate manifest` | none | `--from-org`, `--include-packages`. sf reports an error when a content file is ignored by `.forceignore` and its `-meta.xml` file is not; this mode leaves both out. | Compared with sf |
+| `sf project list ignored` | none |  | Compared with sf |
 | `sf project retrieve start` | `force fetch`, `force export` | `--single-package`; one `--package-name` value. The JSON result has `files`, `status`, `success` and `done`; it has no `fileProperties`. Requires `--metadata`, `--manifest`, `--source-dir` or `--package-name`. | Failure output compared with sf; result table follows the sf plugin source |
 | `sf sobject describe` | `force describe sobject --name <name> --json` |  | Compared with sf |
 | `sf sobject list` | `force sobject list` |  | Compared with sf |
@@ -187,7 +194,7 @@ A flag listed as unsupported returns an error that names the flag.
 
 ## sf Commands Not Implemented
 
-163 of the 239 commands of `sf` 2.138.6 and its bundled and install-on-first-use plugins are not implemented. Third-party plugins and the retired Functions plugin are not counted. Running one of these commands prints the message `sf` prints for an unknown command and exits with status 127.
+156 of the 239 commands of `sf` 2.138.6 and its bundled and install-on-first-use plugins are not implemented. Third-party plugins and the retired Functions plugin are not counted. Running one of these commands prints the message `sf` prints for an unknown command and exits with status 127.
 
 ### org
 
@@ -195,9 +202,6 @@ A flag listed as unsupported returns an error that names the flag.
 |---|---|---|
 | `sf org assign permset` | Assign a permission set to one or more org users. | Create PermissionSetAssignment or PermissionSetLicenseAssign records. |
 | `sf org assign permsetlicense` | Assign a permission set license to one or more org users. | Create PermissionSetAssignment or PermissionSetLicenseAssign records. |
-| `sf org auth show-access-token` | Show the current access token for an org. | Print fields of the authorization file after a confirmation prompt. |
-| `sf org auth show-sfdx-auth-url` | Show the SFDX Auth URL for an org. | Print fields of the authorization file after a confirmation prompt. |
-| `sf org auth show-user-password` | Show the stored password for an org's user. | Print fields of the authorization file after a confirmation prompt. |
 | `sf org create agent-user` | Create the default Salesforce user that is used to run an agent. | Create an agent User record and assign permission sets. |
 | `sf org create sandbox` | Create a sandbox org. | Create a SandboxInfo record through the Tooling API and poll SandboxProcess; no force code exists. |
 | `sf org create shape` | Create a scratch org configuration (shape) based on the specified source org. | Create a ShapeRepresentation record. |
@@ -215,7 +219,6 @@ A flag listed as unsupported returns an error that names the flag.
 | `sf org list snapshot` | List scratch org snapshots. | Query OrgSnapshot. |
 | `sf org list sobject record-counts` | Display record counts for the specified standard or custom objects. | One request to the `limits/recordCount` resource. |
 | `sf org list users` | List all locally-authenticated users of an org. | Read the users sf records in authorization files of scratch orgs. |
-| `sf org login sfdx-url` | Authorize an org using a Salesforce DX authorization URL stored in a file or through standard input (stdin). | Parse the `force://` URL and exchange its refresh token; the token refresh and authorization file code exist. |
 | `sf org open agent` | Open an agent in your org's Agentforce Builder UI in a browser. | Build the Agentforce Builder URL for an agent and open it as `org open` does. |
 | `sf org refresh sandbox` | Refresh a sandbox org using the sandbox name. | As `org create sandbox`. |
 | `sf org resume sandbox` | Check the status of a sandbox creation, and log in to it if it's ready. | As `org create sandbox`. |
@@ -234,8 +237,6 @@ A flag listed as unsupported returns an error that names the flag.
 | `sf project deploy pipeline start` | Deploy changes from a branch to the pipeline stage’s org. | DevOps Center API; no force code exists. |
 | `sf project deploy pipeline validate` | Perform a validate-only deployment from a branch to the pipeline stage’s org. | DevOps Center API; no force code exists. |
 | `sf project deploy preview` | Preview a deployment to see what will deploy to the org, the potential conflicts, and the ignored files. | Source tracking is not implemented. |
-| `sf project generate manifest` | Create a project manifest that lists the metadata components you want to deploy or retrieve. | Write a package.xml from the collected source; `sourceSet` and `packageXML` in `sf/project_files.go` do most of this. |
-| `sf project list ignored` | Check your local project package directories for forceignored files. | Read `.forceignore`; nothing in force reads it. |
 | `sf project reset tracking` | Reset local and remote source tracking. | Source tracking is not implemented. |
 | `sf project retrieve preview` | Preview a retrieval to see what will be retrieved from the org, the potential conflicts, and the ignored files. | Source tracking is not implemented. |
 
@@ -252,7 +253,6 @@ A flag listed as unsupported returns an error that names the flag.
 | sf command | Summary | What is required |
 |---|---|---|
 | `sf apex get compile-status` | Fetches the compilation status for Apex classes that are currently invalid or have compilation warnings. | Query ApexClass and ApexTrigger for invalid components. |
-| `sf apex get test` | Display test results for a specific asynchronous test run. | Read a finished test run by Id; `loadTestRun` and the reporters in `sf/apextest.go` do this for `apex run test`. |
 
 ### logic
 
@@ -452,10 +452,8 @@ A flag listed as unsupported returns an error that names the flag.
 | Feature | What is required |
 |---|---|
 | Source tracking | Record the revision of each component in `<project>/.sf/orgs/<orgId>/` and query SourceMember, so that deploy and retrieve work without naming components. |
-| `.forceignore` | Read the file and leave out matching paths when source is collected. |
 | `--use-most-recent` on the deploy commands | Write and read `~/.sf/deploy-cache.json`. |
 | `--flags-dir` | Read one file per flag from the directory before parsing. |
 | `--coverage-formatters`, `--junit`, `--results-dir` on the deploy commands | Write coverage and JUnit files from the deploy result; `lib/junit` has a JUnit writer. |
-| `--output-dir`, `--detailed-coverage` on `apex run test` | Write the result files sf writes, and add the per-test coverage table. |
 | Destructive changes on deploy | Add destructiveChangesPre.xml and destructiveChangesPost.xml to the deploy zip. |
 | Interactive prompts | `sf` prompts for a similar config name, for a command when a topic is given without one, and before some destructive actions. This mode prompts only before `org logout` and `package version promote`. |

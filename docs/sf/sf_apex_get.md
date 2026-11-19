@@ -1,6 +1,6 @@
 ## sf apex get
 
-Fetch Apex debug logs.
+Fetch Apex debug logs and test results.
 
 ```
 sf apex get [flags]
@@ -16,4 +16,5 @@ sf apex get [flags]
 
 * [sf apex](sf_apex.md)	 - Use the apex commands to create Apex classes, execute anonymous blocks, view your logs, run Apex tests, and view Apex test results.
 * [sf apex get log](sf_apex_get_log.md)	 - Fetch the specified log or given number of most recent logs from the org.
+* [sf apex get test](sf_apex_get_test.md)	 - Display test results for a specific asynchronous test run.
 

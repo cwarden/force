@@ -20,5 +20,5 @@ sf apex get log [flags]
 
 ### SEE ALSO
 
-* [sf apex get](sf_apex_get.md)	 - Fetch Apex debug logs.
+* [sf apex get](sf_apex_get.md)	 - Fetch Apex debug logs and test results.
 

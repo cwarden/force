@@ -17,7 +17,7 @@ import (
 func newApexCmd() *cobra.Command {
 	return newGroup("apex", "Use the apex commands to create Apex classes, execute anonymous blocks, view your logs, run Apex tests, and view Apex test results.",
 		withSubcommands(newApexRunCmd(), newApexRunTestCmd()),
-		newGroup("get", "Fetch Apex debug logs.", newApexGetLogCmd()),
+		newGroup("get", "Fetch Apex debug logs and test results.", newApexGetLogCmd(), newApexGetTestCmd()),
 		newGroup("list", "List Apex debug logs.", newApexListLogCmd()),
 		newGroup("tail", "Tail Apex debug logs.", newApexTailLogCmd()),
 		newGroup("trace", "Manage trace flags.", newApexTraceCreateCmd(), newApexTraceListCmd(), newApexTraceDeleteCmd()),

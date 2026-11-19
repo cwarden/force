@@ -5,7 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
+	"net/url"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -18,6 +21,7 @@ func newOrgLoginCmd() *cobra.Command {
 	return newGroup("login", "Authorize an org for use with Salesforce CLI.",
 		newOrgLoginAccessTokenCmd(),
 		newOrgLoginJwtCmd(),
+		newOrgLoginSfdxURLCmd(),
 		newOrgLoginWebCmd(),
 	)
 }
@@ -338,6 +342,121 @@ func newOrgLoginWebCmd() *cobra.Command {
 	cmd.Flags().StringP("client-app", "c", "", "Name to give to the link between the connected app or external client and the already-authenticated user.")
 	cmd.Flags().String("username", "", "Username of the already-authenticated user to link to the connected app or external client app.")
 	cmd.Flags().String("scopes", "", "Authentication (OAuth) scopes to request.")
+	cmd.Flags().BoolP("no-prompt", "p", false, "Don't prompt for confirmation.")
+	cmd.Flags().MarkHidden("no-prompt")
+	return cmd
+}
+
+var sfdxURLPattern = regexp.MustCompile(`^force://([^:]*):([^:]*):([^@]*)@(.+)$`)
+
+// readSfdxAuthURL returns the SFDX auth URL in content: the text itself,
+// or the sfdxAuthUrl property of a JSON document such as the output of
+// "sf org display --verbose --json".
+func readSfdxAuthURL(content []byte) string {
+	text := strings.TrimSpace(string(content))
+	if strings.HasPrefix(text, "{") {
+		var document struct {
+			SfdxAuthUrl string `json:"sfdxAuthUrl"`
+			Result      struct {
+				SfdxAuthUrl string `json:"sfdxAuthUrl"`
+			} `json:"result"`
+		}
+		if json.Unmarshal(content, &document) == nil {
+			if document.SfdxAuthUrl != "" {
+				return document.SfdxAuthUrl
+			}
+			return document.Result.SfdxAuthUrl
+		}
+	}
+	return text
+}
+
+func newOrgLoginSfdxURLCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:         "sfdx-url",
+		Short:       "Authorize an org using a Salesforce DX authorization URL stored in a file or through standard input (stdin).",
+		Args:        cobra.NoArgs,
+		Annotations: map[string]string{commandNameAnnotation: "LoginSfdxUrl"},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			file, _ := cmd.Flags().GetString("sfdx-url-file")
+			stdin, _ := cmd.Flags().GetString("sfdx-url-stdin")
+			if (file == "") == (stdin == "") {
+				return exactlyOneError("sfdx-url-file", "sfdx-url-stdin")
+			}
+			var content []byte
+			var err error
+			if file != "" {
+				content, err = os.ReadFile(file)
+			} else {
+				content, err = io.ReadAll(cmd.InOrStdin())
+			}
+			if err != nil {
+				return err
+			}
+			match := sfdxURLPattern.FindStringSubmatch(readSfdxAuthURL(content))
+			if match == nil {
+				return newError("INVALID_SFDX_AUTH_URL", "Invalid SFDX authorization URL. Must be in the format \"force://<clientId>:<clientSecret>:<refreshToken>@<instanceUrl>\".  Note that the SFDX authorization URL uses the \"force\" protocol, and not \"http\" or \"https\".  Also note that the \"instanceUrl\" inside the SFDX authorization URL doesn't include the protocol (\"https://\").")
+			}
+			clientID, clientSecret, refreshToken, host := match[1], match[2], match[3], match[4]
+			instanceURL := host
+			if !strings.Contains(host, "://") {
+				instanceURL = "https://" + host
+			}
+			form := url.Values{}
+			form.Set("grant_type", "refresh_token")
+			form.Set("refresh_token", refreshToken)
+			form.Set("client_id", clientID)
+			if clientSecret != "" {
+				form.Set("client_secret", clientSecret)
+			}
+			response, err := http.PostForm(strings.TrimRight(instanceURL, "/")+"/services/oauth2/token", form)
+			if err != nil {
+				return err
+			}
+			defer response.Body.Close()
+			var token struct {
+				AccessToken      string `json:"access_token"`
+				InstanceURL      string `json:"instance_url"`
+				ErrorDescription string `json:"error_description"`
+			}
+			body, _ := io.ReadAll(response.Body)
+			if err := json.Unmarshal(body, &token); err != nil || token.AccessToken == "" {
+				message := token.ErrorDescription
+				if message == "" {
+					message = strings.TrimSpace(string(body))
+				}
+				return newError("RefreshTokenAuthError", "Error authenticating with the refresh token due to: %s", message)
+			}
+			if token.InstanceURL == "" {
+				token.InstanceURL = instanceURL
+			}
+			auth := authorization{
+				session: lib.ForceSession{
+					AccessToken:  token.AccessToken,
+					InstanceUrl:  token.InstanceURL,
+					RefreshToken: refreshToken,
+					ClientId:     clientID,
+				},
+				loginURL: instanceURL,
+				order:    []string{"accessToken", "instanceUrl", "orgId", "username", "loginUrl", "refreshToken", "clientId", "clientSecret"},
+			}
+			fields, order, err := saveAuthorization(cmd, auth)
+			if err != nil {
+				return err
+			}
+			if clientSecret != "" {
+				if err := lib.UpdateSFDXAuthFields(fields.String("username"), lib.SFDXAuthFields{"clientSecret": clientSecret}); err != nil {
+					return err
+				}
+			}
+			return emitAuthorization(cmd, "org login sfdx-url", fields, order)
+		},
+	}
+	addJSONFlag(cmd)
+	addLoginFlags(cmd)
+	cmd.Flags().StringP("sfdx-url-file", "f", "", "Path to a file that contains the Salesforce DX authorization URL.")
+	cmd.Flags().StringP("sfdx-url-stdin", "u", "", "Pipe the Salesforce DX authorization URL through standard input (stdin).")
+	cmd.Flags().Lookup("sfdx-url-stdin").NoOptDefVal = "-"
 	cmd.Flags().BoolP("no-prompt", "p", false, "Don't prompt for confirmation.")
 	cmd.Flags().MarkHidden("no-prompt")
 	return cmd

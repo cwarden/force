@@ -74,7 +74,7 @@ Reference: `sf` 2.138.6. Update this file as each item is finished.
 Flags of implemented commands that return an error. A flag marked "not defined" is reported as a nonexistent flag; the others are reported as not supported by this mode.
 
 - [ ] `apex run`: `--debug-level`, `--category-level` (not defined)
-- [ ] `apex run test`: `--output-dir`, `--detailed-coverage`
+- [x] `apex run test`: `--output-dir`, `--detailed-coverage`
 - [ ] `apex tail log`: `--debug-level`
 - [ ] `api request rest`: `--file`
 - [ ] `commands`: `--columns`, `--deprecated`, `--extended`, `--hidden`, `--no-truncate`, `--sort`, `--tree` (not defined)
@@ -91,6 +91,7 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [ ] `project deploy start`, `project deploy validate`: `--pre-destructive-changes`, `--post-destructive-changes`, `--coverage-formatters`, `--junit`, `--results-dir`
 - [ ] `project deploy report`, `project deploy resume`: `--coverage-formatters`, `--junit`, `--results-dir` (not defined)
 - [ ] `project deploy quick`, `report`, `resume`, `cancel`: `--use-most-recent`
+- [ ] `project generate manifest`: `--from-org`, `--include-packages`
 - [ ] `project retrieve start`: `--single-package`; more than one `--package-name`
 
 ## Flags Accepted Without Effect
@@ -98,7 +99,7 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [ ] `alias unset`: `--no-prompt` (there is no prompt)
 - [ ] `apex tail log`: `--color`
 - [ ] `org create scratch`: `--wait` (the wait is the one in lib: up to 10 minutes)
-- [ ] `org display`: `--verbose` (no sfdxAuthUrl is shown)
+- [x] `org display`: `--verbose` (no sfdxAuthUrl is shown) — now adds the redacted Sfdx Auth Url row, as sf does
 - [ ] `org list`: `--verbose`, `--clean`, `--no-prompt`
 - [ ] `org login access-token`: `--no-prompt`
 - [ ] `org logout`: `--client-app`
@@ -130,7 +131,7 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [ ] `--flags-dir` on every command
 - [ ] `--use-most-recent` on the deploy commands (needs `~/.sf/deploy-cache.json`)
 - [ ] Source tracking (deploy and retrieve without naming components; `project deploy preview`, `project retrieve preview`, the tracking commands)
-- [ ] `.forceignore`
+- [x] `.forceignore` (sf reports an error when a content file is ignored and its `-meta.xml` file is not; this mode leaves both out)
 - [ ] Destructive changes on deploy
 - [ ] Coverage and JUnit result files on the deploy commands
 - [ ] Shell completion for the sf command tree
@@ -145,13 +146,13 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 
 163 commands of sf 2.138.6 and its bundled and install-on-first-use plugins. `docs/sf-compatibility.md` says what each needs. Commands under "dev" and most under "CLI management" manage the Node.js CLI and its plugins and do not apply to force.
 
-### org (27)
+### org (23 open, 4 done)
 
 - [ ] `org assign permset`
 - [ ] `org assign permsetlicense`
-- [ ] `org auth show-access-token`
-- [ ] `org auth show-sfdx-auth-url`
-- [ ] `org auth show-user-password`
+- [x] `org auth show-access-token`
+- [x] `org auth show-sfdx-auth-url`
+- [x] `org auth show-user-password` (follows the sf plugin source)
 - [ ] `org create agent-user`
 - [ ] `org create sandbox`
 - [ ] `org create shape`
@@ -169,13 +170,13 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [ ] `org list snapshot`
 - [ ] `org list sobject record-counts`
 - [ ] `org list users`
-- [ ] `org login sfdx-url`
+- [x] `org login sfdx-url` (follows the sf plugin source)
 - [ ] `org open agent`
 - [ ] `org refresh sandbox`
 - [ ] `org resume sandbox`
 - [ ] `org resume scratch`
 
-### project (13)
+### project (11 open, 2 done)
 
 - [ ] `project convert source-behavior`
 - [ ] `project delete source`
@@ -186,44 +187,44 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [ ] `project deploy pipeline start`
 - [ ] `project deploy pipeline validate`
 - [ ] `project deploy preview`
-- [ ] `project generate manifest`
-- [ ] `project list ignored`
+- [x] `project generate manifest` (`--from-org` and `--include-packages` are not supported)
+- [x] `project list ignored`
 - [ ] `project reset tracking`
 - [ ] `project retrieve preview`
 
-### data (3)
+### data (3 open, 0 done)
 
 - [ ] `data create file`
 - [ ] `data export tree`
 - [ ] `data import tree`
 
-### apex (2)
+### apex (1 open, 1 done)
 
 - [ ] `apex get compile-status`
-- [ ] `apex get test`
+- [x] `apex get test`
 
-### logic (2)
+### logic (2 open, 0 done)
 
 - [ ] `logic get test`
 - [ ] `logic run test`
 
-### flow (2)
+### flow (2 open, 0 done)
 
 - [ ] `flow get test`
 - [ ] `flow run test`
 
-### api (1)
+### api (1 open, 0 done)
 
 - [ ] `api request graphql`
 
-### schema (4)
+### schema (4 open, 0 done)
 
 - [ ] `schema generate field`
 - [ ] `schema generate platformevent`
 - [ ] `schema generate sobject`
 - [ ] `schema generate tab`
 
-### template (11)
+### template (11 open, 0 done)
 
 - [ ] `template generate analytics template`
 - [ ] `template generate digital-experience site`
@@ -237,7 +238,7 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [ ] `template generate static-resource`
 - [ ] `template generate ui-bundle`
 
-### package (16)
+### package (16 open, 0 done)
 
 - [ ] `package convert`
 - [ ] `package delete`
@@ -256,14 +257,14 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [ ] `package version retrieve`
 - [ ] `package version update`
 
-### package1 (4)
+### package1 (4 open, 0 done)
 
 - [ ] `package1 version create`
 - [ ] `package1 version create get`
 - [ ] `package1 version display`
 - [ ] `package1 version list`
 
-### cmdt (5)
+### cmdt (5 open, 0 done)
 
 - [ ] `cmdt generate field`
 - [ ] `cmdt generate fromorg`
@@ -271,19 +272,19 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [ ] `cmdt generate record`
 - [ ] `cmdt generate records`
 
-### community (3)
+### community (3 open, 0 done)
 
 - [ ] `community create`
 - [ ] `community list template`
 - [ ] `community publish`
 
-### lightning (3)
+### lightning (3 open, 0 done)
 
 - [ ] `lightning dev app`
 - [ ] `lightning dev component`
 - [ ] `lightning dev site`
 
-### agent (33)
+### agent (33 open, 0 done)
 
 - [ ] `agent activate`
 - [ ] `agent adl create`
@@ -319,18 +320,18 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [ ] `agent trace read`
 - [ ] `agent validate authoring-bundle`
 
-### force (4)
+### force (4 open, 0 done)
 
 - [ ] `force lightning lwc test create`
 - [ ] `force lightning lwc test run`
 - [ ] `force lightning lwc test setup`
 - [ ] `force package push-upgrade list`
 
-### ui-bundle (1)
+### ui-bundle (1 open, 0 done)
 
 - [ ] `ui-bundle dev`
 
-### dev (6)
+### dev (6 open, 0 done)
 
 - [ ] `dev audit messages`
 - [ ] `dev convert messages`
@@ -339,7 +340,7 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [ ] `dev generate flag`
 - [ ] `dev generate plugin`
 
-### CLI management (23)
+### CLI management (23 open, 0 done)
 
 - [ ] `autocomplete`
 - [ ] `doctor`

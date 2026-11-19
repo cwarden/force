@@ -21,6 +21,8 @@ func newProjectCmd() *cobra.Command {
 			newProjectConvertSourceCmd(),
 			newProjectConvertMdapiCmd(),
 		),
+		newGroup("generate", "Generate a manifest.", newProjectGenerateManifestCmd()),
+		newGroup("list", "List ignored files.", newProjectListIgnoredCmd()),
 		newGroup("deploy", "Deploy metadata to an org from your local project.",
 			newProjectDeployStartCmd(false),
 			newProjectDeployStartCmd(true),
@@ -62,6 +64,9 @@ func relativePath(path string) string {
 // and --manifest.
 func collectSource(cmd *cobra.Command, project *sfProject, sourceDirFlag string) (*sourceSet, error) {
 	set := newSourceSet()
+	if project != nil {
+		set.ignore = loadForceIgnore(project.Root)
+	}
 	sourceDirs := splitList(cmd, sourceDirFlag)
 	metadata := splitList(cmd, "metadata")
 	manifest, _ := cmd.Flags().GetString("manifest")
@@ -390,4 +395,164 @@ func writeStages(w io.Writer, title, subtitle string, stages []stage, info [][2]
 		fmt.Fprintf(w, " %s: %s\n", item[0], item[1])
 	}
 	fmt.Fprintln(w)
+}
+
+func newProjectGenerateManifestCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:         "manifest",
+		Short:       "Create a project manifest that lists the metadata components you want to deploy or retrieve.",
+		Args:        cobra.NoArgs,
+		Annotations: map[string]string{commandNameAnnotation: "ManifestGenerate"},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := unsupportedFlags(cmd, "from-org", "include-packages"); err != nil {
+				return err
+			}
+			metadata := splitList(cmd, "metadata")
+			sourceDirs := splitList(cmd, "source-dir")
+			name, _ := cmd.Flags().GetString("name")
+			manifestType, _ := cmd.Flags().GetString("type")
+			if name != "" && manifestType != "" {
+				return &Error{Message: fmt.Sprintf("The following errors occurred:\n  --name=%s cannot also be provided when using --type\n  --type=%s cannot also be provided when using --name\nSee more help with --help", name, manifestType), ExitCode: 2}
+			}
+			if len(metadata) == 0 && len(sourceDirs) == 0 {
+				return &Error{Message: "provided flags must include at least one of: metadata,source-dir,from-org", ExitCode: 1}
+			}
+			fileNames := map[string]string{"": "package.xml", "package": "package.xml", "pre": "destructiveChangesPre.xml", "post": "destructiveChangesPost.xml", "destroy": "destructiveChanges.xml"}
+			fileName, ok := fileNames[manifestType]
+			if !ok {
+				return &Error{Message: fmt.Sprintf("Expected --type=%s to be one of: pre, post, destroy, package\nSee more help with --help", manifestType), ExitCode: 2}
+			}
+			if name != "" {
+				fileName = name
+				if !strings.HasSuffix(fileName, ".xml") {
+					fileName += ".xml"
+				}
+			}
+			project, err := loadProject()
+			if err != nil {
+				return err
+			}
+			// Components named with --metadata are listed as given; the
+			// components of --source-dir are read from the files.
+			types := map[string][]string{}
+			add := func(metadataType, member string) {
+				if !containsString(types[metadataType], member) {
+					types[metadataType] = append(types[metadataType], member)
+				}
+			}
+			for _, entry := range metadata {
+				metadataType, member, hasMember := strings.Cut(entry, ":")
+				if !hasMember {
+					member = "*"
+				}
+				add(metadataType, member)
+			}
+			if len(sourceDirs) > 0 {
+				set := newSourceSet()
+				set.ignore = loadForceIgnore(project.Root)
+				for _, dir := range sourceDirs {
+					if err := set.addPath(dir); err != nil {
+						return err
+					}
+				}
+				for metadataType, members := range set.types {
+					for _, member := range members {
+						add(metadataType, member)
+					}
+				}
+			}
+			for _, excluded := range splitList(cmd, "excluded-metadata") {
+				delete(types, excluded)
+			}
+			outputDir, _ := cmd.Flags().GetString("output-dir")
+			path := fileName
+			if outputDir != "" {
+				if err := os.MkdirAll(outputDir, 0o755); err != nil {
+					return err
+				}
+				path = filepath.Join(outputDir, fileName)
+			}
+			if err := os.WriteFile(path, packageXML(types, projectAPIVersion(project)), 0o644); err != nil {
+				return err
+			}
+			result := newOrderedMap()
+			if outputDir != "" {
+				absolute, _ := filepath.Abs(path)
+				result.Set("path", absolute)
+			} else {
+				result.Set("path", path)
+			}
+			result.Set("name", fileName)
+			return emit(cmd, result, func(w io.Writer) {
+				if outputDir != "" {
+					fmt.Fprintf(w, "successfully wrote %s to %s\n", fileName, outputDir)
+					return
+				}
+				fmt.Fprintf(w, "successfully wrote %s\n", fileName)
+			})
+		},
+	}
+	addJSONFlag(cmd)
+	addAPIVersionFlag(cmd)
+	cmd.Flags().StringArrayP("metadata", "m", nil, "Names of metadata components to include in the manifest.")
+	cmd.Flags().StringArrayP("source-dir", "p", nil, "Paths to the local source files to include in the manifest.")
+	cmd.Flags().StringP("name", "n", "", "Name of a custom manifest file to create.")
+	cmd.Flags().StringP("type", "t", "", "Type of manifest to create; the type determines the name of the created file.")
+	cmd.Flags().StringArrayP("include-packages", "c", nil, "Package types (managed, unlocked) whose metadata is included in the manifest; by default, metadata in managed and unlocked packages is excluded.")
+	cmd.Flags().StringArray("excluded-metadata", nil, "Metadata types to exclude when building a manifest from an org.")
+	cmd.Flags().String("from-org", "", "Username or alias of the org that contains the metadata components from which to build a manifest.")
+	cmd.Flags().StringP("output-dir", "d", "", "Directory to save the created manifest.")
+	return cmd
+}
+
+func newProjectListIgnoredCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:         "ignored",
+		Short:       "Check your local project package directories for forceignored files.",
+		Args:        cobra.NoArgs,
+		Annotations: map[string]string{commandNameAnnotation: "Ignored"},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			project, err := loadProject()
+			if err != nil {
+				return err
+			}
+			ignore := loadForceIgnore(project.Root)
+			var paths []string
+			if sourceDir, _ := cmd.Flags().GetString("source-dir"); sourceDir != "" {
+				if _, err := os.Stat(sourceDir); err != nil {
+					return newError("invalidSourceDir", "File or directory '%s' doesn't exist in your project. Specify one that exists and rerun the command.", sourceDir)
+				}
+				paths = []string{sourceDir}
+			} else {
+				for _, directory := range project.PackageDirectories {
+					paths = append(paths, directory.Path)
+				}
+			}
+			ignored := []string{}
+			for _, path := range paths {
+				target := path
+				if !filepath.IsAbs(target) && cmd.Flags().Changed("source-dir") == false {
+					target = filepath.Join(project.Root, path)
+				}
+				files, err := ignore.ignoredFiles(target)
+				if err != nil {
+					return err
+				}
+				ignored = append(ignored, files...)
+			}
+			sort.Strings(ignored)
+			result := newOrderedMap()
+			result.Set("ignoredFiles", ignored)
+			return emit(cmd, result, func(w io.Writer) {
+				if len(ignored) == 0 {
+					fmt.Fprintf(w, "No ignored files found in paths:\n%s\n", strings.Join(paths, "\n"))
+					return
+				}
+				fmt.Fprintf(w, "Found the following ignored files:\n%s\n", strings.Join(ignored, "\n"))
+			})
+		},
+	}
+	addJSONFlag(cmd)
+	cmd.Flags().StringP("source-dir", "p", "", "File or directory of files that the command checks for foreceignored files.")
+	return cmd
 }

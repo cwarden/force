@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -72,7 +74,22 @@ type apexClassCoverage struct {
 	CoveredPercent int
 }
 
+// apexTestCoverage is the coverage of one class by one test method.
+type apexTestCoverage struct {
+	TestClassId string
+	Method      string
+	ClassId     string
+	ClassName   string
+	Covered     []int
+	Uncovered   []int
+}
+
+func (c apexTestCoverage) percentage() string {
+	return percent(len(c.Covered), len(c.Covered)+len(c.Uncovered))
+}
+
 type apexCoverage struct {
+	PerTest         []apexTestCoverage
 	Classes         []apexClassCoverage
 	Records         []*orderedMap
 	OrgWideCoverage string
@@ -390,8 +407,15 @@ func loadCoverage(org *targetOrg, run *apexTestRun) error {
 				lines.Set("coveredLines", covered.values["coveredLines"])
 				lines.Set("uncoveredLines", covered.values["uncoveredLines"])
 			}
+			perTest := apexTestCoverage{TestClassId: testClassID, Method: method}
+			if covered, ok := record.values["Coverage"].(*orderedMap); ok {
+				perTest.Covered = intList(covered.values["coveredLines"])
+				perTest.Uncovered = intList(covered.values["uncoveredLines"])
+			}
 			target := newOrderedMap()
 			if class, ok := record.values["ApexClassOrTrigger"].(*orderedMap); ok {
+				perTest.ClassId = text(class.values["Id"])
+				perTest.ClassName = text(class.values["Name"])
 				target.Set("Id", class.values["Id"])
 				target.Set("Name", class.values["Name"])
 				if id := text(class.values["Id"]); id != "" && !seenCovered[id] {
@@ -407,6 +431,7 @@ func loadCoverage(org *targetOrg, run *apexTestRun) error {
 			item.Set("ApexClassOrTrigger", target)
 			item.Set("NumLinesUncovered", record.values["NumLinesUncovered"])
 			coverage.Records = append(coverage.Records, item)
+			coverage.PerTest = append(coverage.PerTest, perTest)
 		}
 	}
 	if len(coveredClassIDs) > 0 {
@@ -587,11 +612,35 @@ func testMessage(test apexTest) string {
 	return text(test.Message)
 }
 
-func (r *apexTestRun) human(org *targetOrg, concise bool) string {
+// coverageOf returns the per-class coverage records of one test.
+func (c *apexCoverage) coverageOf(test apexTest) []apexTestCoverage {
+	var entries []apexTestCoverage
+	for _, entry := range c.PerTest {
+		if entry.TestClassId == test.ClassId && entry.Method == test.MethodName {
+			entries = append(entries, entry)
+		}
+	}
+	return entries
+}
+
+func (r *apexTestRun) human(org *targetOrg, concise bool, detailed bool) string {
 	var sections []string
 	var rows [][]string
+	detailed = detailed && r.Coverage != nil
 	for _, test := range r.Tests {
 		if concise && test.Outcome != "Fail" && test.Outcome != "CompileFail" {
+			continue
+		}
+		if detailed {
+			// One row for each class the test covered.
+			runtime := fmt.Sprintf("%d", test.RunTime)
+			entries := r.Coverage.coverageOf(test)
+			if len(entries) == 0 {
+				rows = append(rows, []string{test.FullName, "", test.Outcome, "", testMessage(test), runtime})
+			}
+			for _, entry := range entries {
+				rows = append(rows, []string{test.FullName, entry.ClassName, test.Outcome, entry.percentage(), testMessage(test), runtime})
+			}
 			continue
 		}
 		runtime := ""
@@ -600,10 +649,13 @@ func (r *apexTestRun) human(org *targetOrg, concise bool) string {
 		}
 		rows = append(rows, []string{test.FullName, test.Outcome, testMessage(test), runtime})
 	}
-	if len(rows) > 0 {
-		sections = append(sections, textTable("Test Results", []string{"TEST NAME", "OUTCOME", "MESSAGE", "RUNTIME (MS)"}, rows))
-	} else {
+	switch {
+	case len(rows) == 0:
 		sections = append(sections, "")
+	case detailed:
+		sections = append(sections, textTable("Apex Code Coverage for Test Run "+r.TestRunId, []string{"TEST NAME", "CLASS BEING TESTED", "OUTCOME", "PERCENT", "MESSAGE", "RUNTIME (MS)"}, rows))
+	default:
+		sections = append(sections, textTable("Test Results", []string{"TEST NAME", "OUTCOME", "MESSAGE", "RUNTIME (MS)"}, rows))
 	}
 	if r.Coverage != nil && !concise {
 		var coverageRows [][]string
@@ -800,6 +852,189 @@ func runTestsSynchronously(org *targetOrg, request *orderedMap) (*apexTestRun, e
 	return run, nil
 }
 
+func testResultFormat(cmd *cobra.Command) (string, error) {
+	format, _ := cmd.Flags().GetString("result-format")
+	switch format {
+	case "human", "tap", "junit", "json":
+		return format, nil
+	}
+	return "", &Error{Message: fmt.Sprintf("Expected --result-format=%s to be one of: human, tap, junit, json\nSee more help with --help", format), ExitCode: 2}
+}
+
+// perTestCoverageJSON is the content of the per-run code coverage file: one
+// array for each test, with the coverage of each class the test covered.
+func (r *apexTestRun) perTestCoverageJSON() []interface{} {
+	result := []interface{}{}
+	for _, test := range r.Tests {
+		entries := r.Coverage.coverageOf(test)
+		if len(entries) == 0 {
+			continue
+		}
+		items := make([]interface{}, 0, len(entries))
+		for _, entry := range entries {
+			lines := newOrderedMap()
+			lines.Set("coveredLines", entry.Covered)
+			lines.Set("uncoveredLines", entry.Uncovered)
+			if entry.Covered == nil {
+				lines.Set("coveredLines", []int{})
+			}
+			if entry.Uncovered == nil {
+				lines.Set("uncoveredLines", []int{})
+			}
+			item := newOrderedMap()
+			item.Set("apexClassOrTriggerName", entry.ClassName)
+			item.Set("apexClassOrTriggerId", entry.ClassId)
+			item.Set("apexTestClassId", entry.TestClassId)
+			item.Set("apexTestMethodName", entry.Method)
+			item.Set("numLinesCovered", len(entry.Covered))
+			item.Set("numLinesUncovered", len(entry.Uncovered))
+			item.Set("percentage", entry.percentage())
+			item.Set("coverage", lines)
+			items = append(items, item)
+		}
+		result = append(result, items)
+	}
+	return result
+}
+
+// writeTestResultFiles writes the files sf writes to --output-dir.
+func writeTestResultFiles(dir string, org *targetOrg, run *apexTestRun, result *orderedMap, human string, format string, elapsed time.Duration) error {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	compact := func(value interface{}) (string, error) { return encodeJSON(value) }
+	files := map[string]string{"test-run-id.txt": run.TestRunId, "test-result.txt": human}
+	prefix := "test-result"
+	if run.TestRunId != "" {
+		prefix += "-" + run.TestRunId
+	}
+	encoded, err := compact(result)
+	if err != nil {
+		return err
+	}
+	files[prefix+".json"] = encoded
+	files[prefix+"-junit.xml"] = run.junit(org, elapsed)
+	if format == "tap" {
+		files[prefix+"-tap.txt"] = run.tap(org)
+	}
+	if run.Coverage != nil {
+		perTest, err := compact(run.perTestCoverageJSON())
+		if err != nil {
+			return err
+		}
+		files[prefix+"-codecoverage.json"] = perTest
+		classes, _ := run.Coverage.json().Get("coverage")
+		byClass, err := compact(classes)
+		if err != nil {
+			return err
+		}
+		files["test-result-codecoverage.json"] = byClass
+	}
+	for name, content := range files {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// reportTestRun loads coverage when it was requested, prints a test run in
+// the requested format, writes the --output-dir files, and returns exit
+// status 100 as an error when a test failed.
+func reportTestRun(cmd *cobra.Command, org *targetOrg, run *apexTestRun, format string, elapsed time.Duration) error {
+	codeCoverage, _ := cmd.Flags().GetBool("code-coverage")
+	detailed, _ := cmd.Flags().GetBool("detailed-coverage")
+	concise, _ := cmd.Flags().GetBool("concise")
+	if codeCoverage || detailed {
+		if err := loadCoverage(org, run); err != nil {
+			return err
+		}
+	}
+	status := 0
+	if run.outcome() == "Failed" {
+		status = 100
+	}
+	result := run.json(org, elapsed)
+	human := run.human(org, concise, detailed)
+	if outputDir, _ := cmd.Flags().GetString("output-dir"); outputDir != "" {
+		if err := writeTestResultFiles(outputDir, org, run, result, human, format, elapsed); err != nil {
+			return err
+		}
+		if !jsonRequested(cmd) {
+			fmt.Fprintf(cmd.OutOrStdout(), "Test result files written to %s\n", outputDir)
+		}
+	}
+	out := cmd.OutOrStdout()
+	if jsonRequested(cmd) {
+		if err := emitStatus(cmd, status, result, nil); err != nil {
+			return err
+		}
+	} else {
+		switch format {
+		case "json":
+			envelope := newOrderedMap()
+			envelope.Set("status", status)
+			envelope.Set("result", result)
+			if err := writeJSON(out, envelope); err != nil {
+				return err
+			}
+		case "tap":
+			fmt.Fprintln(out, run.tap(org))
+		case "junit":
+			fmt.Fprintln(out, run.junit(org, elapsed))
+		default:
+			fmt.Fprintln(out, human)
+		}
+	}
+	if status != 0 {
+		return exitStatus(status)
+	}
+	return nil
+}
+
+func newApexGetTestCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:         "test",
+		Short:       "Display test results for a specific asynchronous test run.",
+		Args:        cobra.NoArgs,
+		Annotations: map[string]string{commandNameAnnotation: "Test"},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			format, err := testResultFormat(cmd)
+			if err != nil {
+				return err
+			}
+			testRunID, _ := cmd.Flags().GetString("test-run-id")
+			if testRunID == "" {
+				return missingFlagError("test-run-id")
+			}
+			org, err := resolveTargetOrg(cmd)
+			if err != nil {
+				return err
+			}
+			started := time.Now()
+			queueItemIDs, _, err := waitForTestRun(org, testRunID, 0, time.Millisecond)
+			if err != nil {
+				return err
+			}
+			run, err := loadTestRun(org, testRunID, queueItemIDs)
+			if err != nil {
+				return err
+			}
+			return reportTestRun(cmd, org, run, format, time.Since(started))
+		},
+	}
+	addJSONFlag(cmd)
+	cmd.Flags().StringP("test-run-id", "i", "", "ID of the test run.")
+	cmd.Flags().BoolP("code-coverage", "c", false, "Retrieve code coverage results.")
+	cmd.Flags().Bool("detailed-coverage", false, "Display detailed code coverage per test.")
+	cmd.Flags().StringP("output-dir", "d", "", "Directory in which to store test result files.")
+	cmd.Flags().StringP("result-format", "r", "human", "Format of the test results.")
+	cmd.Flags().Bool("concise", false, "Display only failed test results; works with human-readable output only.")
+	addAPIVersionFlag(cmd)
+	addTargetOrgFlag(cmd)
+	return cmd
+}
+
 // testPollInterval is the time between checks of a test run.  Tests
 // shorten it.
 var testPollInterval = time.Second
@@ -811,14 +1046,9 @@ func newApexRunTestCmd() *cobra.Command {
 		Args:        cobra.NoArgs,
 		Annotations: map[string]string{commandNameAnnotation: "Test"},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := unsupportedFlags(cmd, "output-dir", "detailed-coverage"); err != nil {
+			format, err := testResultFormat(cmd)
+			if err != nil {
 				return err
-			}
-			format, _ := cmd.Flags().GetString("result-format")
-			switch format {
-			case "human", "tap", "junit", "json":
-			default:
-				return &Error{Message: fmt.Sprintf("Expected --result-format=%s to be one of: human, tap, junit, json\nSee more help with --help", format), ExitCode: 2}
 			}
 			request, err := apexTestRequest(cmd)
 			if err != nil {
@@ -830,8 +1060,6 @@ func newApexRunTestCmd() *cobra.Command {
 			}
 			started := time.Now()
 			synchronous, _ := cmd.Flags().GetBool("synchronous")
-			codeCoverage, _ := cmd.Flags().GetBool("code-coverage")
-			concise, _ := cmd.Flags().GetBool("concise")
 			var run *apexTestRun
 			if synchronous {
 				run, err = runTestsSynchronously(org, request)
@@ -879,42 +1107,7 @@ func newApexRunTestCmd() *cobra.Command {
 					return err
 				}
 			}
-			if codeCoverage {
-				if err := loadCoverage(org, run); err != nil {
-					return err
-				}
-			}
-			status := 0
-			if run.outcome() == "Failed" {
-				status = 100
-			}
-			elapsed := time.Since(started)
-			out := cmd.OutOrStdout()
-			if jsonRequested(cmd) {
-				if err := emitStatus(cmd, status, run.json(org, elapsed), nil); err != nil {
-					return err
-				}
-			} else {
-				switch format {
-				case "json":
-					envelope := newOrderedMap()
-					envelope.Set("status", status)
-					envelope.Set("result", run.json(org, elapsed))
-					if err := writeJSON(out, envelope); err != nil {
-						return err
-					}
-				case "tap":
-					fmt.Fprintln(out, run.tap(org))
-				case "junit":
-					fmt.Fprintln(out, run.junit(org, elapsed))
-				default:
-					fmt.Fprintln(out, run.human(org, concise))
-				}
-			}
-			if status != 0 {
-				return exitStatus(status)
-			}
-			return nil
+			return reportTestRun(cmd, org, run, format, time.Since(started))
 		},
 	}
 	addJSONFlag(cmd)

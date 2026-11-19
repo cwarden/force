@@ -26,6 +26,11 @@ func newOrgCmd() *cobra.Command {
 		withSubcommands(newOrgDisplayCmd(),
 			newOrgDisplayUserCmd(),
 		),
+		newGroup("auth", "Show stored credentials of an org.",
+			newOrgAuthShowCmd("show-access-token", "Display the access token of an org.", "OrgAuthShowAccessToken"),
+			newOrgAuthShowCmd("show-sfdx-auth-url", "Display the SFDX auth URL of an org.", "OrgAuthShowSfdxAuthUrl"),
+			newOrgAuthShowCmd("show-user-password", "Display the locally stored password of an org user.", "OrgAuthShowUserPassword"),
+		),
 		newGroup("create", "Create scratch orgs.", newOrgCreateScratchCmd()),
 		newOrgLoginCmd(),
 		newOrgLogoutCmd(),
@@ -382,6 +387,11 @@ func newOrgDisplayCmd() *cobra.Command {
 			if org.Alias != "" {
 				result.Set("alias", org.Alias)
 			}
+			if verbose, _ := cmd.Flags().GetBool("verbose"); verbose && fields.String("refreshToken") != "" {
+				redacted := "[REDACTED] Use 'sf org auth show-sfdx-auth-url' to view"
+				result.Set("sfdxAuthUrl", redacted)
+				rows = append(rows[:len(rows)-1], []string{"Sfdx Auth Url", redacted}, rows[len(rows)-1])
+			}
 			if status != "Connected" && jsonRequested(cmd) {
 				warnJSON(cmd, "unable to refresh auth for org")
 			}
@@ -548,6 +558,87 @@ func newOrgLogoutCmd() *cobra.Command {
 	cmd.Flags().BoolP("all", "a", false, "Include all authenticated orgs.")
 	cmd.Flags().BoolP("no-prompt", "p", false, "Don't prompt for confirmation.")
 	cmd.Flags().StringP("client-app", "c", "", "Client app to log out of.")
+	addTargetOrgFlag(cmd)
+	return cmd
+}
+
+// sfdxAuthURL returns the SFDX auth URL of an authorization:
+// force://<client id>:<client secret>:<refresh token>@<instance host>.
+func sfdxAuthURL(fields lib.SFDXAuthFields) string {
+	instance := strings.TrimRight(fields.String("instanceUrl"), "/")
+	instance = strings.TrimPrefix(strings.TrimPrefix(instance, "https://"), "http://")
+	clientID := fields.String("clientId")
+	if clientID == "" {
+		clientID = "PlatformCLI"
+	}
+	return fmt.Sprintf("force://%s:%s:%s@%s", clientID, fields.String("clientSecret"), fields.String("refreshToken"), instance)
+}
+
+// newOrgAuthShowCmd builds the three "org auth show-*" commands, which
+// print one stored credential after a confirmation.
+func newOrgAuthShowCmd(use, short, className string) *cobra.Command {
+	type credential struct {
+		label, key, prompt, warning, missingName, missing string
+		value                                             func(lib.SFDXAuthFields) string
+	}
+	credentials := map[string]credential{
+		"show-access-token": {
+			label: "Access Token", key: "accessToken",
+			prompt:      `You're about to reveal the access token for "%s". This token grants full access to the org with your current permissions. Sharing or logging this token is equivalent to sharing your credentials. Do you want to continue?`,
+			warning:     "This command exposes a sensitive Access Token that allows for subsequent activity using your current authenticated session. Sharing this information is equivalent to logging someone in under the current credential, resulting in unintended access and escalation of privilege. For additional information about org authorization, review https://developer.salesforce.com/docs/atlas.en-us.sfdx_dev.meta/sfdx_dev/sfdx_dev_auth.htm.",
+			missingName: "NoAccessTokenError", missing: `No access token found for "%s". The org may need to be re-authenticated.`,
+			value: func(fields lib.SFDXAuthFields) string { return fields.String("accessToken") },
+		},
+		"show-sfdx-auth-url": {
+			label: "SFDX Auth URL", key: "sfdxAuthUrl",
+			prompt:      `You're about to reveal the SFDX Auth URL for "%s". This URL contains a refresh token that can be used to authenticate to the org without user interaction. Do you want to continue?`,
+			warning:     "This command exposes an SFDX Auth URL. Unlike an access token, this credential contains a refresh token that allows extended access to an org. Avoid sharing or logging this URL. For additional information about org authorization, review https://developer.salesforce.com/docs/atlas.en-us.sfdx_dev.meta/sfdx_dev/sfdx_dev_auth_url.htm.",
+			missingName: "NoRefreshTokenError", missing: `An SFDX Auth URL is not available for "%s". This URL is only available for orgs authenticated via a web-based login flow. Re-authenticate to the org using "sf org login web" to make it available.`,
+			value: func(fields lib.SFDXAuthFields) string {
+				if fields.String("refreshToken") == "" {
+					return ""
+				}
+				return sfdxAuthURL(fields)
+			},
+		},
+		"show-user-password": {
+			label: "Password", key: "password",
+			prompt:      `You're about to reveal the password for "%s". Do you want to continue?`,
+			warning:     "This command exposes a user password. While a password alone isn't sufficient to gain access to an org (additional factors like a security token or an enabled OAuth username-password flow are required), treat it as a sensitive credential and avoid sharing or logging it.",
+			missingName: "NoPasswordError", missing: `No password found for "%s". A password is available only if one was previously generated locally in your DX project by running either "sf org generate password" or "sf org create user". If you generated a password in your org using Setup, it's not available to this command.`,
+			value: func(fields lib.SFDXAuthFields) string { return fields.String("password") },
+		},
+	}
+	shown := credentials[use]
+	cmd := &cobra.Command{
+		Use:         use,
+		Short:       short,
+		Args:        cobra.NoArgs,
+		Annotations: map[string]string{commandNameAnnotation: className},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			org, err := resolveTargetOrg(cmd)
+			if err != nil {
+				return err
+			}
+			if noPrompt, _ := cmd.Flags().GetBool("no-prompt"); noPrompt || jsonRequested(cmd) {
+				warn(cmd, shown.warning)
+			} else if !confirm(cmd, fmt.Sprintf(shown.prompt, org.Username)) {
+				return &Error{Message: "Show " + strings.ToLower(shown.label) + " confirmation denied or timed out.", ExitCode: 1}
+			}
+			value := shown.value(org.Fields)
+			if value == "" {
+				return newError(shown.missingName, shown.missing, org.Username)
+			}
+			result := newOrderedMap()
+			result.Set(shown.key, value)
+			return emit(cmd, result, func(w io.Writer) {
+				printTable(w, "", []string{"Key", "Value"}, [][]string{{shown.label, value}})
+			})
+		},
+	}
+	addJSONFlag(cmd)
+	cmd.Flags().BoolP("no-prompt", "p", false, "Don't prompt for confirmation.")
+	addAPIVersionFlag(cmd)
 	addTargetOrgFlag(cmd)
 	return cmd
 }

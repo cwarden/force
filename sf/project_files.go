@@ -127,6 +127,8 @@ type sourceSet struct {
 	types map[string][]string
 	// roots are the directories the files were read from.
 	roots []string
+	// ignore holds the .forceignore patterns of the project, or nil.
+	ignore *forceIgnore
 }
 
 func newSourceSet() *sourceSet {
@@ -160,10 +162,39 @@ func containsString(values []string, value string) bool {
 	return false
 }
 
+// buildFromRoot runs build with a package builder rooted at root.  When
+// .forceignore leaves out files under root, the builder reads a copy of
+// root without those files; path is translated to the copy.
+func (s *sourceSet) buildFromRoot(root string, path string, build func(pb *lib.PackageBuilder, path string) error) error {
+	buildRoot := root
+	if s.ignore != nil {
+		mirror, cleanup, err := s.ignore.mirrorWithoutIgnored(root)
+		if err != nil {
+			return err
+		}
+		defer cleanup()
+		buildRoot = mirror
+	}
+	if path != "" && buildRoot != root {
+		if relative, err := filepath.Rel(root, path); err == nil {
+			path = filepath.Join(buildRoot, relative)
+		}
+	}
+	pb := lib.NewPushBuilder()
+	pb.Root = buildRoot
+	if err := build(&pb, path); err != nil {
+		return err
+	}
+	// Report the directory the files came from, not the copy.
+	pb.Root = root
+	s.merge(&pb)
+	return nil
+}
+
 // addPath adds the components under a source directory or file.
 func (s *sourceSet) addPath(path string) error {
 	if _, err := os.Stat(path); err != nil {
-		return newError("SfError", "File or folder not found: %s", path)
+		return newError("SfError", "%s: File or folder not found", path)
 	}
 	roots, err := metadataRoots(path)
 	if err != nil {
@@ -171,28 +202,33 @@ func (s *sourceSet) addPath(path string) error {
 	}
 	absolute, _ := filepath.Abs(path)
 	for _, root := range roots {
-		pb := lib.NewPushBuilder()
-		pb.Root = root
-		if strings.HasPrefix(absolute, root+string(os.PathSeparator)) {
-			// The path is a type directory, or a file or directory inside
-			// one.
-			if err := pb.Add(absolute); err != nil {
-				return err
+		inside := strings.HasPrefix(absolute, root+string(os.PathSeparator))
+		err := s.buildFromRoot(root, absolute, func(pb *lib.PackageBuilder, target string) error {
+			if inside {
+				// The path is a type directory, or a file or directory
+				// inside one.
+				if _, err := os.Stat(target); err != nil {
+					// Everything at the path is ignored.
+					return nil
+				}
+				return pb.Add(target)
 			}
-		} else {
-			entries, err := os.ReadDir(root)
+			entries, err := os.ReadDir(pb.Root)
 			if err != nil {
 				return err
 			}
 			for _, entry := range entries {
 				if entry.IsDir() && lib.IsMetadataDirectory(entry.Name()) {
-					if err := pb.AddDirectory(filepath.Join(root, entry.Name())); err != nil {
+					if err := pb.AddDirectory(filepath.Join(pb.Root, entry.Name())); err != nil {
 						return err
 					}
 				}
 			}
+			return nil
+		})
+		if err != nil {
+			return err
 		}
-		s.merge(&pb)
 	}
 	return nil
 }
@@ -209,19 +245,19 @@ func (s *sourceSet) addMetadata(project *sfProject, names []string) error {
 				continue
 			}
 			for _, root := range roots {
-				pb := lib.NewPushBuilder()
-				pb.Root = root
-				var err error
-				if hasMember && member != "*" {
-					err = pb.AddMetadataItem(metadataType, member)
-				} else {
-					err = pb.AddMetadataType(metadataType)
-				}
-				if err != nil || len(pb.Files) == 0 {
+				before, beforeMembers := len(s.files), len(s.types[metadataType])
+				err := s.buildFromRoot(root, "", func(pb *lib.PackageBuilder, _ string) error {
+					if hasMember && member != "*" {
+						return pb.AddMetadataItem(metadataType, member)
+					}
+					return pb.AddMetadataType(metadataType)
+				})
+				if err != nil {
 					continue
 				}
-				s.merge(&pb)
-				found = true
+				if len(s.files) > before || len(s.types[metadataType]) > beforeMembers {
+					found = true
+				}
 			}
 		}
 		if !found {
