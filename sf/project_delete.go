@@ -371,6 +371,41 @@ func newProjectDeleteSourceCmd() *cobra.Command {
 			if !succeeded {
 				status = 1
 			}
+			// applyDelete deletes the local files and updates the source
+			// tracking files after the org deleted the components.
+			applyDelete := func() error {
+				if !succeeded || checkOnly {
+					return nil
+				}
+				if err := removeSourceFiles(project.Root, targets); err != nil {
+					return err
+				}
+				if tracking == nil {
+					return nil
+				}
+				deleted := make([]string, 0, len(targets))
+				for _, target := range targets {
+					deleted = append(deleted, target.key())
+				}
+				progress, err := tracking.recordDeploy(trackingState, nil, deleted)
+				if err != nil {
+					return err
+				}
+				if progress.warning != "" {
+					warn(cmd, progress.warning)
+				}
+				if !jsonRequested(cmd) {
+					fmt.Fprintln(cmd.ErrOrStderr(), "Updating source tracking... done")
+				}
+				return nil
+			}
+			if jsonRequested(cmd) {
+				// The warnings of the tracking update are part of the
+				// JSON result.
+				if err := applyDelete(); err != nil {
+					return err
+				}
+			}
 			if err := emitStatus(cmd, status, result, func(w io.Writer) {
 				if succeeded {
 					table := make([][]string, 0, len(rows))
@@ -414,23 +449,8 @@ func newProjectDeleteSourceCmd() *cobra.Command {
 			if !succeeded {
 				return exitStatus(1)
 			}
-			if checkOnly {
-				return nil
-			}
-			if err := removeSourceFiles(project.Root, targets); err != nil {
-				return err
-			}
-			if tracking != nil {
-				deleted := make([]string, 0, len(targets))
-				for _, target := range targets {
-					deleted = append(deleted, target.key())
-				}
-				if _, err := tracking.recordDeploy(trackingState, nil, deleted); err != nil {
-					return err
-				}
-				if !jsonRequested(cmd) {
-					fmt.Fprintln(cmd.ErrOrStderr(), "Updating source tracking... done")
-				}
+			if !jsonRequested(cmd) {
+				return applyDelete()
 			}
 			return nil
 		},

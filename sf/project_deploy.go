@@ -696,19 +696,26 @@ func newProjectDeployStartCmd(validate bool) *cobra.Command {
 			var tracked *trackingProgress
 			if err == nil && tracking != nil && !options.CheckOnly && state.status.Status == "Succeeded" {
 				// Record what was deployed in the source tracking files.
-				var deployed, deleted []string
+				var deployed, deleted, unchanged []string
 				for _, success := range state.status.Details.ComponentSuccesses {
+					key := success.ComponentType + "###" + success.FullName
 					switch {
 					case success.ComponentType == "":
 					case success.Deleted:
-						deleted = append(deleted, success.ComponentType+"###"+success.FullName)
+						deleted = append(deleted, key)
 					default:
-						deployed = append(deployed, success.ComponentType+"###"+success.FullName)
+						deployed = append(deployed, key)
+						if !success.Changed && !success.Created {
+							unchanged = append(unchanged, key)
+						}
 					}
 				}
-				tracked, err = tracking.recordDeploy(trackingState, deployed, deleted)
+				tracked, err = tracking.recordDeploy(trackingState, deployed, deleted, unchanged...)
 				if err != nil {
 					return err
+				}
+				if tracked.warning != "" {
+					warn(cmd, tracked.warning)
 				}
 			}
 			if state != nil && !jsonRequested(cmd) {
@@ -1407,7 +1414,7 @@ func newProjectRetrieveStartCmd() *cobra.Command {
 				for _, file := range written {
 					keys = append(keys, file.Type+"###"+file.FullName)
 				}
-				if _, err := tracking.syncRemote(keys, false); err != nil {
+				if _, _, err := tracking.syncRemote(keys, nil); err != nil {
 					return err
 				}
 			}

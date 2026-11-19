@@ -153,7 +153,7 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
   - [x] Conflict detection (`--ignore-conflicts`)
   - [x] Send the client name of sf (`sfdx toolbelt:`) with SOAP requests; the org records the source members of a deploy only for that client
   - [x] Retrieve a changed component into the package directory it is in
-  - [ ] The warning sf prints when the org does not report the source members of a deploy in time
+  - [x] The warning sf prints when the org does not report the source members of a deploy in time, `SF_SOURCE_MEMBER_POLLING_TIMEOUT`, `SF_DISABLE_SOURCE_MEMBER_POLLING`, and the rules of sf for the components it does not wait for (follows the source-tracking source; sf decides some of the rules by file path, this mode by component name)
   - [ ] Detection of moved files
   - [ ] Write `maxRevision.json` as fileVersion 1 when `SF_SOURCE_TRACKING_FILE_VERSION=1` (the file is read in both versions)
 - [x] `.forceignore` (sf reports an error when a content file is ignored and its `-meta.xml` file is not; this mode leaves both out)

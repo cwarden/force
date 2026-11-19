@@ -3,8 +3,11 @@ package sf
 import (
 	"fmt"
 	"math"
+	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -172,6 +175,9 @@ func destructiveChanges(components []*sourceComponent, version string) []byte {
 type trackingProgress struct {
 	found, total int
 	elapsed      time.Duration
+	// warning is the warning sf gives when the org did not report every
+	// member in time, or "".
+	warning string
 }
 
 // recordDeploy records a successful deploy: the files of the deployed
@@ -179,7 +185,7 @@ type trackingProgress struct {
 // and the revision the org gave each component is the one last retrieved.
 // It waits for the org to report the source members of the components, for
 // the time sf waits.
-func (t *sourceTracking) recordDeploy(state *trackingState, deployed, deleted []string) (*trackingProgress, error) {
+func (t *sourceTracking) recordDeploy(state *trackingState, deployed, deleted []string, unchanged ...string) (*trackingProgress, error) {
 	started := time.Now()
 	repo, err := openShadowRepo(t.gitDir(), t.project.Root)
 	if err != nil {
@@ -206,40 +212,123 @@ func (t *sourceTracking) recordDeploy(state *trackingState, deployed, deleted []
 		return nil, err
 	}
 	keys := append(append([]string{}, deployed...), deleted...)
-	found, err := t.syncRemote(keys, true)
+	// The org is expected to report the components that changed, except
+	// the ones it does not track.
+	skip := map[string]bool{}
+	for _, key := range unchanged {
+		skip[key] = true
+	}
+	expected := []string{}
+	for _, key := range keys {
+		if !skip[key] && expectsSourceMember(key) {
+			expected = append(expected, key)
+		}
+	}
+	found, warning, err := t.syncRemote(keys, expected)
 	if err != nil {
 		return nil, err
 	}
-	return &trackingProgress{found: found, total: len(keys), elapsed: time.Since(started)}, nil
+	return &trackingProgress{found: found, total: len(expected), elapsed: time.Since(started), warning: warning}, nil
+}
+
+// Types and components for which sf does not wait for a source member
+// after a deploy, because the org does not report one or reports it under
+// another name.
+var (
+	typesWithoutSourceMembers = map[string]bool{
+		"CustomObject": true, "EmailFolder": true, "EmailTemplateFolder": true, "StandardValueSet": true, "Portal": true,
+		"StandardValueSetTranslation": true, "SharingRules": true, "SharingCriteriaRule": true, "GlobalValueSetTranslation": true,
+		"AssignmentRules": true, "InstalledPackage": true, "DataCategoryGroup": true, "ManagedContentType": true,
+		"CustomObjectTranslation": true, "TopicsForObjects": true, "UIBundle": true,
+	}
+	typesWithoutSourceMembersInNamespace = map[string]bool{"CustomLabels": true, "CustomMetadata": true, "DuplicateRule": true, "WebLink": true}
+	typesWithEncodedNames                = map[string]bool{"Layout": true, "Profile": true, "HomePageComponent": true, "HomePageLayout": true, "MilestoneType": true}
+	componentsWithoutSourceMembers       = map[string]bool{
+		"AppMenu###Salesforce1": true, "Profile###Standard": true, "Profile###Guest License User": true, "CustomTab###standard-home": true,
+		"Profile###Minimum Access - Salesforce": true, "Profile###Salesforce API Only System Integrations": true, "AssignmentRules###Case": true,
+		"ListView###CollaborationGroup.All_ChatterGroups": true, "CustomTab###standard-mailapp": true, "ApexEmailNotifications###apexEmailNotifications": true,
+	}
+)
+
+// encodedNamePattern matches a component name that the Metadata API
+// writes with percent-encoded characters in the file name: one with a
+// character other than a letter, a digit, a space, an underscore or a
+// hyphen.
+var encodedNamePattern = regexp.MustCompile(`[^\p{L}\p{N} _-]`)
+
+// expectsSourceMember reports whether sf waits for the org to report the
+// source member of a deployed component.  sf decides some cases by the
+// path of the file; this decides them by the name of the component.
+func expectsSourceMember(key string) bool {
+	metadataType, name, _ := strings.Cut(key, "###")
+	switch {
+	case typesWithoutSourceMembers[metadataType], componentsWithoutSourceMembers[key]:
+		return false
+	case metadataType == "CustomField" && (!strings.Contains(name, "__c") || strings.Contains(name, "_del__c")):
+		return false
+	case metadataType == "ReportType" && strings.Contains(name, "screen_flows_prebuilt_crt"):
+		return false
+	case strings.Contains(metadataType, "Settings"), strings.HasPrefix(metadataType, "Workflow"):
+		return false
+	case metadataType == "NavigationMenu" && strings.HasPrefix(name, "SFDC_Default_Navigation_"):
+		return false
+	case typesWithEncodedNames[metadataType] && encodedNamePattern.MatchString(name):
+		return false
+	case typesWithoutSourceMembersInNamespace[metadataType] && strings.Contains(name, "__"):
+		return false
+	}
+	return true
+}
+
+// sourceMemberPollingTimeout is the time to wait for the org to report a
+// number of source members: 50 seconds for each 1000 members plus 5
+// seconds, or the seconds in SF_SOURCE_MEMBER_POLLING_TIMEOUT.
+func sourceMemberPollingTimeout(members int) time.Duration {
+	if seconds, err := strconv.Atoi(os.Getenv("SF_SOURCE_MEMBER_POLLING_TIMEOUT")); err == nil && seconds > 0 {
+		return time.Duration(seconds) * time.Second
+	}
+	return time.Duration(math.Ceil(float64(members)*0.05)+5) * time.Second
 }
 
 // syncRemote asks the org for the source members changed since the last
 // query, records them, and marks the members in keys as retrieved at their
-// current revision.  With wait, it repeats the query until the org has
-// reported every member in keys or the time sf allows has passed.  It
-// returns the number of members in keys that the org reported.
-func (t *sourceTracking) syncRemote(keys []string, wait bool) (int, error) {
+// current revision.  It repeats the query until the org has reported every
+// member in expected or the time sf allows has passed.  It returns the
+// number of members in expected that the org reported, and the warning sf
+// gives when the org did not report all of them in time.
+func (t *sourceTracking) syncRemote(keys, expected []string) (int, string, error) {
 	tracking, err := loadRemoteTracking(t.revisionPath())
 	if err != nil {
-		return 0, err
+		return 0, "", err
+	}
+	wait := len(expected) > 0
+	if value := strings.ToLower(os.Getenv("SF_DISABLE_SOURCE_MEMBER_POLLING")); value == "true" || value == "1" {
+		wait = false
 	}
 	outstanding := map[string]bool{}
-	for _, key := range keys {
+	for _, key := range expected {
 		outstanding[key] = true
 	}
-	deadline := time.Now().Add(time.Duration(math.Ceil(float64(len(keys))*0.05)+5) * time.Second)
+	deadline := time.Now().Add(sourceMemberPollingTimeout(len(expected)))
+	attempts, emptyResults := 0, 0
 	for {
 		members, err := querySourceMembers(t.org, fmt.Sprintf("RevisionCounter > %d", tracking.maxRevision))
 		if err != nil {
-			return 0, err
+			return 0, "", err
+		}
+		attempts++
+		if len(members) == 0 {
+			emptyResults++
+		} else {
+			emptyResults = 0
 		}
 		for _, member := range members {
 			delete(outstanding, member.key())
 		}
 		if err := tracking.track(members, false); err != nil {
-			return 0, err
+			return 0, "", err
 		}
-		if !wait || len(outstanding) == 0 || time.Now().After(deadline) {
+		if !wait || len(outstanding) == 0 || time.Now().Add(trackingPollInterval).After(deadline) {
 			break
 		}
 		time.Sleep(trackingPollInterval)
@@ -250,5 +339,30 @@ func (t *sourceTracking) syncRemote(keys []string, wait bool) (int, error) {
 			member.LastRetrieved = &revision
 		}
 	}
-	return len(keys) - len(outstanding), tracking.write()
+	warning := ""
+	if wait && len(outstanding) > 0 {
+		// The missing members by type, in the order they were asked for.
+		var types []string
+		names := map[string][]string{}
+		for _, key := range expected {
+			if !outstanding[key] {
+				continue
+			}
+			outstanding[key] = false
+			metadataType, name, _ := strings.Cut(key, "###")
+			if _, seen := names[metadataType]; !seen {
+				types = append(types, metadataType)
+			}
+			names[metadataType] = append(names[metadataType], name)
+		}
+		lines := make([]string, 0, len(types))
+		missing := 0
+		for _, metadataType := range types {
+			missing += len(names[metadataType])
+			lines = append(lines, fmt.Sprintf("  - %s: %s", metadataType, strings.Join(names[metadataType], ", ")))
+		}
+		warning = fmt.Sprintf("Polling for %d SourceMembers timed out after %d attempts (last %d were empty).\n\nMissing SourceMembers:\n%s", missing, attempts, emptyResults, strings.Join(lines, "\n"))
+		return len(expected) - missing, warning, tracking.write()
+	}
+	return len(expected) - len(outstanding), warning, tracking.write()
 }

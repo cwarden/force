@@ -260,3 +260,59 @@ func TestProjectRetrieveStartAppliesRemoteChanges(t *testing.T) {
 	}
 	expectRun(t, 0, "No changes to deploy\n", "project", "deploy", "start")
 }
+
+func TestProjectDeployStartWarnsWhenTheOrgDoesNotReportSourceMembers(t *testing.T) {
+	_, _, project := trackedDeploySetup(t)
+	t.Setenv("SF_SOURCE_MEMBER_POLLING_TIMEOUT", "1")
+	trackingPollInterval = 400 * time.Millisecond
+	classes := filepath.Join(project, "force-app", "main", "default", "classes")
+	os.WriteFile(filepath.Join(classes, "Greeter.cls"), []byte("public class Greeter { /* changed */ }"), 0o644)
+	// The org reports no new revision after the deploy.
+	out, errOut, status := run("project", "deploy", "start", "--json")
+	if status != 0 {
+		t.Fatalf("status %d, stderr %s\n%s", status, errOut, out)
+	}
+	if !strings.Contains(out, `  "warnings": [
+    "Polling for 1 SourceMembers timed out after 3 attempts (last 3 were empty).\n\nMissing SourceMembers:\n  - ApexClass: Greeter"
+  ]`) {
+		t.Errorf("json =\n%s", out)
+	}
+
+	os.WriteFile(filepath.Join(classes, "Greeter.cls"), []byte("public class Greeter { /* again */ }"), 0o644)
+	out, errOut, status = run("project", "deploy", "start")
+	if status != 0 || errOut != "Warning: Polling for 1 SourceMembers timed out after 3 attempts (last 3 were empty).\n\nMissing SourceMembers:\n  - ApexClass: Greeter\n" ||
+		!strings.Contains(out, "   ▸ Members: 0/1 (0%)\n") {
+		t.Errorf("status %d, stderr %q\n%s", status, errOut, out)
+	}
+
+	// With polling disabled the org is asked once and there is no warning.
+	t.Setenv("SF_DISABLE_SOURCE_MEMBER_POLLING", "true")
+	os.WriteFile(filepath.Join(classes, "Greeter.cls"), []byte("public class Greeter { /* third */ }"), 0o644)
+	if _, errOut, status = run("project", "deploy", "start"); status != 0 || errOut != "" {
+		t.Errorf("polling disabled: status %d, stderr %q", status, errOut)
+	}
+}
+
+func TestExpectsSourceMemberFollowsTheRulesOfSf(t *testing.T) {
+	for key, want := range map[string]bool{
+		"ApexClass###Greeter":                           true,
+		"CustomObject###Invoice__c":                     false,
+		"CustomField###Invoice__c.Amount__c":            true,
+		"CustomField###Account.Name":                    false,
+		"CustomField###Invoice__c.Old_del__c":           false,
+		"AccountSettings###Account":                     false,
+		"WorkflowAlert###Case.Notify":                   false,
+		"Profile###Admin":                               true,
+		"Profile###Standard":                            false,
+		"Profile###Custom: Sales Profile":               false,
+		"Layout###Account-Account Layout":               true,
+		"Layout###Account-Account (Marketing) Layout":   false,
+		"CustomMetadata###Setting.One":                  true,
+		"CustomMetadata###ns__Setting.One":              false,
+		"NavigationMenu###SFDC_Default_Navigation_Site": false,
+	} {
+		if got := expectsSourceMember(key); got != want {
+			t.Errorf("expectsSourceMember(%q) = %v, want %v", key, got, want)
+		}
+	}
+}
