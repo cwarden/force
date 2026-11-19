@@ -33,6 +33,10 @@ A config value is taken from the environment (`SF_TARGET_ORG`, `SF_TARGET_DEV_HU
 
 Logins, aliases and config values written by this mode were read by `sf` 2.138.6 in testing, and the reverse. A refreshed access token is saved to the authorization file.
 
+## Templates
+
+The files written by the `template generate` commands come from the salesforcedx-templates repository (BSD-3-Clause). They are stored in `sf/templates` as one compressed archive for each template directory and are compiled into the binary. `sf/templates/SOURCE` names the tag and commit. `make update-sf-templates SF_TEMPLATES_VERSION=<tag>` rebuilds the archives, the copy of the license and `THIRD-PARTY-LICENSES.txt`, which every release zip includes.
+
 ## Output
 
 - `--json` prints the `sf` envelope: `{"status", "result", "warnings"}`. Result fields keep the order of the API response, as in `sf`.
@@ -145,7 +149,7 @@ Logins, aliases and config values written by this mode were read by `sf` 2.138.6
 | `sf project retrieve start` | `force fetch`, `force export` | `--single-package`; one `--package-name` value. The JSON result has `files`, `status`, `success` and `done`; it has no `fileProperties`. Requires `--metadata`, `--manifest`, `--source-dir` or `--package-name`. | Failure output compared with sf; result table follows the sf plugin source |
 | `sf sobject describe` | `force describe sobject --name <name> --json` |  | Compared with sf |
 | `sf sobject list` | `force sobject list` |  | Compared with sf |
-| `sf template generate apex class` | `force create apexclass` | Only the `DefaultApexClass` template. | Compared with sf |
+| `sf template generate apex class` | `force create apexclass` |  | Compared with sf |
 | `sf template generate apex trigger` | `force create apextrigger` |  | Compared with sf |
 | `sf template generate visualforce component` | `force create apexcomponent` |  | Compared with sf |
 | `sf template generate visualforce page` | `force create apexpage` |  | Compared with sf |
@@ -287,17 +291,17 @@ A flag listed as unsupported returns an error that names the flag.
 
 | sf command | Summary | What is required |
 |---|---|---|
-| `sf template generate analytics template` | Generate a simple Analytics template. | Write the template files, as the four implemented `template generate` commands do. |
-| `sf template generate digital-experience site` | Generate an Experience Cloud site. | Write the template files, as the four implemented `template generate` commands do. |
-| `sf template generate flexipage` | Generate a FlexiPage, also known as a Lightning page. | Write the template files, as the four implemented `template generate` commands do. |
-| `sf template generate lightning app` | Generate a Lightning App. | Write the template files, as the four implemented `template generate` commands do. |
-| `sf template generate lightning component` | Generate a bundle for an Aura component or a Lightning web component. | Write the template files, as the four implemented `template generate` commands do. |
-| `sf template generate lightning event` | Generate a Lightning Event. | Write the template files, as the four implemented `template generate` commands do. |
-| `sf template generate lightning interface` | Generate a Lightning Interface. | Write the template files, as the four implemented `template generate` commands do. |
-| `sf template generate lightning test` | Generate a Lightning test. | Write the template files, as the four implemented `template generate` commands do. |
-| `sf template generate project` | Generate a Salesforce DX project. | Write the project template files. |
-| `sf template generate static-resource` | Generate a static resource. | Write the template files, as the four implemented `template generate` commands do. |
-| `sf template generate ui-bundle` | Generate a UI bundle, which contains the code and metadata to build a UI experience that uses non-native Salesforce frameworks, such as React. | Write the template files, as the four implemented `template generate` commands do. |
+| `sf template generate analytics template` | Generate a simple Analytics template. | Render the files of the matching archive in `sf/templates`, as the four implemented `template generate` commands do. Three templates use EJS control flow (`<% if %>`), which the renderer does not handle yet. |
+| `sf template generate digital-experience site` | Generate an Experience Cloud site. | Render the files of the matching archive in `sf/templates`, as the four implemented `template generate` commands do. Three templates use EJS control flow (`<% if %>`), which the renderer does not handle yet. |
+| `sf template generate flexipage` | Generate a FlexiPage, also known as a Lightning page. | Render the files of the matching archive in `sf/templates`, as the four implemented `template generate` commands do. Three templates use EJS control flow (`<% if %>`), which the renderer does not handle yet. |
+| `sf template generate lightning app` | Generate a Lightning App. | Render the files of the matching archive in `sf/templates`, as the four implemented `template generate` commands do. Three templates use EJS control flow (`<% if %>`), which the renderer does not handle yet. |
+| `sf template generate lightning component` | Generate a bundle for an Aura component or a Lightning web component. | Render the files of the matching archive in `sf/templates`, as the four implemented `template generate` commands do. Three templates use EJS control flow (`<% if %>`), which the renderer does not handle yet. |
+| `sf template generate lightning event` | Generate a Lightning Event. | Render the files of the matching archive in `sf/templates`, as the four implemented `template generate` commands do. Three templates use EJS control flow (`<% if %>`), which the renderer does not handle yet. |
+| `sf template generate lightning interface` | Generate a Lightning Interface. | Render the files of the matching archive in `sf/templates`, as the four implemented `template generate` commands do. Three templates use EJS control flow (`<% if %>`), which the renderer does not handle yet. |
+| `sf template generate lightning test` | Generate a Lightning test. | Render the files of the matching archive in `sf/templates`, as the four implemented `template generate` commands do. Three templates use EJS control flow (`<% if %>`), which the renderer does not handle yet. |
+| `sf template generate project` | Generate a Salesforce DX project. | Render the files of the `project` archive in `sf/templates`; the React app templates are not in the source repository of the templates. |
+| `sf template generate static-resource` | Generate a static resource. | Render the files of the matching archive in `sf/templates`, as the four implemented `template generate` commands do. Three templates use EJS control flow (`<% if %>`), which the renderer does not handle yet. |
+| `sf template generate ui-bundle` | Generate a UI bundle, which contains the code and metadata to build a UI experience that uses non-native Salesforce frameworks, such as React. | Render the files of the matching archive in `sf/templates`, as the four implemented `template generate` commands do. Three templates use EJS control flow (`<% if %>`), which the renderer does not handle yet. |
 
 ### package
 
@@ -444,5 +448,4 @@ A flag listed as unsupported returns an error that names the flag.
 |---|---|
 | Source tracking | Record the revision of each component in `<project>/.sf/orgs/<orgId>/` and query SourceMember, so that deploy and retrieve work without naming components. |
 | `--coverage-formatters`, `--junit`, `--results-dir` on the deploy commands | Write coverage and JUnit files from the deploy result; `lib/junit` has a JUnit writer. |
-| The remaining `template generate` commands | The template files of `@salesforce/templates` (BSD-3-Clause; the project template is 370 files) would have to be copied into this repository with their copyright notice. This needs a decision on licensing and repository size. |
 | Interactive prompts | `sf` prompts for a similar config name, for a command when a topic is given without one, and before some destructive actions. This mode prompts only before `org logout` and `package version promote`. |

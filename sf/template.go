@@ -5,9 +5,12 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/spf13/cobra"
+
+	"github.com/ForceCLI/force/sf/templates"
 )
 
 // templateAPIVersion is the API version sf 2.138.6 writes into generated
@@ -22,16 +25,39 @@ func newTemplateCmd() *cobra.Command {
 				newTemplateApexTriggerCmd(),
 			),
 			newGroup("visualforce", "Create Visualforce pages and components.",
-				newTemplateVisualforceCmd("page", "ApexPage", "Generate a Visualforce Page.",
-					"<apex:page >\n<!-- Begin Default Content REMOVE THIS -->\n<h1>Congratulations</h1>\nThis is your new Page\n<!-- End Default Content REMOVE THIS -->\n</apex:page>",
-					// The irregular spacing is what sf writes.
-					"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<ApexPage xmlns=\"http://soap.sforce.com/2006/04/metadata\"> \n    <apiVersion>%s</apiVersion>\n    <availableInTouch>false</availableInTouch>\n     <confirmationTokenRequired>false</confirmationTokenRequired>\n    <label>%s</label>\n</ApexPage>\n"),
-				newTemplateVisualforceCmd("component", "ApexComponent", "Generate a Visualforce Component.",
-					"<apex:component >\n<!-- Begin Default Content REMOVE THIS -->\n<h1>Congratulations</h1>\nThis is your new Component\n<!-- End Default Content REMOVE THIS -->\n</apex:component>",
-					"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<ApexComponent xmlns=\"http://soap.sforce.com/2006/04/metadata\">\n    <apiVersion>%s</apiVersion>\n    <label>%s</label>\n</ApexComponent>\n"),
+				newTemplateVisualforceCmd("page", "Generate a Visualforce Page.", "visualforcepage", "DefaultVFPage.page", "_page.page-meta.xml"),
+				newTemplateVisualforceCmd("component", "Generate a Visualforce Component.", "visualforcecomponent", "DefaultVFComponent.component", "_component.component-meta.xml"),
 			),
 		),
 	)
+}
+
+var templateVariable = regexp.MustCompile(`<%=\s*(\w+)\s*%>`)
+
+// renderTemplate reads a file of the embedded templates and replaces each
+// <%= name %> with the value of the variable.
+func renderTemplate(directory, file string, variables map[string]string) (string, error) {
+	content, err := templates.File(directory, file)
+	if err != nil {
+		return "", err
+	}
+	return templateVariable.ReplaceAllStringFunc(string(content), func(match string) string {
+		return variables[templateVariable.FindStringSubmatch(match)[1]]
+	}), nil
+}
+
+// renderFiles renders template files and returns them under their output
+// names.  Each pair is an output name and a template file.
+func renderFiles(directory string, variables map[string]string, pairs ...[2]string) ([]generatedFile, error) {
+	files := make([]generatedFile, 0, len(pairs))
+	for _, pair := range pairs {
+		content, err := renderTemplate(directory, pair[1], variables)
+		if err != nil {
+			return nil, err
+		}
+		files = append(files, generatedFile{pair[0], content})
+	}
+	return files, nil
 }
 
 type generatedFile struct {
@@ -113,19 +139,30 @@ func newTemplateApexClassCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if template, _ := cmd.Flags().GetString("template"); template != "DefaultApexClass" {
-				return newError("UnsupportedFlagError", "The --template value %s is not supported by the sf-compatible mode of force. Only DefaultApexClass is supported.", template)
+			template, _ := cmd.Flags().GetString("template")
+			valid := false
+			for _, known := range apexClassTemplates {
+				if template == known {
+					valid = true
+				}
 			}
-			return writeTemplates(cmd, []generatedFile{
-				{name + ".cls", fmt.Sprintf("public with sharing class %s {\n    public %s() {\n\n    }\n}", name, name)},
-				{name + ".cls-meta.xml", fmt.Sprintf("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<ApexClass xmlns=\"http://soap.sforce.com/2006/04/metadata\">\n    <apiVersion>%s</apiVersion>\n    <status>Active</status>\n</ApexClass>\n", apiVersion)},
-			})
+			if !valid {
+				return &Error{Message: fmt.Sprintf("Expected --template=%s to be one of: %s\nSee more help with --help", template, strings.Join(apexClassTemplates, ", ")), ExitCode: 2}
+			}
+			files, err := renderFiles("apexclass", map[string]string{"apiName": name, "apiVersion": apiVersion},
+				[2]string{name + ".cls", template + ".cls"}, [2]string{name + ".cls-meta.xml", "_class.cls-meta.xml"})
+			if err != nil {
+				return err
+			}
+			return writeTemplates(cmd, files)
 		},
 	}
 	addTemplateFlags(cmd)
 	cmd.Flags().StringP("template", "t", "DefaultApexClass", "Template to use for file creation.")
 	return cmd
 }
+
+var apexClassTemplates = []string{"ApexException", "ApexUnitTest", "BasicUnitTest", "DefaultApexClass", "InboundEmailService"}
 
 var triggerEvents = []string{"before insert", "before update", "before delete", "after insert", "after update", "after delete", "after undelete"}
 
@@ -156,10 +193,12 @@ func newTemplateApexTriggerCmd() *cobra.Command {
 					return &Error{Message: fmt.Sprintf("Expected --event=%s to be one of: %s\nSee more help with --help", event, strings.Join(triggerEvents, ", ")), ExitCode: 2}
 				}
 			}
-			return writeTemplates(cmd, []generatedFile{
-				{name + ".trigger", fmt.Sprintf("trigger %s on %s (%s) {\n\n}", name, sobject, strings.Join(events, ","))},
-				{name + ".trigger-meta.xml", fmt.Sprintf("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<ApexTrigger xmlns=\"http://soap.sforce.com/2006/04/metadata\">\n  <apiVersion>%s</apiVersion>\n  <status>Active</status>\n</ApexTrigger>\n", apiVersion)},
-			})
+			files, err := renderFiles("apextrigger", map[string]string{"triggername": name, "sobject": sobject, "triggerEvents": strings.Join(events, ","), "apiVersion": apiVersion},
+				[2]string{name + ".trigger", "ApexTrigger.trigger"}, [2]string{name + ".trigger-meta.xml", "_trigger.trigger-meta.xml"})
+			if err != nil {
+				return err
+			}
+			return writeTemplates(cmd, files)
 		},
 	}
 	addTemplateFlags(cmd)
@@ -169,7 +208,7 @@ func newTemplateApexTriggerCmd() *cobra.Command {
 	return cmd
 }
 
-func newTemplateVisualforceCmd(kind, className, short, body, meta string) *cobra.Command {
+func newTemplateVisualforceCmd(kind, short, directory, body, meta string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:         kind,
 		Short:       short,
@@ -184,10 +223,12 @@ func newTemplateVisualforceCmd(kind, className, short, body, meta string) *cobra
 			if label == "" {
 				return missingFlagError("label")
 			}
-			return writeTemplates(cmd, []generatedFile{
-				{name + "." + kind, body},
-				{name + "." + kind + "-meta.xml", fmt.Sprintf(meta, apiVersion, label)},
-			})
+			files, err := renderFiles(directory, map[string]string{"apiVersion": apiVersion, "vfLabel": label},
+				[2]string{name + "." + kind, body}, [2]string{name + "." + kind + "-meta.xml", meta})
+			if err != nil {
+				return err
+			}
+			return writeTemplates(cmd, files)
 		},
 	}
 	addTemplateFlags(cmd)

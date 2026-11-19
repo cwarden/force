@@ -115,7 +115,7 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 
 ## Unimplemented Behavior Of Implemented Commands
 
-- [ ] `template generate apex class`: templates other than `DefaultApexClass`
+- [x] `template generate apex class`: templates other than `DefaultApexClass`
 - [ ] `org create scratch`: definition file key `objectSettings`, and keys other than `orgName`, `edition`, `country`, `language`, `adminEmail`, `description`, `hasSampleData`, `username`, `release`, `namespace`, `duration`, `durationDays`, `features`, `settings`
 - [ ] `org display`: scratch org fields other than the Dev Hub username and expiration date
 - [ ] `data query`: sf's layout for child records of a subquery
@@ -140,7 +140,7 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 
 ## Needs A Decision
 
-- [ ] The remaining `template generate` commands need the template files of `@salesforce/templates` copied into this repository (BSD-3-Clause; the project template is 370 files, 6 MB)
+- [x] Template files: the 192 files of the salesforcedx-templates repository (tag 66.9.1) are embedded as compressed archives in `sf/templates`, with the license in `THIRD-PARTY-LICENSES.txt` and in every release zip. The React app templates of the npm package are not in that repository and are not included
 
 ## Not Yet Verified
 

@@ -13,6 +13,12 @@ OSX_ARM64=$(EXECUTABLE)_osx_arm64
 ALL=$(WINDOWS) $(WINDOWS_ARM64) $(LINUX) $(LINUX_ARM64) $(OSX_AMD64) $(OSX_ARM64)
 ZIPS=$(addsuffix _$(VERSION).zip,$(basename $(ALL)))
 RELEASE_ASSETS=$(ZIPS) SHA256SUMS-$(VERSION)
+# Notices that the licenses of third-party material in the binary require to
+# accompany it.  Every release zip includes these files.
+LICENSE_FILES=THIRD-PARTY-LICENSES.txt
+# Source of the file templates in sf/templates.
+SF_TEMPLATES_REPO=https://github.com/forcedotcom/salesforcedx-templates
+SF_TEMPLATES_VERSION=66.9.1
 
 default:
 	go build ${LDFLAGS}
@@ -47,35 +53,42 @@ $(OSX_ARM64):
 	env CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -v -o $(OSX_ARM64) ${LDFLAGS}
 	rcodesign sign --for-notarization --pem-file <(pass OctoberSwimmer/codesign/combined) $@
 
-$(basename $(WINDOWS))_$(VERSION).zip: $(WINDOWS)
+$(basename $(WINDOWS))_$(VERSION).zip: $(WINDOWS) $(LICENSE_FILES)
 	@rm -f $@
-	zip $@ $<
+	zip $@ $< $(LICENSE_FILES)
 	7za rn $@ $< $(EXECUTABLE)$(suffix $<)
 
-$(basename $(WINDOWS_ARM64))_$(VERSION).zip: $(WINDOWS_ARM64)
+$(basename $(WINDOWS_ARM64))_$(VERSION).zip: $(WINDOWS_ARM64) $(LICENSE_FILES)
 	@rm -f $@
-	zip $@ $<
+	zip $@ $< $(LICENSE_FILES)
 	7za rn $@ $< $(EXECUTABLE)$(suffix $<)
 
-$(basename $(OSX_AMD64))_$(VERSION).zip: $(OSX_AMD64)
+$(basename $(OSX_AMD64))_$(VERSION).zip: $(OSX_AMD64) $(LICENSE_FILES)
 	@rm -f $@
-	zip $@ $<
+	zip $@ $< $(LICENSE_FILES)
 	7za rn $@ $< $(EXECUTABLE)
 	rcodesign notary-submit --api-key-file <(pass OctoberSwimmer/codesign/api-key) $@
 
-$(basename $(OSX_ARM64))_$(VERSION).zip: $(OSX_ARM64)
+$(basename $(OSX_ARM64))_$(VERSION).zip: $(OSX_ARM64) $(LICENSE_FILES)
 	@rm -f $@
-	zip $@ $<
+	zip $@ $< $(LICENSE_FILES)
 	7za rn $@ $< $(EXECUTABLE)
 	rcodesign notary-submit --api-key-file <(pass OctoberSwimmer/codesign/api-key) $@
 
-%_$(VERSION).zip: %
+%_$(VERSION).zip: % $(LICENSE_FILES)
 	@rm -f $@
-	zip $@ $<
+	zip $@ $< $(LICENSE_FILES)
 	7za rn $@ $< $(EXECUTABLE)
 
 docs:
 	go run docs/mkdocs.go
+
+# Rebuild the template archives in sf/templates, their license and
+# THIRD-PARTY-LICENSES.txt from a tag of the source repository:
+#   make update-sf-templates SF_TEMPLATES_VERSION=66.9.3
+update-sf-templates:
+	go run sf/templates/update.go $(SF_TEMPLATES_REPO) $(SF_TEMPLATES_VERSION) .
+	go test ./sf/...
 
 dist: test $(ZIPS)
 
@@ -111,7 +124,7 @@ test:
 clean:
 	-rm -f $(EXECUTABLE) $(EXECUTABLE)_* *.zip SHA256SUMS-*
 
-.PHONY: default dist clean docs checksum release tag install-sf $(ALL)
+.PHONY: default dist clean docs checksum release tag install-sf update-sf-templates $(ALL)
 
 tag:
 	@echo "Creating next tag..."

@@ -42,6 +42,13 @@ values of `sf` (`~/.sfdx` and `~/.sf`), and prints output in the format of
 `sf` commands that are not implemented. [docs/sf/sf.md](docs/sf/sf.md) has the
 generated help for each command.
 
+The file templates of the `sf template generate` commands come from
+[salesforcedx-templates](https://github.com/forcedotcom/salesforcedx-templates)
+(BSD-3-Clause) and are compiled into the binary. Their license is in
+[THIRD-PARTY-LICENSES.txt](THIRD-PARTY-LICENSES.txt), which is included in
+every release zip. `make update-sf-templates SF_TEMPLATES_VERSION=<tag>`
+rebuilds them from a tag of that repository.
+
 Tab completion simplifies use of the force CLI.
 Enable bash completion or see `force completion --help` for other options.
 

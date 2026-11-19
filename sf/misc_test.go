@@ -148,6 +148,22 @@ func TestTemplateGenerateApexClass(t *testing.T) {
 	}
 }
 
+func TestTemplateGenerateApexClassFromOtherTemplates(t *testing.T) {
+	home := useTempHome(t)
+	chdir(t, home)
+	if _, errOut, status := run("template", "generate", "apex", "class", "-n", "MyError", "-t", "ApexException"); status != 0 {
+		t.Fatalf("status %d, %s", status, errOut)
+	}
+	class, _ := os.ReadFile("MyError.cls")
+	if !strings.Contains(string(class), "class MyError extends Exception") {
+		t.Errorf("MyError.cls = %q", class)
+	}
+	_, errOut, status := run("template", "generate", "apex", "class", "-n", "X", "-t", "NoSuchTemplate")
+	if status != 2 || !strings.Contains(errOut, "Expected --template=NoSuchTemplate to be one of: ApexException, ApexUnitTest, BasicUnitTest, DefaultApexClass, InboundEmailService") {
+		t.Errorf("unknown template: status %d, stderr %q", status, errOut)
+	}
+}
+
 func TestTemplateGenerateTriggerAndVisualforce(t *testing.T) {
 	home := useTempHome(t)
 	chdir(t, home)
