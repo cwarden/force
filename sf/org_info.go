@@ -186,6 +186,12 @@ func decodeXMLElement(dec *xml.Decoder) (interface{}, error) {
 			if err != nil {
 				return nil, err
 			}
+			// An element marked xsi:nil has no value.
+			for _, attr := range t.Attr {
+				if attr.Name.Local == "nil" && attr.Value == "true" {
+					child = nil
+				}
+			}
 			name := t.Name.Local
 			if existing, ok := object.Get(name); ok {
 				if list, isList := existing.([]interface{}); isList {

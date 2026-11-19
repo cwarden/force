@@ -94,8 +94,8 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [ ] `package version list`: `--show-conversions-only`
 - [x] `project convert mdapi`: `--manifest`, `--metadata-dir`, `--metadata`
 - [x] `project convert source`: `--package-name`
-- [ ] `project deploy start`, `project deploy validate`: `--coverage-formatters`, `--junit`, `--results-dir` (`--pre-destructive-changes` and `--post-destructive-changes` are done)
-- [ ] `project deploy report`, `project deploy resume`: `--coverage-formatters`, `--junit`, `--results-dir` (not defined)
+- [x] `project deploy start`, `project deploy validate`: `--coverage-formatters`, `--junit`, `--results-dir` (the `html` and `html-spa` formats are not supported)
+- [x] `project deploy report`, `project deploy resume`: `--coverage-formatters`, `--junit`, `--results-dir` (follow the code of deploy start; not compared with sf)
 - [x] `project deploy quick`, `report`, `resume`, `cancel`: `--use-most-recent`
 - [ ] `project generate manifest`: `--from-org`, `--include-packages`
 - [ ] `project retrieve start`: `--single-package`; more than one `--package-name`
@@ -112,9 +112,10 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [ ] `package install`: `--no-prompt` (remote site settings are enabled without asking)
 - [ ] `package version create`: `--wait` (the command always waits), `--installation-key-bypass`
 - [ ] `package version report`: `--verbose`
-- [ ] `project deploy start`, `project deploy validate`: `--verbose`, `--ignore-conflicts`, `--single-package`
-- [ ] `project deploy quick`, `project deploy resume`: `--verbose`
-- [ ] `project retrieve start`: `--ignore-conflicts`, `--wait`
+- [x] `project deploy start`, `project deploy validate`: `--verbose` (deploy URL, size, file count, passed tests and the coverage table; compared with sf against a scratch org), `--ignore-conflicts`
+- [ ] `project deploy start`, `project deploy validate`: `--single-package` (accepted without effect)
+- [ ] `project deploy quick`, `project deploy resume`: `--verbose` (resume prints the passed tests and the coverage table; the deploy URL line is not printed)
+- [ ] `project retrieve start`: `--wait` (`--ignore-conflicts` is done)
 - [ ] `template generate project`: the `agent`, `nativemobile`, `reactinternalapp` and `reactexternalapp` templates
 - [x] `template generate apex trigger`, `template generate visualforce page`, `template generate visualforce component`: `--template` (each command has one template; another value is an error, as in sf)
 
@@ -158,7 +159,7 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
   - [ ] Write `maxRevision.json` as fileVersion 1 when `SF_SOURCE_TRACKING_FILE_VERSION=1` (the file is read in both versions)
 - [x] `.forceignore` (sf reports an error when a content file is ignored and its `-meta.xml` file is not; this mode leaves both out)
 - [x] Destructive changes on deploy
-- [ ] Coverage and JUnit result files on the deploy commands
+- [x] Coverage and JUnit result files on the deploy commands (the files are the same as the ones sf wrote for a deploy to a scratch org; `html` and `html-spa` are not supported)
 - [x] Shell completion for the sf command tree (`sf autocomplete`)
 
 ## Needs A Decision

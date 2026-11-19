@@ -587,7 +587,21 @@ func writeStages(w io.Writer, title, subtitle string, stages []stage, info [][2]
 	}
 	fmt.Fprintln(w)
 	for _, item := range info {
-		fmt.Fprintf(w, " %s: %s\n", item[0], item[1])
+		if 1+len(item[0])+2+len(item[1]) <= 80 {
+			fmt.Fprintf(w, " %s: %s\n", item[0], item[1])
+			continue
+		}
+		// A value that does not fit on the line follows its label, cut
+		// into lines of 79 characters.
+		fmt.Fprintf(w, " %s:\n", item[0])
+		for value := item[1]; value != ""; {
+			cut := 79
+			if len(value) < cut {
+				cut = len(value)
+			}
+			fmt.Fprintf(w, " %s\n", value[:cut])
+			value = value[cut:]
+		}
 	}
 	fmt.Fprintln(w)
 }

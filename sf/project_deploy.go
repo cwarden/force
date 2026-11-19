@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -30,7 +31,7 @@ var (
 		"numberComponentErrors": true, "numberComponentsDeployed": true, "numberComponentsTotal": true,
 		"numberTestErrors": true, "numberTestsCompleted": true, "numberTestsTotal": true,
 		"columnNumber": true, "lineNumber": true, "numFailures": true, "numTestsRun": true,
-		"totalTime": true, "time": true, "numLocations": true, "numLocationsNotCovered": true,
+		"totalTime": true, "time": true, "numLocations": true, "numLocationsNotCovered": true, "numExecutions": true, "column": true, "line": true,
 	}
 	deployArrayFields = map[string]bool{
 		"componentSuccesses": true, "componentFailures": true, "successes": true, "failures": true,
@@ -58,6 +59,10 @@ func typedDeployValue(key string, value interface{}) interface{} {
 		return v
 	case *orderedMap:
 		for _, childKey := range v.keys {
+			if childKey == "locationsCovered" {
+				// sf leaves the values of the covered locations as text.
+				continue
+			}
 			child := typedDeployValue(childKey, v.values[childKey])
 			if deployArrayFields[childKey] {
 				if _, isList := child.([]interface{}); !isList {
@@ -81,6 +86,8 @@ func typedDeployValue(key string, value interface{}) interface{} {
 type deployState struct {
 	status lib.ForceCheckDeploymentStatusResult
 	raw    *orderedMap
+	// verboseInfo holds the lines --verbose adds to the progress display.
+	verboseInfo [][2]string
 }
 
 func checkDeploy(org *targetOrg, id string) (*deployState, error) {
@@ -188,6 +195,16 @@ func fillTestResultLists(result *orderedMap) {
 					tests.Set(key, []interface{}{})
 				}
 			}
+			coverage, _ := tests.values["codeCoverage"].([]interface{})
+			for _, item := range coverage {
+				if class, ok := item.(*orderedMap); ok {
+					for _, key := range []string{"dmlInfo", "methodInfo", "soqlInfo", "soslInfo"} {
+						if _, present := class.values[key]; !present {
+							class.Set(key, []interface{}{})
+						}
+					}
+				}
+			}
 		}
 	}
 }
@@ -212,7 +229,7 @@ func deployJSON(org *targetOrg, state *deployState, source *sourceSet, zipSize, 
 // writeDeployTables prints the tables sf prints after a deployment: the
 // deployed or validated source, the component failures and a summary of
 // the tests.
-func writeDeployTables(w io.Writer, state *deployState, source *sourceSet, concise bool) {
+func writeDeployTables(w io.Writer, state *deployState, source *sourceSet, concise bool, verbose ...bool) {
 	files := deployFileResults(state, source)
 	var successes, failures []*orderedMap
 	for _, file := range files {
@@ -258,25 +275,85 @@ func writeDeployTables(w io.Writer, state *deployState, source *sourceSet, conci
 		printTable(w, paint(w, styleRed, fmt.Sprintf("Component Failures [%d]", len(rows))), []string{"Type", "Name", "Problem", "Line:Column"}, rows)
 	}
 	tests := state.status.Details.RunTestResult
-	if tests.NumberOfTestsRun > 0 {
-		testFailures := tests.TestFailures
-		if len(testFailures) > 0 {
-			rows := make([][]string, 0, len(testFailures))
-			for _, failure := range testFailures {
-				rows = append(rows, []string{failure.Name, failure.MethodName, failure.Message, failure.StackTrace})
+	testsEnabled := tests.NumberOfTestsRun > 0
+	if enabled, ok := state.raw.values["runTestsEnabled"].(bool); ok {
+		testsEnabled = enabled
+	}
+	if !testsEnabled {
+		return
+	}
+	byMethod := func(aMethod, aName, bMethod, bName string) bool {
+		if aMethod != bMethod {
+			return aMethod < bMethod
+		}
+		return aName < bName
+	}
+	if state.status.NumberTestErrors > 0 {
+		failures := append([]lib.TestFailure{}, tests.TestFailures...)
+		sort.SliceStable(failures, func(i, j int) bool {
+			return byMethod(failures[i].MethodName, failures[i].Name, failures[j].MethodName, failures[j].Name)
+		})
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, paint(w, styleRed, fmt.Sprintf("Test Failures [%d]", tests.NumberOfFailures)))
+		for _, failure := range failures {
+			fmt.Fprintf(w, "• %s.%s\n", failure.Name, failure.MethodName)
+			fmt.Fprintf(w, "  message: %s\n", failure.Message)
+			if failure.StackTrace != "" {
+				fmt.Fprintf(w, "  stacktrace: \n    %s\n", strings.ReplaceAll(failure.StackTrace, "\n", "\n    "))
 			}
 			fmt.Fprintln(w)
-			printTable(w, paint(w, styleRed, fmt.Sprintf("Test Failures [%d]", len(rows))), []string{"Name", "Method", "Message", "Stacktrace"}, rows)
-		}
-		fmt.Fprintln(w)
-		fmt.Fprintln(w, paint(w, style{"\x1b[1m\x1b[34m", "\x1b[39m\x1b[22m"}, "Test Results Summary"))
-		fmt.Fprintf(w, "Passing: %d\n", tests.NumberOfTestsRun-tests.NumberOfFailures)
-		fmt.Fprintf(w, "Failing: %d\n", tests.NumberOfFailures)
-		fmt.Fprintf(w, "Total: %d\n", tests.NumberOfTestsRun)
-		if tests.TotalTime > 0 {
-			fmt.Fprintf(w, "Time: %v\n", tests.TotalTime)
 		}
 	}
+	if len(verbose) > 0 && verbose[0] {
+		successes := append([]lib.TestSuccess{}, tests.TestSuccesses...)
+		sort.SliceStable(successes, func(i, j int) bool {
+			return byMethod(successes[i].MethodName, successes[i].Name, successes[j].MethodName, successes[j].Name)
+		})
+		if len(successes) > 0 {
+			fmt.Fprintln(w)
+			fmt.Fprintln(w, paint(w, styleGreen, fmt.Sprintf("Test Success [%d]", len(successes))))
+			for _, success := range successes {
+				fmt.Fprintf(w, "✓ %s.%s (%vms)\n", success.Name, success.MethodName, success.Time)
+			}
+		}
+		if len(tests.CodeCoverage) > 0 {
+			coverage := append([]lib.CodeCoverage{}, tests.CodeCoverage...)
+			sort.SliceStable(coverage, func(i, j int) bool { return strings.ToUpper(coverage[i].Name) < strings.ToUpper(coverage[j].Name) })
+			rows := make([][]string, 0, len(coverage))
+			for _, class := range coverage {
+				percent := 100.0
+				if class.NumLocations > 0 {
+					percent = math.Round(float64(class.NumLocations-class.NumLocationsNotCovered)/float64(class.NumLocations)*100) / 100 * 100
+				}
+				lines := make([]string, 0, len(class.LocationsNotCovered))
+				for _, location := range class.LocationsNotCovered {
+					lines = append(lines, strconv.Itoa(location.Line))
+				}
+				rows = append(rows, []string{class.Name, formatNumber(percent) + "%", strings.Join(lines, ",")})
+			}
+			fmt.Fprintln(w)
+			printTable(w, paint(w, style{"\x1b[1m\x1b[34m", "\x1b[39m\x1b[22m"}, "Apex Code Coverage"), []string{"Name", "% Covered", "Uncovered Lines"}, rows)
+		}
+	}
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, paint(w, style{"\x1b[1m\x1b[34m", "\x1b[39m\x1b[22m"}, "Test Results Summary"))
+	fmt.Fprintf(w, "Passing: %d\n", state.status.NumberTestsCompleted)
+	fmt.Fprintf(w, "Failing: %d\n", state.status.NumberTestErrors)
+	fmt.Fprintf(w, "Total: %d\n", state.status.NumberTestsTotal)
+	if tests.TotalTime > 0 {
+		fmt.Fprintf(w, "Time: %v\n", tests.TotalTime)
+	}
+}
+
+// zipFileSize formats a number of bytes the way sf does.
+func zipFileSize(size int) string {
+	bytes := float64(size)
+	units := []string{"B", "KB", "MB", "GB"}
+	for bytes > 1024 && len(units) > 1 {
+		bytes /= 1024
+		units = units[1:]
+	}
+	return formatNumber(math.Round(bytes*100)/100) + " " + units[0]
 }
 
 // deployProgress prints the last frame of the progress display for a
@@ -301,7 +378,10 @@ func deployProgress(w io.Writer, org *targetOrg, title, subtitle string, state *
 			// reported no count.
 			stages[2].details = []string{"Components: ✘"}
 		}
-		if status.NumberComponentErrors > 0 || (status.Status == "Failed" && status.NumberTestErrors == 0) {
+		// A deploy that failed without a component error or a test error
+		// failed on its code coverage, in the test stage.
+		coverageFailed := status.Status == "Failed" && status.NumberComponentErrors == 0 && status.NumberTestErrors == 0 && status.NumberTestsTotal > 0
+		if status.NumberComponentErrors > 0 || (status.Status == "Failed" && status.NumberTestErrors == 0 && !coverageFailed) {
 			stages[2].state = "failed"
 		}
 		if status.NumberTestsTotal > 0 {
@@ -309,7 +389,10 @@ func deployProgress(w io.Writer, org *targetOrg, title, subtitle string, state *
 			stages[3].details = []string{fmt.Sprintf("Successful: %d/%d (%d%%)", status.NumberTestsCompleted, status.NumberTestsTotal, status.NumberTestsCompleted*100/status.NumberTestsTotal)}
 			if status.NumberTestErrors > 0 {
 				stages[3].state = "failed"
-				stages[3].details = append(stages[3].details, fmt.Sprintf("Failed: %d", status.NumberTestErrors))
+				stages[3].details = append(stages[3].details, fmt.Sprintf("Failed: %d/%d (%d%%)", status.NumberTestErrors, status.NumberTestsTotal, status.NumberTestErrors*100/status.NumberTestsTotal))
+			} else if coverageFailed {
+				stages[3].state = "failed"
+				stages[3].details = append(stages[3].details, "Failed: ✘")
 			}
 		}
 		if status.Status != "Succeeded" {
@@ -337,7 +420,9 @@ func deployProgress(w io.Writer, org *targetOrg, title, subtitle string, state *
 	if statusText == "InProgress" {
 		statusText = "In Progress"
 	}
-	info := [][2]string{{"Status", statusText}, {"Deploy ID", status.Id}, {"Target Org", org.Username}, {"Elapsed Time", formatElapsed(elapsed)}}
+	info := [][2]string{{"Status", statusText}, {"Deploy ID", status.Id}, {"Target Org", org.Username}}
+	info = append(info, state.verboseInfo...)
+	info = append(info, [2]string{"Elapsed Time", formatElapsed(elapsed)})
 	writeStages(w, title, subtitle, stages, info)
 }
 
@@ -370,19 +455,100 @@ func finishDeploy(cmd *cobra.Command, org *targetOrg, state *deployState, source
 	if state.status.Status != "Succeeded" {
 		status = 1
 	}
+	reports, err := readDeployReportFlags(cmd)
+	if err != nil {
+		return err
+	}
+	tests := state.status.Details.RunTestResult
+	if reports.requested() {
+		if testLevel, _ := cmd.Flags().GetString("test-level"); (state.status.NumberTestsTotal == 0 && testLevel == "") || testLevel == "NoTestRun" {
+			var lines []string
+			if len(reports.formats) > 0 {
+				lines = append(lines, "`--coverage-formatters` was specified but no tests ran.")
+			}
+			if reports.junit {
+				lines = append(lines, "`--junit` was specified but no tests ran.")
+			}
+			lines = append(lines, "You can ensure tests run by specifying `--test-level` and setting it to `RunSpecifiedTests`, `RunLocalTests` or `RunAllTestsInOrg`.")
+			warn(cmd, strings.Join(lines, "\n"))
+		}
+		if err := reports.write(org, tests); err != nil {
+			return err
+		}
+	}
 	concise, _ := cmd.Flags().GetBool("concise")
-	if err := emitStatus(cmd, status, deployJSON(org, state, source, zipSize, zipFileCount), func(w io.Writer) {
-		writeDeployTables(w, state, source, concise)
+	verbose, _ := cmd.Flags().GetBool("verbose")
+	human := func(w io.Writer) {
+		writeDeployTables(w, state, source, concise, verbose)
+		if enabled, _ := state.raw.values["runTestsEnabled"].(bool); enabled || tests.NumberOfTestsRun > 0 {
+			for _, warning := range tests.CodeCoverageWarnings {
+				message := warning.Message
+				if warning.Name != "" {
+					message = warning.Name + " - " + message
+				}
+				uxWarn(cmd.ErrOrStderr(), message)
+			}
+		}
+		if len(reports.formats) > 0 {
+			fmt.Fprintf(w, "Code Coverage formats, [%s], written to %s/\n", strings.Join(reports.formats, ", "), filepath.Join(reports.resultsDir, "coverage"))
+		}
+		if reports.junit {
+			fmt.Fprintf(w, "Junit results written to %s/junit/junit.xml\n", reports.resultsDir)
+		}
 		if status == 0 && after != nil {
 			after(w)
 		}
-	}); err != nil {
+	}
+	if status != 0 && cmd.Annotations[commandNameAnnotation] == "DeployMetadataValidate" {
+		// sf reports a failed validation as an error, also with --json.
+		if !jsonRequested(cmd) {
+			human(cmd.OutOrStdout())
+		}
+		return failedValidationError(state)
+	}
+	if err := emitStatus(cmd, status, deployJSON(org, state, source, zipSize, zipFileCount), human); err != nil {
 		return err
 	}
 	if status != 0 {
 		return exitStatus(status)
 	}
 	return nil
+}
+
+// failedValidationError is the error sf reports for a validation that did
+// not succeed: the coverage warnings, the component errors and the test
+// failures.
+func failedValidationError(state *deployState) error {
+	tests := state.status.Details.RunTestResult
+	var parts []string
+	for _, warning := range tests.CodeCoverageWarnings {
+		message := warning.Message
+		if warning.Name != "" {
+			message = warning.Name + " - " + message
+		}
+		parts = append(parts, message)
+	}
+	componentErrors := ""
+	for _, failure := range state.status.Details.ComponentFailures {
+		componentErrors += fmt.Sprintf("%s in %s - %s\n", failure.ProblemType, failure.FullName, failure.Problem)
+	}
+	count := ""
+	if state.status.NumberComponentErrors > 0 {
+		count = fmt.Sprintf("%d component error(s)", state.status.NumberComponentErrors)
+	}
+	failures := make([]string, 0, len(tests.TestFailures))
+	for _, failure := range tests.TestFailures {
+		failures = append(failures, fmt.Sprintf("%s.%s - %s", failure.Name, failure.MethodName, failure.Message))
+	}
+	parts = append(parts, componentErrors, count, strings.Join(failures, ","))
+	data := newOrderedMap()
+	data.Set("deployId", state.status.Id)
+	return &Error{
+		Name:     "FailedValidationError",
+		Message:  fmt.Sprintf("Failed to validate the deployment (%s). Due To:\n%s", state.status.Id, strings.TrimSpace(strings.Join(parts, "\n"))),
+		ExitCode: 1,
+		Data:     data,
+	}
 }
 
 func addDeployJobFlags(cmd *cobra.Command) {
@@ -506,7 +672,7 @@ func newProjectDeployStartCmd(validate bool) *cobra.Command {
 		Args:        cobra.NoArgs,
 		Annotations: map[string]string{commandNameAnnotation: className},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := unsupportedFlags(cmd, "coverage-formatters", "junit", "results-dir"); err != nil {
+			if _, err := readDeployReportFlags(cmd); err != nil {
 				return err
 			}
 			// Destructive change manifests are deployed under the file
@@ -719,6 +885,12 @@ func newProjectDeployStartCmd(validate bool) *cobra.Command {
 				}
 			}
 			if state != nil && !jsonRequested(cmd) {
+				if verbose, _ := cmd.Flags().GetBool("verbose"); verbose {
+					state.verboseInfo = [][2]string{{"Deploy URL", deployURL(org, id)}}
+					if !validate {
+						state.verboseInfo = append(state.verboseInfo, [2]string{"Size", zipFileSize(len(archive)) + " of ~39 MB limit"}, [2]string{"Files", fmt.Sprintf("%d of 10,000 limit", len(files))})
+					}
+				}
 				deployProgress(out, org, title, subtitle, state, false, prepare, time.Since(started), tracked)
 			}
 			if err != nil {
@@ -757,9 +929,7 @@ func newProjectDeployStartCmd(validate bool) *cobra.Command {
 	cmd.Flags().Bool("purge-on-delete", false, "Specify that deleted components in the destructive changes manifest file are immediately eligible for deletion.")
 	cmd.Flags().String("pre-destructive-changes", "", "File path for a manifest of components to delete before the deploy.")
 	cmd.Flags().String("post-destructive-changes", "", "File path for a manifest of components to delete after the deploy.")
-	cmd.Flags().StringArray("coverage-formatters", nil, "Format of the code coverage results.")
-	cmd.Flags().Bool("junit", false, "Output JUnit test results.")
-	cmd.Flags().String("results-dir", "", "Output directory for code coverage and JUnit results.")
+	addDeployReportFlags(cmd)
 	if !validate {
 		cmd.Flags().Bool("dry-run", false, "Validate deploy and run Apex tests but don’t save to the org.")
 		cmd.Flags().BoolP("ignore-conflicts", "c", false, "Ignore conflicts and deploy local files, even if they overwrite changes in the org.")
@@ -803,6 +973,7 @@ func newProjectDeployResumeCmd() *cobra.Command {
 	addDeployJobFlags(cmd)
 	cmd.Flags().Bool("concise", false, "Show concise output of the deploy result.")
 	cmd.Flags().Bool("verbose", false, "Show verbose output of the deploy result.")
+	addDeployReportFlags(cmd)
 	return cmd
 }
 
@@ -817,6 +988,10 @@ func newProjectDeployReportCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			reports, err := readDeployReportFlags(cmd)
+			if err != nil {
+				return err
+			}
 			var state *deployState
 			if cmd.Flags().Changed("wait") {
 				minutes, _ := cmd.Flags().GetInt("wait")
@@ -826,6 +1001,11 @@ func newProjectDeployReportCmd() *cobra.Command {
 			}
 			if err != nil {
 				return err
+			}
+			if reports.requested() {
+				if err := reports.write(org, state.status.Details.RunTestResult); err != nil {
+					return err
+				}
 			}
 			return emit(cmd, deployJSON(org, state, nil, 0, 0), func(w io.Writer) {
 				fmt.Fprintf(w, "%s... %s\n", state.status.Id, state.status.Status)
@@ -846,10 +1026,17 @@ func newProjectDeployReportCmd() *cobra.Command {
 				fmt.Fprintln(w)
 				printTable(w, paint(w, style{"\x1b[1m\x1b[34m", "\x1b[39m\x1b[22m"}, "Deploy Options"), []string{"Key", "Value"}, options)
 				writeDeployTables(w, state, nil, false)
+				if len(reports.formats) > 0 {
+					fmt.Fprintf(w, "Code Coverage formats, [%s], written to %s/\n", strings.Join(reports.formats, ", "), filepath.Join(reports.resultsDir, "coverage"))
+				}
+				if reports.junit {
+					fmt.Fprintf(w, "Junit results written to %s/junit/junit.xml\n", reports.resultsDir)
+				}
 			})
 		},
 	}
 	addDeployJobFlags(cmd)
+	addDeployReportFlags(cmd)
 	return cmd
 }
 

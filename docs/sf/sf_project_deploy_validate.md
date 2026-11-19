@@ -23,7 +23,7 @@ sf project deploy validate [flags]
       --post-destructive-changes string   File path for a manifest of components to delete after the deploy.
       --pre-destructive-changes string    File path for a manifest of components to delete before the deploy.
       --purge-on-delete                   Specify that deleted components in the destructive changes manifest file are immediately eligible for deletion.
-      --results-dir string                Output directory for code coverage and JUnit results.
+      --results-dir string                Output directory for code coverage and JUnit results; defaults to the deploy ID.
       --single-package                    Indicates that the metadata zip file points to a directory structure for a single package.
   -d, --source-dir stringArray            Path to the local source files to deploy.
   -o, --target-org string                 Username or alias of the target org.

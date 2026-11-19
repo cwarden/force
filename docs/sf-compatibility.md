@@ -154,10 +154,10 @@ The files written by the `template generate` commands come from the salesforcedx
 | `sf project convert source` | `force import` (source format conversion) | A composed custom object has its elements in alphabetical order; `sf` writes the child components last. | Compared with sf |
 | `sf project deploy cancel` | `force deploys cancel` |  | Follows the sf plugin source |
 | `sf project deploy quick` | `force quickdeploy` |  | Follows the sf plugin source |
-| `sf project deploy report` | `force deploys status` | `--coverage-formatters`, `--junit`, `--results-dir` | Follows the sf plugin source |
-| `sf project deploy resume` | `force deploys watch` | `--coverage-formatters`, `--junit`, `--results-dir` | Follows the sf plugin source |
+| `sf project deploy report` | `force deploys status` | The `html` and `html-spa` values of `--coverage-formatters`. | Follows the sf plugin source |
+| `sf project deploy resume` | `force deploys watch` | The `html` and `html-spa` values of `--coverage-formatters`. | Follows the sf plugin source |
 | `sf project deploy preview` | none; reads the source tracking files |  | Compared with sf |
-| `sf project deploy start` | `force push`, `force import` | `--coverage-formatters`, `--junit`, `--results-dir`. Prints the last frame of the progress display once. Without `--source-dir`, `--metadata`, `--manifest` or `--metadata-dir`, deploys the local changes that source tracking reports; the org must track source. | Compared with sf |
+| `sf project deploy start` | `force push`, `force import` | The `html` and `html-spa` values of `--coverage-formatters`. Prints the last frame of the progress display once. Without `--source-dir`, `--metadata`, `--manifest` or `--metadata-dir`, deploys the local changes that source tracking reports; the org must track source. | Compared with sf |
 | `sf project deploy validate` | `force import --checkonly` | As `project deploy start`. | As `project deploy start` |
 | `sf project generate manifest` | none | `--from-org`, `--include-packages`. sf reports an error when a content file is ignored by `.forceignore` and its `-meta.xml` file is not; this mode leaves both out. | Compared with sf |
 | `sf project list ignored` | none |  | Compared with sf |
@@ -443,5 +443,5 @@ A flag listed as unsupported returns an error that names the flag.
 | Feature | What is required |
 |---|---|
 | Source tracking | Implemented for an org that tracks source: `project deploy start` and `project retrieve start` without named components deploy the local changes and retrieve the changes in the org, stop on conflicts unless `--ignore-conflicts` is given, and update the tracking files in `<project>/.sf/orgs/<orgId>/`, which are in the formats of `sf`. SOAP requests carry the client name `sf` sends (`sfdx toolbelt:`), because the org records the source members of a deploy only for that client. After a deploy the org is asked for the source members of the changed components for the time `sf` waits; `SF_SOURCE_MEMBER_POLLING_TIMEOUT` and `SF_DISABLE_SOURCE_MEMBER_POLLING` are read. Not implemented: detection of moved files. |
-| `--coverage-formatters`, `--junit`, `--results-dir` on the deploy commands | Write coverage and JUnit files from the deploy result; `lib/junit` has a JUnit writer. |
+| `html` and `html-spa` coverage reports on the deploy commands | Write the HTML pages istanbul writes; the other coverage formats and the JUnit file are implemented. |
 | Interactive prompts | `sf` prompts for a similar config name, for a command when a topic is given without one, and before some destructive actions. This mode prompts before `org logout`, `org delete scratch`, `package version promote`, `project delete source`, `project delete tracking` and `project reset tracking`. |
