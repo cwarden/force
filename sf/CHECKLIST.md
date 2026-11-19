@@ -35,9 +35,9 @@ Reference: `sf` 2.138.6. Update this file as each item is finished.
 - [x] `data query`
 - [x] `data search` (format taken from the sf plugin source; the local test server has no search resource)
 - [x] `data get record`, `data create record`, `data update record`, `data delete record`
-- [ ] `data import bulk`, `data update bulk`, `data upsert bulk`, `data delete bulk`, `data export bulk`
-- [ ] `data import resume`, `data update resume`, `data upsert resume`, `data delete resume`, `data export resume`
-- [ ] `data bulk results`
+- [x] `data import bulk`, `data update bulk`, `data upsert bulk`, `data delete bulk`, `data export bulk` (prints the last frame of the progress display once; sf redraws it while waiting)
+- [x] `data import resume`, `data update resume`, `data upsert resume`, `data delete resume`, `data export resume`
+- [x] `data bulk results`
 - [ ] `data resume`
 - [ ] `force data bulk delete`, `force data bulk upsert`, `force data bulk status`
 
