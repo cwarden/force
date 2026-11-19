@@ -262,11 +262,11 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [ ] `schema generate sobject`
 - [x] `schema generate tab`
 
-### template (3 open, 8 done)
+### template (2 open, 9 done)
 
 - [x] `template generate analytics template`
 - [ ] `template generate digital-experience site`
-- [ ] `template generate flexipage`
+- [x] `template generate flexipage` (the files are the same as the ones sf writes)
 - [x] `template generate lightning app`
 - [x] `template generate lightning component`
 - [x] `template generate lightning event`

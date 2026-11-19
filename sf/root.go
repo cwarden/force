@@ -57,6 +57,9 @@ func Execute() {
 }
 
 // Run executes the sf command tree and returns the exit status.
+// currentArgs holds the arguments of the command that is running.
+var currentArgs []string
+
 func Run(args []string, out, errOut io.Writer) int {
 	root := NewRootCmd()
 	args, deprecation := normalizeArgsFor(root, args)
@@ -69,9 +72,10 @@ func Run(args []string, out, errOut io.Writer) int {
 		jsonOutput = hasJSONFlag(args)
 	}
 	root.SetArgs(args)
+	currentArgs = args
 	// sf warns about the old comma form when a command with a list flag
 	// that is split at commas is given an argument with a comma.
-	if target, _, findErr := root.Find(args); findErr == nil && commaListFlags[target.CommandPath()] != nil && hasUnescapedComma(args) {
+	if target, _, findErr := root.Find(args); findErr == nil && commaListFlags[target.CommandPath()] != nil && !commaWarningAfterBeta[target.CommandPath()] && hasUnescapedComma(args) {
 		flagDeprecations = append(flagDeprecations, commaListWarning)
 	}
 	state := &runState{flagDeprecations: flagDeprecations}

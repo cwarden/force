@@ -230,7 +230,12 @@ var commaListFlags = map[string]map[string]bool{
 	"sf project delete source":          {"metadata": true, "source-dir": true},
 	"sf project generate manifest":      {"metadata": true, "source-dir": true, "include-packages": true, "excluded-metadata": true},
 	"sf template generate apex trigger": {"event": true},
+	"sf template generate flexipage":    {"secondary-fields": true, "detail-fields": true},
 }
+
+// commaWarningAfterBeta are the commands of commaListFlags that give the
+// warning themselves, after their beta warning, as sf orders them.
+var commaWarningAfterBeta = map[string]bool{"sf template generate flexipage": true}
 
 // commaListWarning is the warning sf gives when a command with such a flag
 // is given an argument that contains a comma.

@@ -171,6 +171,7 @@ The files written by the `template generate` commands come from the salesforcedx
 | `sf template generate analytics template` | none |  | Compared with sf |
 | `sf template generate apex class` | `force create apexclass` |  | Compared with sf |
 | `sf template generate apex trigger` | `force create apextrigger` |  | Compared with sf |
+| `sf template generate flexipage` | none |  | Compared with sf |
 | `sf template generate lightning app` | none |  | Compared with sf |
 | `sf template generate lightning component` | none |  | Compared with sf |
 | `sf template generate lightning event` | none |  | Compared with sf |
@@ -244,7 +245,7 @@ A flag listed as unsupported returns an error that names the flag.
 
 ## sf Commands Not Implemented
 
-112 of the 239 commands of `sf` 2.138.6 and its bundled and install-on-first-use plugins are not implemented. Third-party plugins and the retired Functions plugin are not counted. Running one of these commands prints the message `sf` prints for an unknown command and exits with status 127.
+111 of the 239 commands of `sf` 2.138.6 and its bundled and install-on-first-use plugins are not implemented. Third-party plugins and the retired Functions plugin are not counted. Running one of these commands prints the message `sf` prints for an unknown command and exits with status 127.
 
 ### org
 
@@ -302,7 +303,6 @@ A flag listed as unsupported returns an error that names the flag.
 | sf command | Summary | What is required |
 |---|---|---|
 | `sf template generate digital-experience site` | Generate an Experience Cloud site. | Render the files of the matching archive in `sf/templates`. The flexipage templates use EJS loops, which the renderer does not handle; the digital experience site command also creates the site in an org. |
-| `sf template generate flexipage` | Generate a FlexiPage, also known as a Lightning page. | Render the files of the matching archive in `sf/templates`. The flexipage templates use EJS loops, which the renderer does not handle; the digital experience site command also creates the site in an org. |
 | `sf template generate ui-bundle` | Generate a UI bundle, which contains the code and metadata to build a UI experience that uses non-native Salesforce frameworks, such as React. | Render the files of the matching archive in `sf/templates`. The flexipage templates use EJS loops, which the renderer does not handle; the digital experience site command also creates the site in an org. |
 
 ### package

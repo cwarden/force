@@ -34,6 +34,7 @@ func newTemplateCmd() *cobra.Command {
 			),
 			newTemplateProjectCmd(),
 			newTemplateStaticResourceCmd(),
+			newTemplateFlexipageCmd(),
 			newGroup("visualforce", "Create Visualforce pages and components.",
 				newTemplateVisualforceCmd("page", "Generate a Visualforce Page.", "visualforcepage", "DefaultVFPage.page", "_page.page-meta.xml"),
 				newTemplateVisualforceCmd("component", "Generate a Visualforce Component.", "visualforcecomponent", "DefaultVFComponent.component", "_component.component-meta.xml"),

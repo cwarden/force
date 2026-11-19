@@ -297,3 +297,48 @@ func TestTemplateGenerateAnalyticsTemplate(t *testing.T) {
 		t.Errorf("outside waveTemplates: status %d, stderr %q", status, errOut)
 	}
 }
+
+func TestTemplateGenerateFlexipage(t *testing.T) {
+	// The expected files were written by sf 2.138.6 for the same flags.
+	wantApp, err := os.ReadFile(filepath.Join("testdata", "flexipage-app.xml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantRecord, err := os.ReadFile(filepath.Join("testdata", "flexipage-record.xml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	home := useTempHome(t)
+	project := newProject(t, home)
+	out, errOut, status := run("template", "generate", "flexipage", "-n", "App1", "-t", "AppPage")
+	target := filepath.Join(project, "flexipages")
+	if status != 0 || out != "target dir = "+target+"\n  create flexipages/App1.flexipage-meta.xml\n\n" || errOut != "Warning: "+betaWarning+"\n" {
+		t.Errorf("app page: status %d, stdout %q, stderr %q", status, out, errOut)
+	}
+	if got := readFile(t, filepath.Join(target, "App1.flexipage-meta.xml")); got != string(wantApp) {
+		t.Errorf("app page file differs from the file of sf:\n%s", got)
+	}
+
+	_, errOut, status = run("template", "generate", "flexipage", "-n", "Rec2", "-t", "RecordPage", "-s", "Account", "--primary-field", "Name",
+		"--secondary-fields", "Phone,Owner.Name", "--secondary-fields", "Industry", "--detail-fields", "Name,Phone,Website", "-d", "out")
+	if status != 0 || errOut != "Warning: "+betaWarning+"\nWarning: "+commaListWarning+"\n" {
+		t.Errorf("record page: status %d, stderr %q", status, errOut)
+	}
+	if got := readFile(t, filepath.Join(project, "out", "flexipages", "Rec2.flexipage-meta.xml")); got != string(wantRecord) {
+		t.Errorf("record page file differs from the file of sf:\n%s", got)
+	}
+
+	for _, c := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{"-n", "R", "-t", "RecordPage"}, "RecordPage template requires the --sobject flag to specify the Salesforce object API name (e.g., 'Account', 'Opportunity', 'Custom_Object__c')."},
+		{[]string{"-n", "A", "-t", "AppPage", "--primary-field", "Name"}, "The --primary-field flag can only be used with --template RecordPage."},
+		{[]string{"-n", "A", "-t", "Nope"}, "Expected --template=Nope to be one of: RecordPage, AppPage, HomePage\nSee more help with --help"},
+	} {
+		_, errOut, status := run(append([]string{"template", "generate", "flexipage"}, c.args...)...)
+		if status != 1 || !strings.HasSuffix(errOut, "Error (1): "+c.want+"\n\n\n") {
+			t.Errorf("%v: status %d, stderr %q", c.args, status, errOut)
+		}
+	}
+}

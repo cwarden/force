@@ -522,3 +522,91 @@ func newTemplateProjectCmd() *cobra.Command {
 	cmd.Flags().MarkHidden("login-url")
 	return cmd
 }
+
+func newTemplateFlexipageCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:         "flexipage",
+		Short:       "Generate a FlexiPage, also known as a Lightning page.",
+		Args:        cobra.NoArgs,
+		Annotations: map[string]string{commandNameAnnotation: "FlexipageGenerate"},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			warn(cmd, betaWarning)
+			if hasUnescapedComma(currentArgs) {
+				warn(cmd, commaListWarning)
+			}
+			name, _ := cmd.Flags().GetString("name")
+			kind, _ := cmd.Flags().GetString("template")
+			var missing []string
+			if name == "" {
+				missing = append(missing, "name")
+			}
+			if kind == "" {
+				missing = append(missing, "template")
+			}
+			if len(missing) > 0 {
+				return missingFlagsError(missing...)
+			}
+			if kind != "RecordPage" && kind != "AppPage" && kind != "HomePage" {
+				return &Error{Message: fmt.Sprintf("Expected --template=%s to be one of: RecordPage, AppPage, HomePage\nSee more help with --help", kind), ExitCode: 1}
+			}
+			sobject, _ := cmd.Flags().GetString("sobject")
+			primary, _ := cmd.Flags().GetString("primary-field")
+			secondary := splitList(cmd, "secondary-fields")
+			detail := splitList(cmd, "detail-fields")
+			if kind == "RecordPage" && sobject == "" {
+				return &Error{Message: "RecordPage template requires the --sobject flag to specify the Salesforce object API name (e.g., 'Account', 'Opportunity', 'Custom_Object__c').", ExitCode: 1}
+			}
+			if kind != "RecordPage" {
+				for _, flag := range []string{"primary-field", "secondary-fields", "detail-fields"} {
+					if cmd.Flags().Changed(flag) {
+						return &Error{Message: fmt.Sprintf("The --%s flag can only be used with --template RecordPage.", flag), ExitCode: 1}
+					}
+				}
+			}
+			if len(secondary) > 11 {
+				return &Error{Message: fmt.Sprintf("Too many secondary fields specified (%d). The Dynamic Highlights Panel supports a maximum of 11 secondary fields.", len(secondary)), ExitCode: 1}
+			}
+			if err := checkTemplateName(name); err != nil {
+				return err
+			}
+			label, _ := cmd.Flags().GetString("label")
+			if label == "" {
+				label = name
+			}
+			description, _ := cmd.Flags().GetString("description")
+			content, err := templates.File("flexipage", kind+"/_flexipage.flexipage-meta.xml")
+			if err != nil {
+				return err
+			}
+			scope := &ejsScope{
+				values: map[string]string{"flexipagename": name, "masterlabel": label, "description": description, "entityName": sobject, "primaryField": primary},
+				lists:  map[string][]string{"secondaryFields": secondary, "detailFields": detail},
+			}
+			rendered, err := renderEJS(string(content), scope)
+			if err != nil {
+				return err
+			}
+			// A FlexiPage belongs in a directory named flexipages.
+			outputDir, _ := cmd.Flags().GetString("output-dir")
+			if !strings.Contains(outputDir, "flexipages") {
+				cmd.Flags().Set("output-dir", filepath.Join(outputDir, "flexipages"))
+			}
+			return writeTemplates(cmd, []generatedFile{{name + ".flexipage-meta.xml", rendered}})
+		},
+	}
+	addJSONFlag(cmd)
+	cmd.Flags().StringP("name", "n", "", "Name of the FlexiPage.")
+	cmd.Flags().StringP("template", "t", "", "Template type for the FlexiPage.")
+	cmd.Flags().StringP("output-dir", "d", ".", "Directory for saving the created files.")
+	cmd.Flags().String("api-version", "", "Override the api version used for api requests made by this command")
+	cmd.Flags().String("label", "", "Label of this FlexiPage; if not specified, uses the FlexiPage name as the label.")
+	cmd.Flags().String("description", "", "Description for the FlexiPage, which provides context about its purpose.")
+	cmd.Flags().StringP("sobject", "s", "", "API name of the Salesforce object; required when creating a RecordPage.")
+	cmd.Flags().String("primary-field", "", "Primary field for the dynamic highlights header; typically 'Name'. Used only with RecordPage.")
+	cmd.Flags().StringArray("secondary-fields", nil, "Secondary fields shown in the dynamic highlights header.")
+	cmd.Flags().StringArray("detail-fields", nil, "Fields to display in the Details tab.")
+	return cmd
+}
+
+// betaWarning is the warning sf gives for a command that is in beta.
+const betaWarning = "This command is currently in beta. Any aspect of this command can change without advanced notice. Don't use beta commands in your scripts."
