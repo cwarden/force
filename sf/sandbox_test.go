@@ -300,6 +300,32 @@ func TestOrgResumeSandboxThatCannotBeResumed(t *testing.T) {
 	}
 }
 
+func TestOrgResumeSandboxReportsAFailedAuthorizationRequest(t *testing.T) {
+	org := newSandboxOrg(t)
+	org.processes = []string{sandboxProcessJSON("Completed", 100, true)}
+	org.handlers["/services/data/v67.0/tooling/sandboxAuth"] = func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		io.WriteString(w, `[{"message":"Sandbox authorization ConnectionException - Sandbox: Failure during validation of the callbackUrl = http://localhost:1717/OauthRedirect","errorCode":"UNKNOWN_EXCEPTION"}]`)
+	}
+	// Compared with sf: the error is printed after the display, and the
+	// exit status is 1.
+	out, errOut, status := run("org", "resume", "sandbox", "-n", "dev1")
+	if status != 1 || errOut != "Error (1): Sandbox authorization ConnectionException - Sandbox: Failure during validation of the callbackUrl = http://localhost:1717/OauthRedirect\n\n\n" ||
+		!strings.Contains(out, " ✘ Creating new sandbox ") || !strings.Contains(out, " Status: Completed\n Copy progress: 100%\n") {
+		t.Errorf("status %d, stderr %q\n%s", status, errOut, out)
+	}
+
+	// A failure to log in to the sandbox after the production org granted
+	// the authorization is reported in the result, with the exit status 68.
+	org.handlers["/services/data/v67.0/tooling/sandboxAuth"] = func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"authUserName":"","authCode":"code1","instanceUrl":"`+org.URL+`","loginUrl":"`+org.URL+`"}`)
+	}
+	out, _, status = run("org", "resume", "sandbox", "-n", "dev1", "--json")
+	if status != 68 || !strings.Contains(out, `"Message": "The sandbox org completed successfully, but the local authentication file could not be written: The sandbox dev1 does not have an authorized username.. Run \"org resume sandbox\" again to retry authentication."`) {
+		t.Errorf("login failure: status %d\n%s", status, out)
+	}
+}
+
 func TestSandboxProgressDisplayColors(t *testing.T) {
 	org := newSandboxOrg(t)
 	org.processes = []string{sandboxProcessJSON("Processing", 27, false)}

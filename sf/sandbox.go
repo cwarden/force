@@ -457,7 +457,9 @@ func (r *sandboxRun) finished(process *orderedMap, username string) error {
 }
 
 // authorize tries to authorize the sandbox of a process.  It returns true
-// when the sandbox is authorized, and false when it is not ready.
+// when the sandbox is authorized, and false when it is not ready.  An error
+// of the type sandboxLoginError is a failure to log in to the sandbox or to
+// write its files, after the production org granted the authorization.
 func (r *sandboxRun) authorize(process *orderedMap) (bool, error) {
 	granted, err := sandboxAuthorization(r.prod, process)
 	if err != nil {
@@ -470,10 +472,15 @@ func (r *sandboxRun) authorize(process *orderedMap) (bool, error) {
 	r.authing = true
 	username, err := writeSandboxAuthorization(r.prod, process, granted)
 	if err != nil {
-		return false, err
+		return false, sandboxLoginError{err}
 	}
 	return true, r.finished(process, username)
 }
+
+type sandboxLoginError struct{ cause error }
+
+func (e sandboxLoginError) Error() string { return e.cause.Error() }
+func (e sandboxLoginError) Unwrap() error { return e.cause }
 
 // poll checks the sandbox process until the sandbox is authorized or the
 // wait is over, in which case it returns errSandboxTimeout.
@@ -486,6 +493,10 @@ func (r *sandboxRun) poll(processID string, wait, interval time.Duration) error 
 		}
 		done, err := r.authorize(process)
 		if err != nil {
+			var login sandboxLoginError
+			if errors.As(err, &login) {
+				err = login.cause
+			}
 			var failure *Error
 			retry := errors.As(err, &failure) && (failure.Name == "SandboxAuthIncompleteError" ||
 				(failure.Name == "JwtAuthError" && strings.Contains(failure.Message, "user hasn't approved")))
@@ -1278,21 +1289,26 @@ func newOrgResumeSandboxCmd() *cobra.Command {
 				if text(process.values["Status"]) == "Completed" {
 					done, err := run.authorize(process)
 					if err != nil {
-						var failure *Error
-						if !errors.As(err, &failure) {
-							run.frame("failed")
-							return err
-						}
-						switch failure.Name {
-						case "SandboxAuthIncompleteError":
-							run.frame("failed")
-							return incomplete(failure.Message)
-						case "SingleRecordQuery_NoRecords", "INVALID_SESSION_ID":
-							run.frame("failed")
-							return err
-						}
 						run.frame("failed")
-						return incomplete(fmt.Sprintf("The sandbox org completed successfully, but the local authentication file could not be written: %s. Run \"org resume sandbox\" again to retry authentication.", failure.Message))
+						// A failure to log in to the sandbox or to write
+						// its files is reported in the result, with the
+						// exit status 68.  So is an authorization that the
+						// production org is not ready to give.  Any other
+						// error of the authorization request is an error
+						// of the command.
+						var login sandboxLoginError
+						var failure *Error
+						switch {
+						case errors.As(err, &login):
+							message := login.cause.Error()
+							if errors.As(login.cause, &failure) {
+								message = failure.Message
+							}
+							return incomplete(fmt.Sprintf("The sandbox org completed successfully, but the local authentication file could not be written: %s. Run \"org resume sandbox\" again to retry authentication.", message))
+						case errors.As(err, &failure) && failure.Name == "SandboxAuthIncompleteError":
+							return incomplete(failure.Message)
+						}
+						return err
 					}
 					if done {
 						return emit(cmd, run.response(), nil)
