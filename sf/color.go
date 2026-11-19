@@ -49,6 +49,7 @@ var (
 	styleGreen         = style{"\x1b[32m", "\x1b[39m"}
 	styleRed           = style{"\x1b[31m", "\x1b[39m"}
 	styleBold          = style{"\x1b[1m", "\x1b[22m"}
+	styleBoldGreen     = style{"\x1b[1m\x1b[32m", "\x1b[39m\x1b[22m"}
 )
 
 // paint wraps text in the style when color is enabled for w.

@@ -151,10 +151,12 @@ The files written by the `template generate` commands come from the salesforcedx
 | `sf project deploy quick` | `force quickdeploy` |  | Follows the sf plugin source |
 | `sf project deploy report` | `force deploys status` | `--coverage-formatters`, `--junit`, `--results-dir` | Follows the sf plugin source |
 | `sf project deploy resume` | `force deploys watch` | `--coverage-formatters`, `--junit`, `--results-dir` | Follows the sf plugin source |
+| `sf project deploy preview` | none; reads the source tracking files |  | Compared with sf |
 | `sf project deploy start` | `force push`, `force import` | `--coverage-formatters`, `--junit`, `--results-dir`. Requires `--source-dir`, `--metadata`, `--manifest` or `--metadata-dir`; there is no source tracking. Prints the last frame of the progress display once. | Queued output and progress layout compared with sf; result tables follow the sf plugin source |
 | `sf project deploy validate` | `force import --checkonly` | As `project deploy start`. | As `project deploy start` |
 | `sf project generate manifest` | none | `--from-org`, `--include-packages`. sf reports an error when a content file is ignored by `.forceignore` and its `-meta.xml` file is not; this mode leaves both out. | Compared with sf |
 | `sf project list ignored` | none |  | Compared with sf |
+| `sf project retrieve preview` | none; reads the source tracking files | A component of the org that has no local files is never reported as ignored. | Compared with sf |
 | `sf project retrieve start` | `force fetch`, `force export` | `--single-package`; one `--package-name` value. The JSON result has `files`, `status`, `success` and `done`; it has no `fileProperties`. Requires `--metadata`, `--manifest`, `--source-dir` or `--package-name`. | Failure output compared with sf; result table follows the sf plugin source |
 | `sf schema generate tab` | none |  | Compared with sf |
 | `sf sobject describe` | `force describe sobject --name <name> --json` |  | Compared with sf |
@@ -235,7 +237,7 @@ A flag listed as unsupported returns an error that names the flag.
 
 ## sf Commands Not Implemented
 
-121 of the 239 commands of `sf` 2.138.6 and its bundled and install-on-first-use plugins are not implemented. Third-party plugins and the retired Functions plugin are not counted. Running one of these commands prints the message `sf` prints for an unknown command and exits with status 127.
+119 of the 239 commands of `sf` 2.138.6 and its bundled and install-on-first-use plugins are not implemented. Third-party plugins and the retired Functions plugin are not counted. Running one of these commands prints the message `sf` prints for an unknown command and exits with status 127.
 
 ### org
 
@@ -269,8 +271,6 @@ A flag listed as unsupported returns an error that names the flag.
 | `sf project deploy pipeline resume` | Resume watching a pipeline deploy operation. | DevOps Center API; no force code exists. |
 | `sf project deploy pipeline start` | Deploy changes from a branch to the pipeline stage’s org. | DevOps Center API; no force code exists. |
 | `sf project deploy pipeline validate` | Perform a validate-only deployment from a branch to the pipeline stage’s org. | DevOps Center API; no force code exists. |
-| `sf project deploy preview` | Preview a deployment to see what will deploy to the org, the potential conflicts, and the ignored files. | List the local changes that `sf/tracking.go` computes as components, with the conflicts against the org. |
-| `sf project retrieve preview` | Preview a retrieval to see what will be retrieved from the org, the potential conflicts, and the ignored files. | List the source members of `maxRevision.json` that are not in sync as components, with the conflicts against local changes. |
 
 ### apex
 
@@ -447,6 +447,6 @@ A flag listed as unsupported returns an error that names the flag.
 
 | Feature | What is required |
 |---|---|
-| Source tracking | The tracking files in `<project>/.sf/orgs/<orgId>/` are read and written in the formats of `sf` (`sf/tracking.go`, `sf/gitstore.go`), and `project reset tracking` and `project delete tracking` use them. Deploy and retrieve do not use or update them yet, so they still need components to be named. |
+| Source tracking | The tracking files in `<project>/.sf/orgs/<orgId>/` are read and written in the formats of `sf` (`sf/tracking.go`, `sf/gitstore.go`), and the tracking commands and the two preview commands use them. Deploy and retrieve do not use or update them yet, so they still need components to be named. |
 | `--coverage-formatters`, `--junit`, `--results-dir` on the deploy commands | Write coverage and JUnit files from the deploy result; `lib/junit` has a JUnit writer. |
 | Interactive prompts | `sf` prompts for a similar config name, for a command when a topic is given without one, and before some destructive actions. This mode prompts only before `org logout` and `package version promote`. |

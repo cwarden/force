@@ -143,7 +143,7 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [ ] Source tracking
   - [x] Read and write `maxRevision.json` and the `localSourceTracking` git repository in the formats of sf (sf read the files this mode wrote)
   - [x] `org enable tracking`, `org disable tracking`, `project reset tracking`, `project delete tracking`
-  - [ ] `project deploy preview`, `project retrieve preview`
+  - [x] `project deploy preview`, `project retrieve preview` (a component of the org without local files is never reported as ignored; sf checks the paths it would be retrieved to against `.forceignore`)
   - [ ] Deploy and retrieve without naming components, and update the tracking files after a deploy or retrieve
   - [ ] Conflict detection (`--ignore-conflicts`)
   - [ ] Detection of moved files
@@ -197,7 +197,7 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [ ] `org resume sandbox`
 - [ ] `org resume scratch`
 
-### project (9 open, 4 done)
+### project (7 open, 6 done)
 
 - [ ] `project convert source-behavior`
 - [ ] `project delete source`
@@ -207,11 +207,11 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [ ] `project deploy pipeline resume`
 - [ ] `project deploy pipeline start`
 - [ ] `project deploy pipeline validate`
-- [ ] `project deploy preview`
+- [x] `project deploy preview`
 - [x] `project generate manifest` (`--from-org` and `--include-packages` are not supported)
 - [x] `project list ignored`
 - [x] `project reset tracking`
-- [ ] `project retrieve preview`
+- [x] `project retrieve preview`
 
 ### data (0 open, 3 done)
 

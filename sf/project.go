@@ -28,6 +28,7 @@ func newProjectCmd() *cobra.Command {
 		newGroup("generate", "Generate a manifest.", newProjectGenerateManifestCmd()),
 		newGroup("list", "List ignored files.", newProjectListIgnoredCmd()),
 		newGroup("deploy", "Deploy metadata to an org from your local project.",
+			newProjectDeployPreviewCmd(),
 			newProjectDeployStartCmd(false),
 			newProjectDeployStartCmd(true),
 			newProjectDeployQuickCmd(),
@@ -36,6 +37,7 @@ func newProjectCmd() *cobra.Command {
 			newProjectDeployCancelCmd(),
 		),
 		newGroup("retrieve", "Retrieve metadata from an org to your local project.",
+			newProjectRetrievePreviewCmd(),
 			newProjectRetrieveStartCmd(),
 		),
 	)
