@@ -3,7 +3,7 @@
 Reference: `sf` 2.138.6. Update this file as each item is finished.
 
 ## Step 1: Dispatch And Output
-- [x] Binary name detection in `main.go`
+- [x] Binary name detection in `main.go`, and the `force --sf` flag
 - [x] sf root command, colon-form ids, legacy command aliases
 - [x] Legacy flag names (`--targetusername`, `-u`, `--targetdevhubusername`, `--apiversion`)
 - [x] `--json` envelope, error envelope, human error format, table renderer

@@ -12,5 +12,8 @@ func main() {
 		sf.Execute()
 		return
 	}
+	if args, ok := sf.StripModeFlag(os.Args[1:]); ok {
+		os.Exit(sf.Run(args, os.Stdout, os.Stderr))
+	}
 	command.Execute()
 }

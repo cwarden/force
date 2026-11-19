@@ -28,6 +28,28 @@ func TestInvokedAsSf(t *testing.T) {
 	}
 }
 
+func TestStripModeFlag(t *testing.T) {
+	cases := []struct {
+		in   []string
+		want []string
+		ok   bool
+	}{
+		{[]string{"--sf", "org", "list", "--json"}, []string{"org", "list", "--json"}, true},
+		{[]string{"org", "list", "--sf"}, []string{"org", "list"}, true},
+		{[]string{"--sf"}, []string{}, true},
+		{[]string{"query", "SELECT Id FROM Account"}, []string{"query", "SELECT Id FROM Account"}, false},
+		{[]string{"logins", "--sfdx"}, []string{"logins", "--sfdx"}, false},
+		{[]string{"apex", "--", "--sf"}, []string{"apex", "--", "--sf"}, false},
+		{[]string{}, []string{}, false},
+	}
+	for _, c := range cases {
+		got, ok := StripModeFlag(c.in)
+		if ok != c.ok || !reflect.DeepEqual(got, c.want) {
+			t.Errorf("StripModeFlag(%v) = %v, %v; want %v, %v", c.in, got, ok, c.want, c.ok)
+		}
+	}
+}
+
 func TestNormalizeArgs(t *testing.T) {
 	cases := []struct {
 		name string

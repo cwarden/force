@@ -25,7 +25,7 @@ See [docs/force.md](docs/force.md) for all supported commands.
 
 ### sf-Compatible Mode
 
-When the binary is invoked under the name `sf`, it accepts the command names
+When the binary is invoked under the name `sf`, or as `force --sf`, it accepts the command names
 and flags of the Salesforce `sf` CLI, uses the logins, aliases and config
 values of `sf` (`~/.sfdx` and `~/.sf`), and prints output in the format of
 `sf`, including the `--json` envelope.
@@ -34,6 +34,7 @@ values of `sf` (`~/.sfdx` and `~/.sf`), and prints output in the format of
     sf org login web --alias dev --set-default
     sf data query -q "SELECT Id, Name FROM Account" --json
     sf project deploy start --source-dir force-app
+    force --sf org list # the same mode without the symlink
 
 76 `sf` commands are implemented.
 [docs/sf-compatibility.md](docs/sf-compatibility.md) lists them with the

@@ -30,6 +30,25 @@ func InvokedAsSf(argv0 string) bool {
 	return name == "sf"
 }
 
+// ModeFlag is the force flag that selects sf-compatible mode.
+const ModeFlag = "--sf"
+
+// StripModeFlag reports whether args contain --sf and returns args without
+// it.  An argument after "--" is not a flag.  "force --sf org list" and
+// "force org list --sf" both run "sf org list".
+func StripModeFlag(args []string) ([]string, bool) {
+	for i, arg := range args {
+		if arg == "--" {
+			break
+		}
+		if arg == ModeFlag {
+			rest := append([]string{}, args[:i]...)
+			return append(rest, args[i+1:]...), true
+		}
+	}
+	return args, false
+}
+
 // Execute runs the sf command tree with the process arguments and exits.
 func Execute() {
 	os.Exit(Run(os.Args[1:], os.Stdout, os.Stderr))
