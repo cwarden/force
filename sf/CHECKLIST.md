@@ -8,7 +8,7 @@ Reference: `sf` 2.138.6. Update this file as each item is finished.
 - [x] Legacy flag names (`--targetusername`, `-u`, `--targetdevhubusername`, `--apiversion`)
 - [x] `--json` envelope, error envelope, human error format, table renderer
 - [x] `ErrorAndExit` handler hook
-- [x] `version`
+- [x] `version`, `commands`
 
 ## Step 2: sf State
 - [x] Config read/write (`~/.sf/config.json`, `<project>/.sf/config.json`, env)
@@ -38,8 +38,8 @@ Reference: `sf` 2.138.6. Update this file as each item is finished.
 - [x] `data import bulk`, `data update bulk`, `data upsert bulk`, `data delete bulk`, `data export bulk` (prints the last frame of the progress display once; sf redraws it while waiting)
 - [x] `data import resume`, `data update resume`, `data upsert resume`, `data delete resume`, `data export resume`
 - [x] `data bulk results`
-- [ ] `data resume`
-- [ ] `force data bulk delete`, `force data bulk upsert`, `force data bulk status`
+- [x] `data resume` (follows the sf plugin source)
+- [x] `force data bulk delete`, `force data bulk upsert`, `force data bulk status` (follow the sf plugin source)
 
 ## Step 5: apex, sobject, api, template
 - [x] `apex run`
@@ -64,7 +64,14 @@ Reference: `sf` 2.138.6. Update this file as each item is finished.
 - [x] `package version create`, `package version list`, `package version report`, `package version promote` (follows the sf plugin source; not compared with sf against a Dev Hub)
 
 ## Step 8: Documentation And Build
-- [ ] `docs/sf-compatibility.md` (mapping both directions, missing commands)
-- [ ] Generated `docs/sf/` from the sf command tree
-- [ ] README section
-- [ ] Makefile `sf` and `install-sf` targets
+- [x] `docs/sf-compatibility.md` (mapping both directions, missing commands); `TestCompatibilityDocumentListsEveryCommand` fails when a command has no row
+- [x] Generated `docs/sf/` from the sf command tree (`make docs`)
+- [x] README section
+- [x] Makefile `install-sf` target. There is no `sf` build target: `go build -o sf` would write into the `sf/` package directory
+
+## Not Done In This Change
+- `--use-most-recent` on the deploy commands (needs `~/.sf/deploy-cache.json`)
+- `.forceignore`, source tracking, destructive changes on deploy
+- `org login web` and `org login jwt` have not been run against an org
+- Commands marked "follows the sf plugin source" have not been compared with sf output
+- The remaining sf commands are listed in `docs/sf-compatibility.md`

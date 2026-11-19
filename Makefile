@@ -20,6 +20,10 @@ default:
 install:
 	go install ${LDFLAGS}
 
+# Install force and create an sf symlink next to it.
+install-sf: install
+	ln -s -f force "$(shell go env GOPATH)/bin/sf"
+
 install-debug:
 	go install ${LDFLAGS} ${GCFLAGS}
 
@@ -107,7 +111,7 @@ test:
 clean:
 	-rm -f $(EXECUTABLE) $(EXECUTABLE)_* *.zip SHA256SUMS-*
 
-.PHONY: default dist clean docs checksum release tag $(ALL)
+.PHONY: default dist clean docs checksum release tag install-sf $(ALL)
 
 tag:
 	@echo "Creating next tag..."

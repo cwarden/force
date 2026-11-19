@@ -23,6 +23,24 @@ Can be downloaded from the [Current Release Page](https://github.com/ForceCLI/fo
 
 See [docs/force.md](docs/force.md) for all supported commands.
 
+### sf-Compatible Mode
+
+When the binary is invoked under the name `sf`, it accepts the command names
+and flags of the Salesforce `sf` CLI, uses the logins, aliases and config
+values of `sf` (`~/.sfdx` and `~/.sf`), and prints output in the format of
+`sf`, including the `--json` envelope.
+
+    make install-sf     # installs force and an sf symlink next to it
+    sf org login web --alias dev --set-default
+    sf data query -q "SELECT Id, Name FROM Account" --json
+    sf project deploy start --source-dir force-app
+
+76 `sf` commands are implemented.
+[docs/sf-compatibility.md](docs/sf-compatibility.md) lists them with the
+`force` command each corresponds to, the flags that are not supported, and the
+`sf` commands that are not implemented. [docs/sf/sf.md](docs/sf/sf.md) has the
+generated help for each command.
+
 Tab completion simplifies use of the force CLI.
 Enable bash completion or see `force completion --help` for other options.
 
