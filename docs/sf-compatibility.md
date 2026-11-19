@@ -58,15 +58,15 @@ The files written by the `template generate` commands come from the salesforcedx
 | `sf alias set` | none; writes `~/.sfdx/alias.json` |  | Compared with sf |
 | `sf alias unset` | none; writes `~/.sfdx/alias.json` | Does not prompt before `--all`. | Compared with sf |
 | `sf apex get compile-status` | none; one request to the Tooling API resource `apexCompileResults` | The table for a result with problems follows the plugin source; the org used for the comparison had none. | Compared with sf |
-| `sf apex get log` | `force log <id>` |  | Follows the sf plugin source |
+| `sf apex get log` | `force log <id>` |  | Compared with sf |
 | `sf apex get test` | none (`force test` prints results when it runs) |  | Compared with sf |
-| `sf apex list log` | `force log list` |  | Follows the sf plugin source |
+| `sf apex list log` | `force log list` |  | Compared with sf |
 | `sf apex run` | `force apex` |  | Compared with sf |
 | `sf apex run test` | `force test` |  | Compared with sf |
 | `sf apex tail log` | `force log tail` | `--debug-level`. `--color` is accepted and has no effect. | Follows the sf plugin source |
-| `sf apex trace create` | `force trace start` | This command is in plugin-apex versions newer than the one bundled with sf 2.138.6. | Follows the sf plugin source |
-| `sf apex trace delete` | `force trace delete` | As above. | Follows the sf plugin source |
-| `sf apex trace list` | `force trace list` | As above. | Follows the sf plugin source |
+| `sf apex trace create` | `force trace start` | This command is in plugin-apex versions newer than the one bundled with sf 2.138.6. | Compared with sf |
+| `sf apex trace delete` | `force trace delete` | As above. | Compared with sf |
+| `sf apex trace list` | `force trace list` | As above. | Compared with sf |
 | `sf api request graphql` | none | With `--include`, headers are listed in alphabetical order. | Follows the sf plugin source |
 | `sf api request rest` | `force rest` | The `formdata` body mode of `--file`. With `--include`, headers are listed in alphabetical order; sf lists them in the order received. | Compared with sf |
 | `sf autocomplete` | `force completion` | Prints instructions for the completion scripts cobra generates (`sf autocomplete script <shell>`); sf builds a cache from its plugins. `--refresh-cache` has no effect. | Not compared; the mechanism differs |
@@ -94,7 +94,7 @@ The files written by the `template generate` commands come from the salesforcedx
 | `sf data import tree` | none |  | Follows the sf plugin source |
 | `sf data query` | `force query` |  | Compared with sf |
 | `sf data resume` | `force bulk job`, `force bulk batch` |  | Follows the sf plugin source |
-| `sf data search` | `force search` |  | Follows the sf plugin source |
+| `sf data search` | `force search` |  | Compared with sf |
 | `sf data update bulk` | `force bulk2 update` | Prints the last frame of the progress display once. | Compared with sf |
 | `sf data update record` | `force record update` |  | Compared with sf |
 | `sf data update resume` | `force bulk2 job` |  | Follows the sf plugin source |
@@ -103,8 +103,8 @@ The files written by the `template generate` commands come from the salesforcedx
 | `sf force data bulk delete` | `force bulk delete` | Sends the file as one batch; sf splits it into batches of 10,000 records. | Follows the sf plugin source |
 | `sf force data bulk status` | `force bulk job`, `force bulk batch` |  | Follows the sf plugin source |
 | `sf force data bulk upsert` | `force bulk upsert` | Sends the file as one batch. | Follows the sf plugin source |
-| `sf org assign permset` | none |  | Follows the sf plugin source |
-| `sf org assign permsetlicense` | none |  | Follows the sf plugin source |
+| `sf org assign permset` | none |  | Compared with sf |
+| `sf org assign permsetlicense` | none |  | Compared with sf |
 | `sf org auth show-access-token` | none |  | Compared with sf |
 | `sf org auth show-sfdx-auth-url` | none |  | Error output compared with sf; the URL format follows the sf source |
 | `sf org auth show-user-password` | none | No command of this mode stores a password, so it finds one only in an authorization file that sf wrote. | Follows the sf plugin source |
@@ -117,11 +117,11 @@ The files written by the `template generate` commands come from the salesforcedx
 | `sf org generate password` | `force password reset` (sets a password the org generates) | The password is stored only for users that have an authorization file. | Follows the sf plugin source |
 | `sf org list` | `force logins --sfdx` | `--clean` and `--verbose` are accepted and have no effect. An authorization file that `sf` cannot decrypt (`AuthDecryptError`) may be decrypted, because every key found is tried. No warning for an http instance URL. | Compared with sf |
 | `sf org list auth` | `force logins` |  | Compared with sf |
-| `sf org list limits` | `force limits` |  | Follows the sf plugin source |
+| `sf org list limits` | `force limits` |  | Compared with sf |
 | `sf org list metadata` | `force describe metadata --type` |  | Compared with sf |
 | `sf org list metadata-types` | `force describe metadata` |  | Compared with sf |
 | `sf org list users` | none; reads `~/.sfdx/<orgId>.json` and queries User and Profile | `SF_TEMP_SHOW_SECRETS` is not read; the access token is always redacted. | Compared with sf |
-| `sf org list sobject record-counts` | none |  | Follows the sf plugin source |
+| `sf org list sobject record-counts` | none |  | Compared with sf |
 | `sf org login access-token` | none (`SF_ACCESS_TOKEN` and `SF_INSTANCE_URL` in force) |  | Compared with sf |
 | `sf org login jwt` | `force login -u <user> -k <key> --connected-app-client-id <id>` |  | Not compared; no JWT-enabled org was available |
 | `sf org login sfdx-url` | none |  | Follows the sf plugin source |

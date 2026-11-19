@@ -2,7 +2,9 @@ package sf
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"github.com/ForceCLI/force/lib"
 	"io"
 	"os"
 	"path/filepath"
@@ -51,7 +53,7 @@ func newApexRunCmd() *cobra.Command {
 			}
 			executed, err := org.Force.Partner.ExecuteAnonymousResult(string(code))
 			if err != nil {
-				return apiError(err)
+				return apexAPIError(err)
 			}
 			result := newOrderedMap()
 			result.Set("success", executed.Success)
@@ -196,13 +198,13 @@ func newApexGetLogCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if logID == "" && !cmd.Flags().Changed("number") {
+				return &Error{Message: "To retrieve logs, specify the log ID or the number of logs.", ExitCode: 1}
+			}
 			var ids []string
 			if logID != "" {
 				ids = []string{logID}
 			} else {
-				if number == 0 {
-					number = 1
-				}
 				logs, err := queryLogRecords(org, number)
 				if err != nil {
 					return err
@@ -220,7 +222,7 @@ func newApexGetLogCmd() *cobra.Command {
 			for _, id := range ids {
 				body, err := org.Force.RetrieveLog(id)
 				if err != nil {
-					return apiError(err)
+					return apexAPIError(err)
 				}
 				bodies = append(bodies, body)
 			}
@@ -228,15 +230,15 @@ func newApexGetLogCmd() *cobra.Command {
 				if err := os.MkdirAll(outputDir, 0o755); err != nil {
 					return err
 				}
-				paths := make([]string, 0, len(ids))
 				for i, id := range ids {
 					path := filepath.Join(outputDir, id+".log")
 					if err := os.WriteFile(path, []byte(bodies[i]), 0o644); err != nil {
 						return err
 					}
-					paths = append(paths, path)
 				}
-				return emit(cmd, paths, func(w io.Writer) {
+				// The JSON result of sf is the content of the logs, also
+				// when they are written to files.
+				return emit(cmd, bodies, func(w io.Writer) {
 					fmt.Fprintf(w, "Log files written to %s\n", outputDir)
 				})
 			}
@@ -278,7 +280,7 @@ func newApexTailLogCmd() *cobra.Command {
 				// StartTrace reports an existing trace flag as an error;
 				// logging is already active in that case.
 				if _, err, _ := org.Force.StartTrace(); err != nil && !strings.Contains(err.Error(), "already") {
-					return apiError(err)
+					return apexAPIError(err)
 				}
 			}
 			client := bayeux.NewClient(org.Force)
@@ -301,7 +303,7 @@ func newApexTailLogCmd() *cobra.Command {
 				seen[event.Sobject.Id] = true
 				body, err := org.Force.RetrieveLog(event.Sobject.Id)
 				if err != nil {
-					return apiError(err)
+					return apexAPIError(err)
 				}
 				fmt.Fprintln(out, body)
 			}
@@ -329,11 +331,15 @@ func newApexTraceCreateCmd() *cobra.Command {
 			debugLevel, _ := cmd.Flags().GetString("debug-level")
 			logType, _ := cmd.Flags().GetString("log-type")
 			duration, _ := cmd.Flags().GetInt("duration")
-			if entityID == "" {
-				return missingFlagError("traced-entity-id")
-			}
+			var missing []string
 			if debugLevel == "" {
-				return missingFlagError("debug-level")
+				missing = append(missing, "debug-level")
+			}
+			if entityID == "" {
+				missing = append(missing, "traced-entity-id")
+			}
+			if len(missing) > 0 {
+				return missingFlagsError(missing...)
 			}
 			if logType != "DEVELOPER_LOG" && logType != "USER_DEBUG" {
 				return &Error{Message: fmt.Sprintf("Expected --log-type=%s to be one of: DEVELOPER_LOG, USER_DEBUG\nSee more help with --help", logType), ExitCode: 1}
@@ -348,11 +354,11 @@ func newApexTraceCreateCmd() *cobra.Command {
 			soql := fmt.Sprintf("SELECT Id FROM DebugLevel WHERE DeveloperName = '%s'", strings.ReplaceAll(debugLevel, "'", `\'`))
 			levels, err := runQuery(org, "/tooling", "query", soql)
 			if err != nil {
-				return apiError(err)
+				return apexAPIError(err)
 			}
 			records, _ := levels.values["records"].([]interface{})
 			if len(records) == 0 {
-				return &Error{Message: fmt.Sprintf("Debug level \"%s\" not found. Create one in Setup or specify an existing debug level.", debugLevel), ExitCode: 1}
+				return newError("SfError", "Debug level \"%s\" not found. Create one in Setup or specify an existing debug level.", debugLevel)
 			}
 			level, _ := records[0].(*orderedMap)
 			start := time.Now().UTC()
@@ -368,7 +374,7 @@ func newApexTraceCreateCmd() *cobra.Command {
 			}
 			body, err := org.Force.PostREST("/tooling/sobjects/TraceFlag", content)
 			if err != nil {
-				return apiError(err)
+				return apexAPIError(err)
 			}
 			var created struct {
 				Id      string `json:"id"`
@@ -408,7 +414,7 @@ func newApexTraceListCmd() *cobra.Command {
 			}
 			result, err := runQuery(org, "/tooling", "query", "SELECT Id, TracedEntityId, LogType, DebugLevelId, StartDate, ExpirationDate, DebugLevel.DeveloperName, TracedEntity.Name FROM TraceFlag ORDER BY CreatedDate DESC")
 			if err != nil {
-				return apiError(err)
+				return apexAPIError(err)
 			}
 			records, _ := result.values["records"].([]interface{})
 			if len(records) == 0 {
@@ -480,7 +486,7 @@ func newApexTraceDeleteCmd() *cobra.Command {
 				return err
 			}
 			if _, err := org.Force.DeleteREST("/tooling/sobjects/TraceFlag/" + id); err != nil {
-				return apiError(err)
+				return apexAPIError(err)
 			}
 			result := newOrderedMap()
 			result.Set("id", id)
@@ -518,7 +524,7 @@ func newApexGetCompileStatusCmd() *cobra.Command {
 				fmt.Fprintln(cmd.ErrOrStderr(), "Retrieving Apex compilation results... done")
 			}
 			if err != nil {
-				return apiError(err)
+				return apexAPIError(err)
 			}
 			result, err := parseOrderedJSON([]byte(body))
 			if err != nil {
@@ -558,4 +564,25 @@ func newApexGetCompileStatusCmd() *cobra.Command {
 	addAPIVersionFlag(cmd)
 	addTargetOrgFlag(cmd)
 	return cmd
+}
+
+// apexAPIError converts an API error the way the Apex commands of sf
+// report it: the error code is the name in the JSON envelope, and the exit
+// status takes its place in the human message and in "code".
+func apexAPIError(err error) error {
+	converted := apiError(err)
+	if e, ok := converted.(*Error); ok && e.Label == "" {
+		e.Label = "1"
+		// The data of the error is the error of the API as it came:
+		// the message, the code and the fields.
+		var forceErrors lib.ForceErrors
+		if errors.As(err, &forceErrors) && len(forceErrors) > 0 {
+			data := orderedFields("message", forceErrors[0].Message, "errorCode", forceErrors[0].ErrorCode)
+			if len(forceErrors[0].Fields) > 0 {
+				data.Set("fields", forceErrors[0].Fields)
+			}
+			e.Data = data
+		}
+	}
+	return converted
 }

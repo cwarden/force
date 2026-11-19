@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -634,6 +635,20 @@ func addAPIVersionFlag(cmd *cobra.Command) {
 // given.
 func missingFlagError(name string) *Error {
 	return &Error{Message: fmt.Sprintf("The following error occurred:\n  Missing required flag %s\nSee more help with --help", name), ExitCode: 2}
+}
+
+// missingFlagsError is the error sf reports for the required flags that
+// were not given, which it lists in alphabetical order.
+func missingFlagsError(names ...string) *Error {
+	if len(names) == 1 {
+		return missingFlagError(names[0])
+	}
+	sort.Strings(names)
+	lines := make([]string, 0, len(names))
+	for _, name := range names {
+		lines = append(lines, "  Missing required flag "+name)
+	}
+	return &Error{Message: "The following errors occurred:\n" + strings.Join(lines, "\n") + "\nSee more help with --help", ExitCode: 2}
 }
 
 // integerInRange returns the error sf reports for an integer flag outside

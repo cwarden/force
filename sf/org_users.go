@@ -134,13 +134,14 @@ func newOrgListSobjectRecordCountsCmd() *cobra.Command {
 // userID returns the Id of the user with a username or alias in the org.
 func userID(org *targetOrg, aliasOrUsername string) (string, error) {
 	username := lib.ResolveSFDXUsername(aliasOrUsername)
-	result, err := runQuery(org, "", "query", fmt.Sprintf("SELECT Id FROM User WHERE Username='%s'", strings.ReplaceAll(username, "'", `\'`)))
+	soql := fmt.Sprintf("SELECT Id FROM User WHERE Username='%s'", strings.ReplaceAll(username, "'", `\'`))
+	result, err := runQuery(org, "", "query", soql)
 	if err != nil {
 		return "", apiError(err)
 	}
 	records, _ := result.values["records"].([]interface{})
 	if len(records) == 0 {
-		return "", fmt.Errorf("No user found with username %s.", username)
+		return "", newError("SingleRecordQuery_NoRecords", "No record found for %s", soql)
 	}
 	record, _ := records[0].(*orderedMap)
 	return text(record.values["Id"]), nil

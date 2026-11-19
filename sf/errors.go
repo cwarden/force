@@ -104,7 +104,12 @@ func writeError(out, errOut io.Writer, cmd *cobra.Command, err error, jsonOutput
 			name = "Error"
 		}
 		commandName := commandClassName(cmd)
+		// The code of an error without a name of its own is its exit
+		// status.
 		code := name
+		if e.Name == "" {
+			code = fmt.Sprintf("%d", e.ExitCode)
+		}
 		if e.Label != "" {
 			code = e.Label
 		}

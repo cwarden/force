@@ -329,7 +329,12 @@ func TestApexListLogWithNoLogs(t *testing.T) {
 		io.WriteString(w, `{"done":true,"totalSize":0,"records":[]}`)
 	}
 	expectRun(t, 0, "No debug logs found in org\n", "apex", "list", "log")
-	expectRun(t, 0, "No results found\n", "apex", "get", "log")
+	expectRun(t, 0, "No results found\n", "apex", "get", "log", "-n", "1")
+	// sf asks for a log id or a number of logs.
+	_, errOut, status := run("apex", "get", "log")
+	if status != 1 || errOut != "Error (1): To retrieve logs, specify the log ID or the number of logs.\n\n\n" {
+		t.Errorf("no log named: status %d, stderr %q", status, errOut)
+	}
 }
 
 func TestApexTraceCommands(t *testing.T) {
@@ -369,8 +374,18 @@ func TestApexTraceCommands(t *testing.T) {
 		t.Errorf("trace flag lasts %v, want 1h", end.Sub(start))
 	}
 	_, errOut, status := run("apex", "trace", "create", "-i", "005000000000001AAA", "-d", "Missing")
-	if status != 1 || errOut != "Error (1): Debug level \"Missing\" not found. Create one in Setup or specify an existing debug level.\n\n\n" {
+	if status != 1 || errOut != "Error (SfError): Debug level \"Missing\" not found. Create one in Setup or specify an existing debug level.\n\n\n" {
 		t.Errorf("missing debug level: status %d, stderr %q", status, errOut)
+	}
+
+	// sf lists the required flags that are missing together.
+	_, errOut, status = run("apex", "trace", "create")
+	if status != 2 || errOut != "Error (2): The following errors occurred:\n  Missing required flag debug-level\n  Missing required flag traced-entity-id\nSee more help with --help\n\n\n" {
+		t.Errorf("no flags: status %d, stderr %q", status, errOut)
+	}
+	out, _, status := run("apex", "trace", "create", "--json")
+	if status != 2 || !strings.Contains(out, `"name": "Error"`) || !strings.Contains(out, `"code": "2"`) {
+		t.Errorf("no flags, json: status %d\n%s", status, out)
 	}
 
 	expectRun(t, 0, `┌────────────────────┬────────────────────┬───────────────┬────────────────────┬─────────┬──────────────────────────────┐

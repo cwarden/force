@@ -173,6 +173,8 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [ ] Run `org login web` against an org
 - [ ] Run `org login jwt` against an org
 - [ ] Compare the commands marked "follows the sf plugin source" with sf output against an org or Dev Hub
+  - [x] The deploy job commands, the Apex log and trace commands, `org list limits`, `org list sobject record-counts`, `org assign permset`, `org assign permsetlicense` (failure cases; no permission set of the scratch org could be assigned to its user) and `data search`
+  - [ ] `apex tail log`, the bulk resume and results commands, `data import tree`, `data create file`, `org generate password`, `org open`, the package commands
 
 ## Unimplemented Commands
 

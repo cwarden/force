@@ -142,6 +142,8 @@ type GenericForceError struct {
 type ForceError struct {
 	Message   string
 	ErrorCode string
+	// Fields names the fields of the record that the error is about.
+	Fields []string
 }
 
 type ForceErrors []ForceError

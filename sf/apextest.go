@@ -216,10 +216,25 @@ func apexTestRequest(cmd *cobra.Command) (*orderedMap, error) {
 
 // splitList returns the values of a repeatable flag, splitting each value
 // on commas.
+// commaListCommands are the commands whose list flags sf still splits at
+// commas, with a warning that the form is deprecated.
+var commaListCommands = map[string]bool{
+	"sf apex run test": true, "sf project generate manifest": true, "sf project convert mdapi": true, "sf project convert source": true,
+	"sf project delete source": true, "sf org list sobject record-counts": true, "sf template generate apex trigger": true,
+	"sf org assign permset": true, "sf org assign permsetlicense": true, "sf org generate password": true,
+}
+
+// commaListWarned holds the commands that were warned in this process.
+var commaListWarned = map[*cobra.Command]bool{}
+
 func splitList(cmd *cobra.Command, name string) []string {
 	values, _ := cmd.Flags().GetStringArray(name)
 	var result []string
 	for _, value := range values {
+		if strings.Contains(value, ",") && commaListCommands[cmd.CommandPath()] && !commaListWarned[cmd] {
+			commaListWarned[cmd] = true
+			warn(cmd, "The input format for array arguments has changed. Use this format: --array-flag value1 --array-flag value2 --array-flag value3")
+		}
 		for _, part := range strings.Split(value, ",") {
 			if part = strings.TrimSpace(part); part != "" {
 				result = append(result, part)
