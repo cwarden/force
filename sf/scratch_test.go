@@ -198,8 +198,91 @@ func TestOrgCreateScratchValidation(t *testing.T) {
 		t.Errorf("unsupported key: status %d, stderr %q", status, errOut)
 	}
 	_, errOut, status = run("org", "create", "scratch", "-e", "developer", "--snapshot", "snap")
-	if status != 1 || !strings.Contains(errOut, "The --snapshot flag is not supported") {
-		t.Errorf("--snapshot: status %d, stderr %q", status, errOut)
+	if status != 2 || !strings.Contains(errOut, "--edition=developer cannot also be provided when using --snapshot") {
+		t.Errorf("--snapshot with --edition: status %d, stderr %q", status, errOut)
+	}
+	os.WriteFile(definition, []byte(`{"features":["Communities"],"edition":"Developer"}`), 0o644)
+	_, errOut, status = run("org", "create", "scratch", "-f", definition, "--snapshot", "snap")
+	if status != 1 || !strings.Contains(errOut, "Error (orgSnapshot): Org snapshots don’t support one or more options you specified: features, edition") {
+		t.Errorf("--snapshot with features: status %d, stderr %q", status, errOut)
+	}
+	_, errOut, status = run("org", "create", "scratch", "--source-org", "00D000000000001AAA")
+	if status != 2 || !strings.Contains(errOut, "The id must be 15 characters.") {
+		t.Errorf("--source-org: status %d, stderr %q", status, errOut)
+	}
+	_, errOut, status = run("org", "create", "scratch", "-e", "developer", "--client-id", "app")
+	if status != 1 || !strings.Contains(errOut, "The --client-id flag is not supported") {
+		t.Errorf("--client-id: status %d, stderr %q", status, errOut)
+	}
+}
+
+func TestOrgCreateScratchSnapshotSourceOrgAndAncestors(t *testing.T) {
+	org := devHubSetup(t)
+	var request map[string]interface{}
+	org.handlers["/services/data/v67.0/sobjects/ScratchOrgInfo"] = func(w http.ResponseWriter, r *http.Request) {
+		request = nil
+		json.NewDecoder(r.Body).Decode(&request)
+		w.WriteHeader(http.StatusCreated)
+		io.WriteString(w, `{"id":"2SR000000000001AAA","success":true,"errors":[]}`)
+	}
+	org.handlers["/services/data/v67.0/sobjects/ScratchOrgInfo/2SR000000000001AAA"] = func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"attributes":{"type":"ScratchOrgInfo"},"Id":"2SR000000000001AAA","Status":"New"}`)
+	}
+	var queries []string
+	org.handlers["/services/data/v67.0/tooling/query"] = func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query().Get("q")
+		queries = append(queries, query)
+		switch {
+		case strings.Contains(query, "MajorVersion = 1 AND MinorVersion = 2 AND PatchVersion = 0"):
+			io.WriteString(w, `{"done":true,"totalSize":1,"records":[{"Id":"05i000000000012AAA","IsReleased":true}]}`)
+		case strings.Contains(query, "SubscriberPackageVersionId = '04t000000000001AAA'"):
+			io.WriteString(w, `{"done":true,"totalSize":1,"records":[{"Id":"05i000000000001AAA"}]}`)
+		default:
+			io.WriteString(w, `{"done":true,"totalSize":0,"records":[]}`)
+		}
+	}
+	project, _ := os.Getwd()
+	writeProject := func(directories string) {
+		os.WriteFile(filepath.Join(project, "sfdx-project.json"), []byte(`{"packageDirectories":[`+directories+`],"packageAliases":{"billing":"0Ho000000000001AAA","billing@1.0.0-1":"04t000000000001AAA"}}`), 0o644)
+	}
+
+	if _, _, status := run("org", "create", "scratch", "--snapshot", "nightly", "--async"); status != 0 || request["Snapshot"] != "nightly" || request["Edition"] != nil {
+		t.Errorf("snapshot: status %d, request %v", status, request)
+	}
+	if _, _, status := run("org", "create", "scratch", "--source-org", "00D000000000001", "--async"); status != 0 || request["SourceOrg"] != "00D000000000001" {
+		t.Errorf("source org: status %d, request %v", status, request)
+	}
+	if _, sent := request["Package2AncestorIds"]; sent {
+		t.Errorf("a project without packages sent ancestors: %v", request)
+	}
+
+	// The ancestors named by version, by 04t Id and by alias are sent as
+	// Package2Version Ids.  NONE names no ancestor.
+	writeProject(`{"path":"force-app","default":true,"package":"billing","ancestorVersion":"1.2.0"},` +
+		`{"path":"other","package":"billing","ancestorId":"04t000000000001AAA"},` +
+		`{"path":"third","package":"billing","ancestorId":"billing@1.0.0-1"},` +
+		`{"path":"fourth","package":"billing","ancestorId":"NONE"}`)
+	if _, errOut, status := run("org", "create", "scratch", "-e", "developer", "--async"); status != 0 || request["Package2AncestorIds"] != "05i000000000012AAA;05i000000000001AAA;04t000000000001AAA" {
+		t.Errorf("ancestors: status %d, stderr %q, request %v", status, errOut, request)
+	}
+	if !strings.Contains(strings.Join(queries, "\n"), "WHERE Package2Id = '0Ho000000000001AAA' AND MajorVersion = 1 AND MinorVersion = 2 AND PatchVersion = 0 and IsReleased = true") {
+		t.Errorf("queries = %q", queries)
+	}
+	for _, flag := range []string{"--no-ancestors", "--no-namespace"} {
+		run("org", "create", "scratch", "-e", "developer", "--async", flag)
+		if _, sent := request["Package2AncestorIds"]; sent {
+			t.Errorf("%s sent ancestors: %v", flag, request)
+		}
+	}
+
+	writeProject(`{"path":"force-app","default":true,"package":"billing","ancestorVersion":"9.9.9"}`)
+	_, errOut, status := run("org", "create", "scratch", "-e", "developer", "--async")
+	if status != 1 || !strings.Contains(errOut, "Error (NoMatchingAncestorError): The ancestor for ancestorVersion 9.9.9 can't be found. Package ID billing.") || !strings.Contains(errOut, "hasn’t been promoted and released") {
+		t.Errorf("unknown ancestor: status %d, stderr %q", status, errOut)
+	}
+	writeProject(`{"path":"force-app","default":true,"package":"billing","ancestorVersion":"1.2"}`)
+	if _, errOut, status = run("org", "create", "scratch", "-e", "developer", "--async"); status != 1 || !strings.Contains(errOut, "The ancestor versionNumber must be in the format major.minor.patch but the value found is 1.2") {
+		t.Errorf("version format: status %d, stderr %q", status, errOut)
 	}
 }
 

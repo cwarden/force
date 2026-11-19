@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -84,12 +85,25 @@ func newOrgCreateScratchCmd() *cobra.Command {
 		Args:        cobra.NoArgs,
 		Annotations: map[string]string{commandNameAnnotation: "OrgCreateScratch"},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := unsupportedFlags(cmd, "client-id", "no-ancestors", "source-org", "snapshot"); err != nil {
+			if err := unsupportedFlags(cmd, "client-id"); err != nil {
+				return err
+			}
+			if err := sandboxFlagConflicts(cmd, [][2]string{{"edition", "snapshot"}, {"edition", "source-org"}, {"snapshot", "source-org"}}); err != nil {
 				return err
 			}
 			definitionFile, _ := cmd.Flags().GetString("definition-file")
 			edition, _ := cmd.Flags().GetString("edition")
-			if definitionFile == "" && edition == "" {
+			snapshot, _ := cmd.Flags().GetString("snapshot")
+			sourceOrg, _ := cmd.Flags().GetString("source-org")
+			if sourceOrg != "" {
+				if len(sourceOrg) != 15 {
+					return flagParseError("InvalidIdLengthError", "source-org", "The id must be 15 characters.")
+				}
+				if !strings.HasPrefix(sourceOrg, "00D") {
+					return flagParseError("InvalidPrefixError", "source-org", "The id must begin with 00D.")
+				}
+			}
+			if definitionFile == "" && edition == "" && snapshot == "" && sourceOrg == "" {
 				return &Error{Message: "The following error occurred:\n  Exactly one of the following must be provided: --definition-file, --edition, --snapshot, --source-org\nSee more help with --help", ExitCode: 2}
 			}
 			request := newOrderedMap()
@@ -147,6 +161,26 @@ func newOrgCreateScratchCmd() *cobra.Command {
 			if edition != "" {
 				definitionJSON.Set("edition", edition)
 			}
+			if sourceOrg != "" {
+				request.Set("SourceOrg", sourceOrg)
+				definitionJSON.Set("sourceOrg", sourceOrg)
+			}
+			if snapshot != "" {
+				request.Set("Snapshot", snapshot)
+				definitionJSON.Set("snapshot", snapshot)
+			}
+			if _, fromSnapshot := definitionJSON.Get("snapshot"); fromSnapshot {
+				// A snapshot fixes these properties of the org.
+				var invalid []string
+				for _, key := range []string{"features", "orgPreferences", "edition", "sourceOrg", "settingsPath", "releaseVersion"} {
+					if _, present := definitionJSON.Get(key); present {
+						invalid = append(invalid, key)
+					}
+				}
+				if len(invalid) > 0 {
+					return newError("orgSnapshot", "Org snapshots don’t support one or more options you specified: %s", strings.Join(invalid, ", "))
+				}
+			}
 			if release, ok := request.Get("Release"); ok {
 				release := strings.ToLower(displayValue(release))
 				if release != "preview" && release != "previous" {
@@ -197,6 +231,18 @@ func newOrgCreateScratchCmd() *cobra.Command {
 			hub, err := resolveTargetDevHub(cmd)
 			if err != nil {
 				return err
+			}
+			// The ancestors of the packages in sfdx-project.json are
+			// installed in the scratch org, unless a flag says not to.
+			noAncestors, _ := cmd.Flags().GetBool("no-ancestors")
+			if !noNamespace && !noAncestors {
+				ancestors, err := packageAncestorIDs(hub)
+				if err != nil {
+					return err
+				}
+				if ancestors != "" {
+					request.Set("Package2AncestorIds", ancestors)
+				}
 			}
 			started := time.Now()
 			content, err := encodeJSON(request)
@@ -657,4 +703,102 @@ func newOrgResumeScratchCmd() *cobra.Command {
 	cmd.Flags().BoolP("use-most-recent", "r", false, "Use the job ID of the most recent incomplete scratch org.")
 	cmd.Flags().IntP("wait", "w", 0, "Number of minutes to wait for the scratch org to be ready.")
 	return cmd
+}
+
+var ancestorVersionPattern = regexp.MustCompile(`^[0-9]+.[0-9]+.[0-9]+(.[0-9]+)?$`)
+
+// packageAncestorIDs returns the Package2Version Ids of the ancestors that
+// the package directories of sfdx-project.json name, joined by semicolons,
+// as sf sends them with a scratch org request.
+func packageAncestorIDs(hub *targetOrg) (string, error) {
+	wd, err := os.Getwd()
+	if err != nil {
+		return "", nil
+	}
+	root, found := lib.SFProjectRoot(wd)
+	if !found {
+		return "", nil
+	}
+	data, err := os.ReadFile(filepath.Join(root, "sfdx-project.json"))
+	if err != nil {
+		return "", nil
+	}
+	var project struct {
+		PackageDirectories []struct {
+			Package         string `json:"package"`
+			AncestorID      string `json:"ancestorId"`
+			AncestorVersion string `json:"ancestorVersion"`
+		} `json:"packageDirectories"`
+		PackageAliases map[string]string `json:"packageAliases"`
+	}
+	if json.Unmarshal(data, &project) != nil {
+		return "", nil
+	}
+	notReleased := func(value string) []string {
+		return []string{fmt.Sprintf("The ancestor package version [%s] specified in the sfdx-project.json file may exist hasn’t been promoted and released. Release the ancestor package version before specifying it as the ancestor in a new package or patch version.", value)}
+	}
+	single := func(soql string) (string, bool) {
+		records, err := toolingRecords(hub, soql)
+		if err != nil || len(records) != 1 {
+			return "", false
+		}
+		return text(records[0].values["Id"]), true
+	}
+	var ids []string
+	seen := map[string]bool{}
+	for _, directory := range project.PackageDirectories {
+		if directory.Package == "" || (directory.AncestorID == "" && directory.AncestorVersion == "") {
+			continue
+		}
+		packageRecordID := directory.Package
+		if id, ok := project.PackageAliases[directory.Package]; ok {
+			packageRecordID = id
+		}
+		id := ""
+		switch {
+		case directory.AncestorVersion == "NONE" || directory.AncestorID == "NONE":
+			continue
+		case directory.AncestorVersion == "HIGHEST" || directory.AncestorID == "HIGHEST":
+			found, ok := single(fmt.Sprintf("SELECT Id FROM Package2Version WHERE Package2Id = '%s' AND IsReleased = True AND IsDeprecated = False AND PatchVersion = 0 ORDER BY MajorVersion Desc, MinorVersion Desc, PatchVersion Desc, BuildNumber Desc LIMIT 1", packageRecordID))
+			if !ok {
+				if directory.AncestorVersion == "HIGHEST" {
+					return "", &Error{Name: "NoMatchingAncestorError", Message: fmt.Sprintf("The ancestor for ancestorVersion %s can't be found. Package ID %s.", directory.AncestorVersion, directory.Package), ExitCode: 1, Actions: notReleased(directory.AncestorVersion)}
+				}
+				return "", &Error{Name: "NoMatchingAncestorIdError", Message: fmt.Sprintf("The ancestor for ancestorId [%s] can't be found. Package ID %s.", directory.AncestorID, directory.Package), ExitCode: 1, Actions: notReleased(directory.AncestorID)}
+			}
+			id = found
+		case directory.AncestorVersion != "":
+			if !ancestorVersionPattern.MatchString(directory.AncestorVersion) {
+				return "", newError("InvalidAncestorVersionFormatError", "The ancestor versionNumber must be in the format major.minor.patch but the value found is %s", directory.AncestorVersion)
+			}
+			parts := strings.Split(directory.AncestorVersion, ".")
+			found, ok := single(fmt.Sprintf("SELECT Id, IsReleased FROM Package2Version WHERE Package2Id = '%s' AND MajorVersion = %s AND MinorVersion = %s AND PatchVersion = %s and IsReleased = true", packageRecordID, parts[0], parts[1], parts[2]))
+			if !ok {
+				return "", &Error{Name: "NoMatchingAncestorError", Message: fmt.Sprintf("The ancestor for ancestorVersion %s can't be found. Package ID %s.", directory.AncestorVersion, directory.Package), ExitCode: 1, Actions: notReleased(directory.AncestorVersion)}
+			}
+			if directory.AncestorID != "" && directory.AncestorID != found {
+				return "", newError("AncestorIdVersionMismatchError", "The ancestorVersion in sfdx-project.json is not the version expected for the ancestorId you supplied. ancestorVersion %s. ancestorID %s.", directory.AncestorVersion, directory.AncestorID)
+			}
+			id = found
+		case strings.HasPrefix(directory.AncestorID, "05i"):
+			id = directory.AncestorID
+		case strings.HasPrefix(directory.AncestorID, "04t"):
+			found, ok := single(fmt.Sprintf("SELECT Id FROM Package2Version WHERE SubscriberPackageVersionId = '%s'", directory.AncestorID))
+			if !ok {
+				return "", newError("SingleRecordQuery_NoRecords", "No record found for SELECT Id FROM Package2Version WHERE SubscriberPackageVersionId = '%s'", directory.AncestorID)
+			}
+			id = found
+		default:
+			alias, ok := project.PackageAliases[directory.AncestorID]
+			if !ok {
+				return "", newError("InvalidAncestorId", "Invalid ancestorId %s", directory.AncestorID)
+			}
+			id = alias
+		}
+		if id != "" && !seen[id] {
+			seen[id] = true
+			ids = append(ids, id)
+		}
+	}
+	return strings.Join(ids, ";"), nil
 }
