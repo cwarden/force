@@ -403,7 +403,7 @@ func newOrgGeneratePasswordCmd() *cobra.Command {
 			if err := integerInRange("complexity", complexity, 0, 5); err != nil {
 				return err
 			}
-			if err := integerInRange("length", length, 8, 100); err != nil {
+			if err := integerInRange("length", length, 8, 1000); err != nil {
 				return err
 			}
 			if length < 20 {
@@ -425,6 +425,14 @@ func newOrgGeneratePasswordCmd() *cobra.Command {
 			results := make([]*orderedMap, 0, len(users))
 			for _, user := range users {
 				username := lib.ResolveSFDXUsername(user)
+				// The user must have a local authorization, as in sf.
+				if _, err := lib.ReadSFDXAuthFields(username); err != nil {
+					notFound := newError("NamedOrgNotFoundError", "No authorization information found for %s.", user)
+					if similar := similarOrgName(user); similar != "" {
+						notFound.Actions = []string{fmt.Sprintf("It looks like you mistyped the username or alias. Did you mean %q?", similar)}
+					}
+					return notFound
+				}
 				id, err := userID(org, username)
 				if err != nil {
 					return err
@@ -450,6 +458,7 @@ func newOrgGeneratePasswordCmd() *cobra.Command {
 				result.Set("password", password)
 				results = append(results, result)
 			}
+			warn(cmd, "This command has generated and displayed a password. Avoid sharing or logging this output as it contains a sensitive credential.")
 			if len(results) == 1 {
 				return emit(cmd, results[0], func(w io.Writer) {
 					username := text(results[0].values["username"])

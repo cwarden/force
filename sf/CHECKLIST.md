@@ -176,7 +176,8 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
   - [x] The deploy job commands, the Apex log and trace commands, `org list limits`, `org list sobject record-counts`, `org assign permset` (success, duplicate, partial success and failure), `org assign permsetlicense` (failure cases) and `data search`
   - [x] The bulk resume commands, `data bulk results` and the `force data bulk` commands
   - [x] `data import tree`, `data export tree`, `data create file` (without `--parent-id`) and `org open --url-only`
-  - [ ] `apex tail log`, `org generate password`, the package commands
+  - [x] `org generate password`, `org auth show-user-password --json` and `api request graphql` (with `--include`, sf prints the headers in the order received and the protocol as HTTP/1.1; this mode prints them sorted and the protocol the connection used)
+  - [ ] `apex tail log`, the package commands
 
 ## Unimplemented Commands
 

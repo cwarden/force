@@ -286,3 +286,27 @@ func TestListFlagsAreSplitAtCommasOnlyWhereSfSplitsThem(t *testing.T) {
 		t.Errorf("record counts json:\n%s", out)
 	}
 }
+
+func TestOrgGeneratePasswordWarnsAndNeedsALocalUser(t *testing.T) {
+	org := loggedInFakeOrg(t)
+	org.handlers["/services/data/v67.0/sobjects/User/005000000000001AAA/password"] = func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}
+	const warning = "This command has generated and displayed a password. Avoid sharing or logging this output as it contains a sensitive credential."
+	out, errOut, status := run("org", "generate", "password")
+	if status != 0 || errOut != "Warning: "+warning+"\n" || !strings.HasPrefix(out, "Successfully set the password ") {
+		t.Errorf("status %d, stdout %q, stderr %q", status, out, errOut)
+	}
+	out, _, status = run("org", "generate", "password", "--json")
+	if status != 0 || !strings.Contains(out, "\"warnings\": [\n    \""+warning+"\"") {
+		t.Errorf("json: status %d\n%s", status, out)
+	}
+	_, errOut, status = run("org", "generate", "password", "-b", "nobody@example.com")
+	if status != 1 || !strings.HasPrefix(errOut, "Error (NamedOrgNotFoundError): No authorization information found for nobody@example.com.\n") {
+		t.Errorf("unknown user: status %d, stderr %q", status, errOut)
+	}
+	_, errOut, status = run("org", "generate", "password", "-l", "5000")
+	if status != 2 || !strings.Contains(errOut, "Expected an integer less than or equal to 1000 but received: 5000") {
+		t.Errorf("length: status %d, stderr %q", status, errOut)
+	}
+}

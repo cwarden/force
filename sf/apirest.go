@@ -292,14 +292,10 @@ func newApiRequestGraphqlCmd() *cobra.Command {
 			}
 			failed := response.StatusCode >= 400
 			if parsed, err := parseOrderedJSON(content); err == nil {
+				// Like sf, the exit status follows the HTTP status only: a
+				// response with status 200 that reports errors in its
+				// body exits with 0.
 				writeJSON(out, parsed)
-				// A GraphQL response reports errors in the body with
-				// status 200.
-				if object, ok := parsed.(*orderedMap); ok {
-					if errors, ok := object.values["errors"].([]interface{}); ok && len(errors) > 0 {
-						failed = true
-					}
-				}
 			} else {
 				fmt.Fprintln(out, string(content))
 			}

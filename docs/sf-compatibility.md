@@ -67,7 +67,7 @@ The files written by the `template generate` commands come from the salesforcedx
 | `sf apex trace create` | `force trace start` | This command is in plugin-apex versions newer than the one bundled with sf 2.138.6. | Compared with sf |
 | `sf apex trace delete` | `force trace delete` | As above. | Compared with sf |
 | `sf apex trace list` | `force trace list` | As above. | Compared with sf |
-| `sf api request graphql` | none | With `--include`, headers are listed in alphabetical order. | Follows the sf plugin source |
+| `sf api request graphql` | none | With `--include`, headers are listed in alphabetical order. | Compared with sf |
 | `sf api request rest` | `force rest` | The `formdata` body mode of `--file`. With `--include`, headers are listed in alphabetical order; sf lists them in the order received. | Compared with sf |
 | `sf autocomplete` | `force completion` | Prints instructions for the completion scripts cobra generates (`sf autocomplete script <shell>`); sf builds a cache from its plugins. `--refresh-cache` has no effect. | Not compared; the mechanism differs |
 | `sf cmdt generate field` | none |  | Compared with sf |
@@ -107,14 +107,14 @@ The files written by the `template generate` commands come from the salesforcedx
 | `sf org assign permsetlicense` | none |  | Compared with sf |
 | `sf org auth show-access-token` | none |  | Compared with sf |
 | `sf org auth show-sfdx-auth-url` | none |  | Error output compared with sf; the URL format follows the sf source |
-| `sf org auth show-user-password` | none | No command of this mode stores a password, so it finds one only in an authorization file that sf wrote. | Follows the sf plugin source |
+| `sf org auth show-user-password` | none | No command of this mode stores a password, so it finds one only in an authorization file that sf wrote. | Compared with sf |
 | `sf org create scratch` | `force login scratch` | `--client-id`, `--no-ancestors`, `--source-org`, `--snapshot`; definition file key `objectSettings`. The `--async` output follows a transcript of `sf`; this mode was not run against a Dev Hub. | Follows the sf plugin source |
 | `sf org resume scratch` | none; reads `~/.sf/scratch-create-cache.json` and finishes the request as `force login scratch` does | The output follows a transcript of `sf`; this mode was not run against a Dev Hub. The case of an org that is not ready follows the plugin source. | Follows the sf plugin source |
 | `sf org create user` | none; creates the user with the SCIM API and writes its authorization file | An org that was authorized with the JWT flow. | Compared with sf |
 | `sf org delete scratch` | none | For an org that has expired, `sf` removes the local authorization and reports it as marked for deletion; this mode asks the Dev Hub and reports it as deleted. | Compared with sf |
 | `sf org display` | `force whoami`, `force active` | An HTML response from the org, such as the one an expired scratch org gives, is reported in other words than in `sf`. | Compared with sf |
 | `sf org display user` | `force whoami` |  | Compared with sf |
-| `sf org generate password` | `force password reset` (sets a password the org generates) | The password is stored only for users that have an authorization file. | Follows the sf plugin source |
+| `sf org generate password` | `force password reset` (sets a password the org generates) | The password is stored only for users that have an authorization file. | Compared with sf |
 | `sf org list` | `force logins --sfdx` | `--clean` and `--verbose` are accepted and have no effect. An authorization file that `sf` cannot decrypt (`AuthDecryptError`) may be decrypted, because every key found is tried. No warning for an http instance URL. | Compared with sf |
 | `sf org list auth` | `force logins` |  | Compared with sf |
 | `sf org list limits` | `force limits` |  | Compared with sf |

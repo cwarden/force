@@ -146,8 +146,9 @@ func TestApiRequestGraphql(t *testing.T) {
 		t.Errorf("payload = %s", payload)
 	}
 	response = `{"data":null,"errors":[{"message":"Validation error"}]}`
-	if _, _, status := run("api", "request", "graphql", "--body", "query { nope }"); status != 1 {
-		t.Errorf("a response with errors exits with status %d, want 1", status)
+	// Like sf, a response with status 200 that reports errors exits with 0.
+	if _, _, status := run("api", "request", "graphql", "--body", "query { nope }"); status != 0 {
+		t.Errorf("a response with errors exits with status %d, want 0", status)
 	}
 }
 
