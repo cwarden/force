@@ -69,6 +69,11 @@ func Run(args []string, out, errOut io.Writer) int {
 		jsonOutput = hasJSONFlag(args)
 	}
 	root.SetArgs(args)
+	// sf warns about the old comma form when a command with a list flag
+	// that is split at commas is given an argument with a comma.
+	if target, _, findErr := root.Find(args); findErr == nil && commaListFlags[target.CommandPath()] != nil && hasUnescapedComma(args) {
+		flagDeprecations = append(flagDeprecations, commaListWarning)
+	}
 	state := &runState{flagDeprecations: flagDeprecations}
 	root.SetContext(context.WithValue(context.Background(), runStateKey{}, state))
 	if deprecation != "" {

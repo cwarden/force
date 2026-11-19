@@ -216,24 +216,50 @@ func apexTestRequest(cmd *cobra.Command) (*orderedMap, error) {
 
 // splitList returns the values of a repeatable flag, splitting each value
 // on commas.
-// commaListCommands are the commands whose list flags sf still splits at
-// commas, with a warning that the form is deprecated.
-var commaListCommands = map[string]bool{
-	"sf apex run test": true, "sf project generate manifest": true, "sf project convert mdapi": true, "sf project convert source": true,
-	"sf project delete source": true, "sf org list sobject record-counts": true, "sf template generate apex trigger": true,
-	"sf org assign permset": true, "sf org assign permsetlicense": true, "sf org generate password": true,
+// commaListFlags are the list flags that sf splits at commas, by command.
+// sf takes the values of every other list flag as they are given.
+var commaListFlags = map[string]map[string]bool{
+	"sf apex run test":                  {"class-names": true, "suite-names": true, "tests": true},
+	"sf cmdt generate field":            {"picklist-values": true},
+	"sf commands":                       {"columns": true},
+	"sf data import tree":               {"files": true},
+	"sf org assign permsetlicense":      {"on-behalf-of": true},
+	"sf org list sobject record-counts": {"sobject": true},
+	"sf project convert mdapi":          {"metadata-dir": true, "metadata": true},
+	"sf project convert source":         {"source-dir": true, "metadata": true},
+	"sf project delete source":          {"metadata": true, "source-dir": true},
+	"sf project generate manifest":      {"metadata": true, "source-dir": true, "include-packages": true, "excluded-metadata": true},
+	"sf template generate apex trigger": {"event": true},
 }
 
-// commaListWarned holds the commands that were warned in this process.
-var commaListWarned = map[*cobra.Command]bool{}
+// commaListWarning is the warning sf gives when a command with such a flag
+// is given an argument that contains a comma.
+const commaListWarning = "The input format for array arguments has changed. Use this format: --array-flag value1 --array-flag value2 --array-flag value3"
 
+// hasUnescapedComma reports whether an argument has a comma that does not
+// follow a backslash.
+func hasUnescapedComma(args []string) bool {
+	joined := strings.Join(args, " ")
+	for i := 0; i < len(joined); i++ {
+		if joined[i] == ',' && (i == 0 || joined[i-1] != '\\') {
+			return true
+		}
+	}
+	return false
+}
+
+// splitList returns the values of a list flag.  The values of the flags in
+// commaListFlags are split at commas.
 func splitList(cmd *cobra.Command, name string) []string {
 	values, _ := cmd.Flags().GetStringArray(name)
+	split := commaListFlags[cmd.CommandPath()][name]
 	var result []string
 	for _, value := range values {
-		if strings.Contains(value, ",") && commaListCommands[cmd.CommandPath()] && !commaListWarned[cmd] {
-			commaListWarned[cmd] = true
-			warn(cmd, "The input format for array arguments has changed. Use this format: --array-flag value1 --array-flag value2 --array-flag value3")
+		if !split {
+			if value != "" {
+				result = append(result, value)
+			}
+			continue
 		}
 		for _, part := range strings.Split(value, ",") {
 			if part = strings.TrimSpace(part); part != "" {

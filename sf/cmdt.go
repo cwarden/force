@@ -265,13 +265,6 @@ func newCmdtFieldCmd() *cobra.Command {
 			if decimalPlaces < 0 {
 				return flagParseError("", "decimal-places", fmt.Sprintf("Expected an integer greater than or equal to 0 but received: %d", decimalPlaces))
 			}
-			raw, _ := cmd.Flags().GetStringArray("picklist-values")
-			for _, value := range raw {
-				if strings.Contains(value, ",") {
-					warn(cmd, "The input format for array arguments has changed. Use this format: --array-flag value1 --array-flag value2 --array-flag value3")
-					break
-				}
-			}
 			picklistValues := splitList(cmd, "picklist-values")
 			if fieldType == "Picklist" && len(picklistValues) == 0 {
 				return newError("SfError", "You must specify at least one picklist value when the field type is picklist.")

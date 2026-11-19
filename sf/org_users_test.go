@@ -260,3 +260,29 @@ func TestOrgListUsers(t *testing.T) {
 		t.Error("the access token is in the output")
 	}
 }
+
+func TestListFlagsAreSplitAtCommasOnlyWhereSfSplitsThem(t *testing.T) {
+	org := loggedInFakeOrg(t)
+	org.queries["FROM PermissionSet WHERE Name='A,B'"] = nil
+	// org assign permset takes a name with a comma as one name, without
+	// a warning.
+	out, errOut, status := run("org", "assign", "permset", "-n", "A,B")
+	if status != 1 || errOut != "" || !strings.Contains(out, `Permission set "A,B" not found in target org.`) {
+		t.Errorf("assign permset: status %d, stderr %q\n%s", status, errOut, out)
+	}
+	// org list sobject record-counts splits its list at commas and warns
+	// that the form is deprecated.
+	var requested string
+	org.handlers["/services/data/v67.0/limits/recordCount"] = func(w http.ResponseWriter, r *http.Request) {
+		requested = r.URL.Query().Get("sObjects")
+		io.WriteString(w, `{"sObjects":[{"count":1,"name":"Account"}]}`)
+	}
+	_, errOut, status = run("org", "list", "sobject", "record-counts", "-s", "Account,User")
+	if status != 0 || requested != "Account,User" || errOut != "Warning: "+commaListWarning+"\n" {
+		t.Errorf("record counts: status %d, sObjects %q, stderr %q", status, requested, errOut)
+	}
+	out, _, _ = run("org", "list", "sobject", "record-counts", "-s", "Account,User", "--json")
+	if !strings.Contains(out, "\"warnings\": [\n    \""+commaListWarning+"\"") {
+		t.Errorf("record counts json:\n%s", out)
+	}
+}

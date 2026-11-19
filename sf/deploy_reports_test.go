@@ -123,7 +123,7 @@ func TestProjectDeployStartWritesCoverageAndJUnitFiles(t *testing.T) {
 	_, fake, project := deploySetup(t)
 	fake.statusResult = deployTestsRan("Failed", 1)
 	out, _, status := run("project", "deploy", "start", "-d", "force-app/main/default/classes", "-l", "RunSpecifiedTests", "-t", "CalcTest", "--junit",
-		"--coverage-formatters", "json-summary,text", "--coverage-formatters", "cobertura", "--coverage-formatters", "lcovonly", "--coverage-formatters", "clover",
+		"--coverage-formatters", "json-summary", "--coverage-formatters", "text", "--coverage-formatters", "cobertura", "--coverage-formatters", "lcovonly", "--coverage-formatters", "clover",
 		"--coverage-formatters", "json", "--coverage-formatters", "teamcity", "--coverage-formatters", "text-summary", "--coverage-formatters", "none", "--results-dir", "res")
 	if status != 1 || !strings.HasSuffix(out, "Code Coverage formats, [json-summary, text, cobertura, lcovonly, clover, json, teamcity, text-summary, none], written to res/coverage/\nJunit results written to res/junit/junit.xml\n") {
 		t.Fatalf("status %d\n%s", status, out)
