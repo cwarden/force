@@ -26,6 +26,7 @@ func newOrgCmd() *cobra.Command {
 		withSubcommands(newOrgDisplayCmd(),
 			newOrgDisplayUserCmd(),
 		),
+		newGroup("create", "Create scratch orgs.", newOrgCreateScratchCmd()),
 		newOrgLoginCmd(),
 		newOrgLogoutCmd(),
 	)

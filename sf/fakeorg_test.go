@@ -23,6 +23,8 @@ type fakeOrg struct {
 	// handlers maps a URL path to a handler that replaces the default.
 	handlers map[string]http.HandlerFunc
 	requests []string
+	// username is the user the userinfo resource reports.
+	username string
 	// refreshRequests holds the form values of each request to the OAuth
 	// token endpoint.  The endpoint answers with fakeToken.
 	refreshRequests []url.Values
@@ -48,6 +50,7 @@ func newFakeOrg(t *testing.T) *fakeOrg {
 				"Profile": map[string]interface{}{"Name": "System Administrator"},
 			}},
 		},
+		username:   "me@example.com",
 		rawQueries: map[string]string{},
 		handlers:   map[string]http.HandlerFunc{},
 	}
@@ -62,7 +65,7 @@ func (o *fakeOrg) serve(w http.ResponseWriter, r *http.Request) {
 		r.ParseForm()
 		o.refreshRequests = append(o.refreshRequests, r.PostForm)
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"access_token": fakeToken, "instance_url": o.URL})
+		json.NewEncoder(w).Encode(map[string]string{"access_token": fakeToken, "instance_url": o.URL, "refresh_token": "new-refresh-token"})
 		return
 	}
 	// SOAP requests carry the session ID in the request body.
@@ -87,7 +90,7 @@ func (o *fakeOrg) serve(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]string{"sobjects": "/services/data/v67.0/sobjects"})
 	case r.URL.Path == "/services/oauth2/userinfo":
 		json.NewEncoder(w).Encode(map[string]string{
-			"preferred_username": "me@example.com",
+			"preferred_username": o.username,
 			"organization_id":    "00D000000000000",
 			"user_id":            "005000000000001AAA",
 		})

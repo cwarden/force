@@ -26,7 +26,7 @@ Reference: `sf` 2.138.6. Update this file as each item is finished.
 - [x] `org login access-token`
 - [x] `org open` (format taken from the sf plugin source; the local test server has no single-access endpoint)
 - [x] `org display user`
-- [ ] `org create scratch` (including definition file)
+- [x] `org create scratch` (including definition file) (follows the sf plugin source; not compared with sf against a Dev Hub)
 - [x] `org list limits` (format taken from the sf plugin source; the local test server has no limits resource)
 - [x] `org list metadata`
 - [x] `org list metadata-types`
@@ -59,9 +59,9 @@ Reference: `sf` 2.138.6. Update this file as each item is finished.
 - [x] `project convert source`, `project convert mdapi`
 
 ## Step 7: package
-- [ ] `package create`, `package list`
-- [ ] `package install`, `package installed list`, `package uninstall`
-- [ ] `package version create`, `package version list`, `package version report`, `package version promote`
+- [x] `package create`, `package list` (follows the sf plugin source; not compared with sf against a Dev Hub)
+- [x] `package install`, `package installed list`, `package uninstall` (follows the sf plugin source; not compared with sf against a Dev Hub)
+- [x] `package version create`, `package version list`, `package version report`, `package version promote` (follows the sf plugin source; not compared with sf against a Dev Hub)
 
 ## Step 8: Documentation And Build
 - [ ] `docs/sf-compatibility.md` (mapping both directions, missing commands)
