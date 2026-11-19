@@ -1,7 +1,9 @@
 package sf
 
 import (
+	"bytes"
 	"crypto/sha256"
+	"encoding/xml"
 	"fmt"
 	"io"
 	"os"
@@ -97,12 +99,16 @@ func newProjectConvertSourceCmd() *cobra.Command {
 		Args:        cobra.NoArgs,
 		Annotations: map[string]string{commandNameAnnotation: "Source"},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := unsupportedFlags(cmd, "package-name"); err != nil {
-				return err
-			}
 			project, err := loadProject()
 			if err != nil {
 				return err
+			}
+			if rootDir, _ := cmd.Flags().GetString("root-dir"); rootDir != "" {
+				if info, err := os.Stat(rootDir); err != nil {
+					return flagParseError("", "root-dir", "No directory found at "+rootDir)
+				} else if !info.IsDir() {
+					return flagParseError("", "root-dir", rootDir+" exists but is not a directory")
+				}
 			}
 			set, err := collectSource(cmd, project, "source-dir")
 			if err != nil {
@@ -125,7 +131,14 @@ func newProjectConvertSourceCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			packageName, _ := cmd.Flags().GetString("package-name")
 			for path, data := range set.deployFiles(projectAPIVersion(project)) {
+				if path == "package.xml" && packageName != "" {
+					// The package name follows the version in the manifest.
+					var escaped strings.Builder
+					xml.EscapeText(&escaped, []byte(packageName))
+					data = bytes.Replace(data, []byte("</Package>"), []byte("    <fullName>"+escaped.String()+"</fullName>\n</Package>"), 1)
+				}
 				target := filepath.Join(location, filepath.FromSlash(path))
 				if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
 					return err
@@ -207,8 +220,24 @@ func writeSourceFormat(root string, files lib.ForceMetadataFiles, query lib.Forc
 				return err
 			}
 		}
-		if metadataType, fullName := componentOfPath(relative); metadataType != "" {
-			results = append(results, fileResult{FullName: fullName, Type: metadataType, FilePath: relativePath(target), State: state})
+		metadataType, fullName := componentOfPath(relative)
+		if metadataType == "" {
+			return nil
+		}
+		parts := strings.Split(filepath.ToSlash(relative), "/")
+		if metadataType == "CustomObject" && len(parts) == 4 {
+			// A file of a decomposed object: sf lists it as a component
+			// of its own type, named after the object.
+			if childType, ok := objectChildTypes[parts[2]]; ok {
+				name := strings.TrimSuffix(parts[3], "-meta.xml")
+				results = append(results, fileResult{FullName: fullName + "." + strings.TrimSuffix(name, filepath.Ext(name)), Type: childType, FilePath: relativePath(target), State: state})
+				return nil
+			}
+		}
+		results = append(results, fileResult{FullName: fullName, Type: metadataType, FilePath: relativePath(target), State: state})
+		if metadataType == "CustomObject" && len(parts) == 3 && strings.HasSuffix(parts[2], ".object-meta.xml") {
+			// sf also lists the directory of the object.
+			results = append(results, fileResult{FullName: fullName, Type: metadataType, FilePath: relativePath(filepath.Dir(target)), State: state})
 		}
 		return nil
 	})
@@ -234,6 +263,101 @@ func writeSourceFormat(root string, files lib.ForceMetadataFiles, query lib.Forc
 	return results, nil
 }
 
+// objectChildTypes maps a directory of a decomposed custom object to the
+// metadata type of the files in it.
+var objectChildTypes = map[string]string{
+	"businessProcesses": "BusinessProcess",
+	"compactLayouts":    "CompactLayout",
+	"fields":            "CustomField",
+	"fieldSets":         "FieldSet",
+	"indexes":           "Index",
+	"listViews":         "ListView",
+	"recordTypes":       "RecordType",
+	"sharingReasons":    "SharingReason",
+	"validationRules":   "ValidationRule",
+	"webLinks":          "WebLink",
+}
+
+// mdapiSelection returns a function that reports whether a component of the
+// metadata format directory is one of those named by a manifest, by
+// --metadata values, or by paths.  It returns nil when none of the three is
+// given, which selects every component.
+func mdapiSelection(rootDir string, files lib.ForceMetadataFiles, manifestPath string, metadata, paths []string) (func(metadataType, fullName string) bool, error) {
+	// names holds "Type:Name" for a named component and "Type:*" for every
+	// component of a type.
+	names := map[string]bool{}
+	selected := func(metadataType, fullName string) bool {
+		return names[metadataType+":"+fullName] || names[metadataType+":*"]
+	}
+	switch {
+	case manifestPath != "":
+		manifest, err := readManifest(manifestPath)
+		if err != nil {
+			return nil, err
+		}
+		for _, metaType := range manifest.Types {
+			for _, member := range metaType.Members {
+				names[metaType.Name+":"+member] = true
+			}
+		}
+	case len(metadata) > 0:
+		for _, name := range metadata {
+			metadataType, member, hasMember := strings.Cut(name, ":")
+			if !lib.IsMetadataTypeName(metadataType) {
+				return nil, &Error{
+					Name:     "RegistryError",
+					Message:  fmt.Sprintf("Missing metadata type definition in registry for id '%s'.", metadataType),
+					ExitCode: 1,
+					Actions:  []string{registryTypeAdvice},
+				}
+			}
+			if !hasMember {
+				member = "*"
+			}
+			names[metadataType+":"+member] = true
+		}
+	case len(paths) > 0:
+		root, err := filepath.Abs(rootDir)
+		if err != nil {
+			return nil, err
+		}
+		for _, path := range paths {
+			absolute, err := filepath.Abs(path)
+			if err != nil {
+				return nil, err
+			}
+			if _, err := os.Stat(absolute); err != nil {
+				return nil, newError("InvalidFlagPath", "The metadatapath command flag specifies an invalid path: %s\nNo such file or directory.", path)
+			}
+			for file := range files {
+				full := filepath.Join(root, filepath.FromSlash(file))
+				if full != absolute && !strings.HasPrefix(full, absolute+string(os.PathSeparator)) {
+					continue
+				}
+				if metadataType, fullName := componentOfPath(file); metadataType != "" {
+					names[metadataType+":"+fullName] = true
+				}
+			}
+		}
+	default:
+		return nil, nil
+	}
+	return selected, nil
+}
+
+// registryTypeAdvice is the advice sf gives for a metadata type name it
+// does not know.
+const registryTypeAdvice = `Confirm the metadata type name is correct. Validate against the registry at:
+<https://github.com/forcedotcom/source-deploy-retrieve/blob/main/src/registry/metadataRegistry.json>
+
+If the type is not listed in the registry, check that it has Metadata API support via the Metadata Coverage Report:
+<https://developer.salesforce.com/docs/metadata-coverage>
+
+If the type is available via Metadata API but not in the registry
+
+- Open an issue <https://github.com/forcedotcom/cli/issues>
+- Add the type via PR. Instructions: <https://github.com/forcedotcom/source-deploy-retrieve/blob/main/contributing/metadata.md>`
+
 // wildcardQuery requests every component of the types that the source
 // format writer handles by name.
 var wildcardQuery = lib.ForceMetadataQuery{
@@ -248,19 +372,33 @@ func newProjectConvertMdapiCmd() *cobra.Command {
 		Args:        cobra.NoArgs,
 		Annotations: map[string]string{commandNameAnnotation: "Mdapi"},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := unsupportedFlags(cmd, "manifest", "metadata-dir", "metadata"); err != nil {
-				return err
-			}
 			rootDir, _ := cmd.Flags().GetString("root-dir")
 			if rootDir == "" {
 				return missingFlagError("root-dir")
 			}
-			info, err := os.Stat(rootDir)
-			if err != nil {
-				return newError("InvalidFlagPathError", "Invalid path '%s' for flag 'root-dir': No such file or directory.", rootDir)
+			if info, err := os.Stat(rootDir); err != nil {
+				return flagParseError("", "root-dir", "No directory found at "+rootDir)
+			} else if !info.IsDir() {
+				return flagParseError("", "root-dir", rootDir+" exists but is not a directory")
 			}
-			if !info.IsDir() {
-				return newError("InvalidFlagPathError", "Invalid path '%s' for flag 'root-dir': Expected a directory but found a file.", rootDir)
+			manifestPath, _ := cmd.Flags().GetString("manifest")
+			metadata, _ := cmd.Flags().GetStringArray("metadata")
+			metadataDirs, _ := cmd.Flags().GetStringArray("metadata-dir")
+			if manifestPath != "" {
+				if info, err := os.Stat(manifestPath); err != nil || info.IsDir() {
+					return flagParseError("", "manifest", "No file found at "+manifestPath)
+				}
+			}
+			exclusive := func(flag, value, other string) error {
+				return &Error{Message: fmt.Sprintf("The following error occurred:\n  --%s=%s cannot also be provided when using --%s\nSee more help with --help", flag, value, other), ExitCode: 2}
+			}
+			switch {
+			case manifestPath != "" && len(metadata) > 0:
+				return exclusive("manifest", manifestPath, "metadata")
+			case manifestPath != "" && len(metadataDirs) > 0:
+				return exclusive("manifest", manifestPath, "metadata-dir")
+			case len(metadata) > 0 && len(metadataDirs) > 0:
+				return exclusive("metadata", strings.Join(metadata, ","), "metadata-dir")
 			}
 			project, err := loadProject()
 			if err != nil {
@@ -278,11 +416,23 @@ func newProjectConvertMdapiCmd() *cobra.Command {
 			if manifest, err := readManifest(filepath.Join(rootDir, "package.xml")); err == nil {
 				query = manifest.query()
 			}
+			selected, err := mdapiSelection(rootDir, files, manifestPath, splitList(cmd, "metadata"), metadataDirs)
+			if err != nil {
+				return err
+			}
 			components := map[string]bool{}
 			for path := range files {
-				if metadataType, fullName := componentOfPath(path); metadataType != "" {
+				metadataType, fullName := componentOfPath(path)
+				if selected != nil && !selected(metadataType, fullName) {
+					delete(files, path)
+					continue
+				}
+				if metadataType != "" {
 					components[metadataType+":"+fullName] = true
 				}
+			}
+			if selected != nil && len(components) == 0 {
+				return newError("SfError", "No results to format")
 			}
 			stop := startSpinner(cmd, fmt.Sprintf("Converting %d metadata components", len(components)))
 			target, err := filepath.Abs(filepath.Join(outputDir, "main", "default"))

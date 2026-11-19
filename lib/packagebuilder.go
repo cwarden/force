@@ -950,3 +950,14 @@ func MetadataTypeForDirectory(directory string) (string, bool) {
 	mp, ok := metapathForDirectory(directory)
 	return mp.name, ok
 }
+
+// IsMetadataTypeName reports whether name is a metadata type that has a
+// directory in a metadata package, such as ApexClass.
+func IsMetadataTypeName(name string) bool {
+	for _, mp := range metapaths {
+		if mp.name == name {
+			return true
+		}
+	}
+	return false
+}

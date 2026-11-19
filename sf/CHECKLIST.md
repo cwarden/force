@@ -92,8 +92,8 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [ ] `package update`: `--skip-ancestor-check`
 - [ ] `package version create list`: `--show-conversions-only`, `--verbose`
 - [ ] `package version list`: `--show-conversions-only`
-- [ ] `project convert mdapi`: `--manifest`, `--metadata-dir`, `--metadata`
-- [ ] `project convert source`: `--package-name`
+- [x] `project convert mdapi`: `--manifest`, `--metadata-dir`, `--metadata`
+- [x] `project convert source`: `--package-name`
 - [ ] `project deploy start`, `project deploy validate`: `--coverage-formatters`, `--junit`, `--results-dir` (`--pre-destructive-changes` and `--post-destructive-changes` are done)
 - [ ] `project deploy report`, `project deploy resume`: `--coverage-formatters`, `--junit`, `--results-dir` (not defined)
 - [x] `project deploy quick`, `report`, `resume`, `cancel`: `--use-most-recent`
@@ -124,6 +124,9 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [ ] `org create scratch`: definition file key `objectSettings`, and keys other than `orgName`, `edition`, `country`, `language`, `adminEmail`, `description`, `hasSampleData`, `username`, `release`, `namespace`, `duration`, `durationDays`, `features`, `settings`
 - [ ] `org display`: scratch org fields other than the Dev Hub username and expiration date
 - [ ] `data query`: sf's layout for child records of a subquery
+- [ ] `project convert source`: the order of elements in a composed custom object (sf writes the fields and other child components after the elements of the object file; this mode writes all elements in alphabetical order)
+- [ ] `project convert mdapi --metadata`, `--manifest`: a child component named on its own, such as `CustomField:Invoice__c.Amount__c` (only whole objects are selected)
+- [ ] Unknown metadata type name: the "Did you mean one of the following types?" line (needs sf's list of all type names)
 - [ ] `package version list`: ancestor version numbers and code coverage
 - [ ] `force data bulk delete`, `force data bulk upsert`: batches of 10,000 records (the file is sent as one batch)
 - [ ] `project retrieve start`: `fileProperties` in the JSON result

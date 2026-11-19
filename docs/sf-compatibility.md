@@ -141,8 +141,8 @@ The files written by the `template generate` commands come from the salesforcedx
 | `sf package version promote` | `force package version release` |  | Follows the sf plugin source |
 | `sf package version report` | `force package version get` | `--verbose` is accepted and adds nothing. | Follows the sf plugin source |
 | `sf package version update` | none |  | Follows the sf plugin source |
-| `sf project convert mdapi` | `force fetch` (source format writer) | `--manifest`, `--metadata-dir`, `--metadata` | Compared with sf |
-| `sf project convert source` | `force import` (source format conversion) | `--package-name` | Compared with sf |
+| `sf project convert mdapi` | `force fetch` (source format writer) | A child component named on its own with `--metadata` or `--manifest`, such as a `CustomField`. | Compared with sf |
+| `sf project convert source` | `force import` (source format conversion) | A composed custom object has its elements in alphabetical order; `sf` writes the child components last. | Compared with sf |
 | `sf project deploy cancel` | `force deploys cancel` |  | Follows the sf plugin source |
 | `sf project deploy quick` | `force quickdeploy` |  | Follows the sf plugin source |
 | `sf project deploy report` | `force deploys status` | `--coverage-formatters`, `--junit`, `--results-dir` | Follows the sf plugin source |

@@ -135,8 +135,132 @@ func TestProjectConvertMdapiWritesSourceFormat(t *testing.T) {
 		t.Errorf("a second conversion does not report unchanged files:\n%s", out)
 	}
 	_, errOut, status = run("project", "convert", "mdapi", "-r", filepath.Join(home, "nosuch"))
-	if status != 1 || !strings.Contains(errOut, "No such file or directory.") {
+	if want := "Error (2): Parsing --root-dir \n\tNo directory found at " + filepath.Join(home, "nosuch") + "\nSee more help with --help\n\n\n"; status != 2 || errOut != want {
 		t.Errorf("missing root dir: status %d, stderr %q", status, errOut)
+	}
+}
+
+// convertProject writes a project with two classes, a trigger and an object
+// with one field, and converts it to metadata format in the directory md.
+func convertProject(t *testing.T) {
+	t.Helper()
+	useTempHome(t)
+	os.WriteFile("sfdx-project.json", []byte(`{"packageDirectories":[{"path":"force-app","default":true},{"path":"out"}],"sourceApiVersion":"60.0"}`), 0o644)
+	base := filepath.Join("force-app", "main", "default")
+	write := func(path, content string) {
+		t.Helper()
+		path = filepath.Join(base, path)
+		os.MkdirAll(filepath.Dir(path), 0o755)
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	os.MkdirAll("out", 0o755)
+	head := "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+	for _, class := range []string{"Alpha", "Beta"} {
+		write("classes/"+class+".cls", "public class "+class+" {}\n")
+		write("classes/"+class+".cls-meta.xml", head+"<ApexClass xmlns=\"http://soap.sforce.com/2006/04/metadata\">\n    <apiVersion>60.0</apiVersion>\n    <status>Active</status>\n</ApexClass>\n")
+	}
+	write("triggers/Tr.trigger", "trigger Tr on Account (before insert) {}\n")
+	write("triggers/Tr.trigger-meta.xml", head+"<ApexTrigger xmlns=\"http://soap.sforce.com/2006/04/metadata\">\n    <apiVersion>60.0</apiVersion>\n    <status>Active</status>\n</ApexTrigger>\n")
+	write("objects/Invoice__c/Invoice__c.object-meta.xml", head+"<CustomObject xmlns=\"http://soap.sforce.com/2006/04/metadata\">\n    <label>Invoice</label>\n    <pluralLabel>Invoices</pluralLabel>\n</CustomObject>\n")
+	write("objects/Invoice__c/fields/Amount__c.field-meta.xml", head+"<CustomField xmlns=\"http://soap.sforce.com/2006/04/metadata\">\n    <fullName>Amount__c</fullName>\n    <label>Amount</label>\n    <precision>18</precision>\n    <scale>2</scale>\n    <type>Number</type>\n</CustomField>\n")
+	if _, errOut, status := run("project", "convert", "source", "-d", "md", "-n", "My <Pkg>"); status != 0 {
+		t.Fatalf("convert source: status %d %s", status, errOut)
+	}
+}
+
+func TestProjectConvertSourceWritesThePackageName(t *testing.T) {
+	convertProject(t)
+	_, errOut, status := run("project", "convert", "source", "-r", "nosuch", "-d", "x")
+	if status != 2 || errOut != "Error (2): Parsing --root-dir \n\tNo directory found at nosuch\nSee more help with --help\n\n\n" {
+		t.Errorf("missing root dir: status %d, stderr %q", status, errOut)
+	}
+	manifest := readFile(t, filepath.Join("md", "package.xml"))
+	if !strings.HasSuffix(manifest, "    <version>60.0</version>\n    <fullName>My &lt;Pkg&gt;</fullName>\n</Package>\n") {
+		t.Errorf("package.xml = %s", manifest)
+	}
+}
+
+func TestProjectConvertMdapiSelectsComponents(t *testing.T) {
+	convertProject(t)
+	os.WriteFile("one.xml", []byte("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Package xmlns=\"http://soap.sforce.com/2006/04/metadata\">\n    <types>\n        <members>Alpha</members>\n        <name>ApexClass</name>\n    </types>\n    <version>60.0</version>\n</Package>\n"), 0o644)
+
+	out, errOut, status := run("project", "convert", "mdapi", "-r", "md", "-d", "out", "-x", "one.xml")
+	want := `┌───────┬───────────┬───────────┬─────────────────────────────────────────────┐
+│ STATE │ FULL NAME │ TYPE      │ PROJECT PATH                                │
+├───────┼───────────┼───────────┼─────────────────────────────────────────────┤
+│ Add   │ Alpha     │ ApexClass │ out/main/default/classes/Alpha.cls-meta.xml │
+│ Add   │ Alpha     │ ApexClass │ out/main/default/classes/Alpha.cls          │
+└───────┴───────────┴───────────┴─────────────────────────────────────────────┘
+
+`
+	if status != 0 || out != want || errOut != "Converting 1 metadata components... done\n" {
+		t.Errorf("--manifest: status %d, stdout\n%s\nstderr %q", status, out, errOut)
+	}
+	if _, err := os.Stat(filepath.Join("out", "main", "default", "classes", "Beta.cls")); err == nil {
+		t.Error("--manifest converted a class the manifest does not name")
+	}
+
+	os.RemoveAll(filepath.Join("out", "main"))
+	out, errOut, _ = run("project", "convert", "mdapi", "-r", "md", "-d", "out", "-m", "ApexClass:Beta", "-m", "ApexTrigger")
+	if errOut != "Converting 2 metadata components... done\n" || !strings.Contains(out, "│ Add   │ Beta      │ ApexClass   │ out/main/default/classes/Beta.cls-meta.xml    │") ||
+		!strings.Contains(out, "│ Add   │ Tr        │ ApexTrigger │ out/main/default/triggers/Tr.trigger          │") || strings.Contains(out, "Alpha") || strings.Contains(out, "Invoice__c") {
+		t.Errorf("--metadata: stdout\n%s\nstderr %q", out, errOut)
+	}
+
+	os.RemoveAll(filepath.Join("out", "main"))
+	out, _, _ = run("project", "convert", "mdapi", "-r", "md", "-d", "out", "-p", "md/classes/Alpha.cls", "-p", "md/triggers", "--json")
+	for _, path := range []string{"out/main/default/classes/Alpha.cls-meta.xml", "out/main/default/classes/Alpha.cls", "out/main/default/triggers/Tr.trigger"} {
+		if !strings.Contains(out, `"filePath": "`+path+`"`) {
+			t.Errorf("--metadata-dir did not convert %s:\n%s", path, out)
+		}
+	}
+	if strings.Contains(out, "Beta") || strings.Contains(out, "Invoice__c") {
+		t.Errorf("--metadata-dir converted a component outside the paths:\n%s", out)
+	}
+
+	// sf lists a field of a decomposed object as a CustomField, and lists
+	// the directory of the object.
+	os.RemoveAll(filepath.Join("out", "main"))
+	out, errOut, _ = run("project", "convert", "mdapi", "-r", "md", "-d", "out", "-m", "CustomObject:Invoice__c")
+	want = `┌───────┬──────────────────────┬──────────────┬─────────────────────────────────────────────────────────────────────┐
+│ STATE │ FULL NAME            │ TYPE         │ PROJECT PATH                                                        │
+├───────┼──────────────────────┼──────────────┼─────────────────────────────────────────────────────────────────────┤
+│ Add   │ Invoice__c.Amount__c │ CustomField  │ out/main/default/objects/Invoice__c/fields/Amount__c.field-meta.xml │
+│ Add   │ Invoice__c           │ CustomObject │ out/main/default/objects/Invoice__c/Invoice__c.object-meta.xml      │
+│ Add   │ Invoice__c           │ CustomObject │ out/main/default/objects/Invoice__c                                 │
+└───────┴──────────────────────┴──────────────┴─────────────────────────────────────────────────────────────────────┘
+
+`
+	if out != want || errOut != "Converting 1 metadata components... done\n" {
+		t.Errorf("object: stdout\n%s\nstderr %q", out, errOut)
+	}
+
+	for _, c := range []struct {
+		args   []string
+		status int
+		want   string
+	}{
+		{[]string{"-x", "nosuch.xml"}, 2, "Error (2): Parsing --manifest \n\tNo file found at nosuch.xml\nSee more help with --help\n\n\n"},
+		{[]string{"-p", "nosuch"}, 1, "Error (InvalidFlagPath): The metadatapath command flag specifies an invalid path: nosuch\nNo such file or directory.\n\n\n"},
+		{[]string{"-m", "ApexClass:Nope"}, 1, "Error (SfError): No results to format\n\n\n"},
+		{[]string{"-m", "ApexClass", "-x", "one.xml"}, 2, "Error (2): The following error occurred:\n  --manifest=one.xml cannot also be provided when using --metadata\nSee more help with --help\n\n\n"},
+		{[]string{"-p", "md/classes", "-x", "one.xml"}, 2, "Error (2): The following error occurred:\n  --manifest=one.xml cannot also be provided when using --metadata-dir\nSee more help with --help\n\n\n"},
+		{[]string{"-p", "md/classes", "-m", "ApexClass:Alpha"}, 2, "Error (2): The following error occurred:\n  --metadata=ApexClass:Alpha cannot also be provided when using --metadata-dir\nSee more help with --help\n\n\n"},
+	} {
+		_, errOut, status := run(append([]string{"project", "convert", "mdapi", "-r", "md", "-d", "out"}, c.args...)...)
+		if status != c.status || errOut != c.want {
+			t.Errorf("%v: status %d, stderr %q, want %q", c.args, status, errOut, c.want)
+		}
+	}
+	_, errOut, status = run("project", "convert", "mdapi", "-r", "md", "-d", "out", "-m", "Bogus")
+	if status != 1 || !strings.HasPrefix(errOut, "Error (RegistryError): Missing metadata type definition in registry for id 'Bogus'.\n\n\nTry this:\n\nConfirm the metadata type name is correct.") {
+		t.Errorf("unknown type: status %d, stderr %q", status, errOut)
+	}
+	_, errOut, status = run("project", "convert", "mdapi", "-r", "one.xml", "-d", "out")
+	if status != 2 || errOut != "Error (2): Parsing --root-dir \n\tone.xml exists but is not a directory\nSee more help with --help\n\n\n" {
+		t.Errorf("root dir that is a file: status %d, stderr %q", status, errOut)
 	}
 }
 
