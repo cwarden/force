@@ -24,6 +24,7 @@ func newCmdtCmd() *cobra.Command {
 			newCmdtFieldCmd(),
 			newCmdtRecordCmd(),
 			newCmdtRecordsCmd(),
+			newCmdtFromOrgCmd(),
 		),
 	)
 }

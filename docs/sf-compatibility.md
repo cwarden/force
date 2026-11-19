@@ -71,6 +71,7 @@ The files written by the `template generate` commands come from the salesforcedx
 | `sf api request rest` | `force rest` | The `formdata` body mode of `--file`. With `--include`, headers are listed in alphabetical order; sf lists them in the order received. | Compared with sf |
 | `sf autocomplete` | `force completion` | Prints instructions for the completion scripts cobra generates (`sf autocomplete script <shell>`); sf builds a cache from its plugins. `--refresh-cache` has no effect. | Not compared; the mechanism differs |
 | `sf cmdt generate field` | none |  | Compared with sf |
+| `sf cmdt generate fromorg` | none; reads the object with the Metadata API and queries its records |  | Compared with sf |
 | `sf cmdt generate object` | none |  | Compared with sf |
 | `sf cmdt generate record` | none |  | Compared with sf |
 | `sf cmdt generate records` | none |  | Compared with sf |
@@ -245,7 +246,7 @@ A flag listed as unsupported returns an error that names the flag.
 
 ## sf Commands Not Implemented
 
-111 of the 239 commands of `sf` 2.138.6 and its bundled and install-on-first-use plugins are not implemented. Third-party plugins and the retired Functions plugin are not counted. Running one of these commands prints the message `sf` prints for an unknown command and exits with status 127.
+110 of the 239 commands of `sf` 2.138.6 and its bundled and install-on-first-use plugins are not implemented. Third-party plugins and the retired Functions plugin are not counted. Running one of these commands prints the message `sf` prints for an unknown command and exits with status 127.
 
 ### org
 
@@ -324,12 +325,6 @@ A flag listed as unsupported returns an error that names the flag.
 |---|---|---|
 | `sf package1 version create` | Create a first-generation package version in the release org. | First-generation packaging through PackageUploadRequest; no force code exists. |
 | `sf package1 version create get` | Retrieve the status of a package version creation request. | First-generation packaging through PackageUploadRequest; no force code exists. |
-
-### cmdt
-
-| sf command | Summary | What is required |
-|---|---|---|
-| `sf cmdt generate fromorg` | Generate a custom metadata type and all its records from a Salesforce object. | Describe the object with the REST API, query its records, and write the type, field and record files that the other `cmdt generate` commands write. |
 
 ### community
 

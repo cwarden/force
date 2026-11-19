@@ -1,6 +1,8 @@
 package sf
 
 import (
+	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -533,5 +535,105 @@ func TestFlagGivenTwice(t *testing.T) {
 	}
 	if _, errOut, status := run("template", "generate", "apex", "class", "-n", "Twice", "-d", "-n"); status != 0 {
 		t.Errorf("a value that looks like a flag: status %d %s", status, errOut)
+	}
+}
+
+func TestCmdtGenerateFromOrg(t *testing.T) {
+	org := loggedInFakeOrg(t)
+	newProject(t, os.Getenv("HOME"))
+	field := func(content string) string { return "<fields>" + content + "</fields>" }
+	described := `<records xsi:type="CustomObject" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><fullName>Source__c</fullName>` +
+		field(`<fullName>Code__c</fullName><description>A code &amp; more</description><externalId>true</externalId><label>Code</label><length>20</length><type>Text</type><unique>true</unique>`) +
+		field(`<fullName>Count__c</fullName><externalId>false</externalId><label>Count</label><precision>5</precision><scale>0</scale><type>Number</type><unique>false</unique>`) +
+		field(`<fullName>Price__c</fullName><label>Price</label><precision>12</precision><scale>2</scale><type>Currency</type>`) +
+		field(`<fullName>Where__c</fullName><label>Where</label><scale>4</scale><type>Location</type>`) +
+		`<label>Source</label></records>`
+	org.handlers["/services/Soap/m/67.0"] = func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		w.Header().Set("Content-Type", "text/xml")
+		if strings.Contains(string(body), "<fullNames>Missing__c</fullNames>") {
+			io.WriteString(w, soapBody(`<readMetadataResponse><result><records xsi:nil="true" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"/></result></readMetadataResponse>`))
+			return
+		}
+		io.WriteString(w, soapBody(`<readMetadataResponse><result>`+described+`</result></readMetadataResponse>`))
+	}
+	var query string
+	org.handlers["/services/data/v67.0/query"] = func(w http.ResponseWriter, r *http.Request) {
+		query = r.URL.Query().Get("q")
+		io.WriteString(w, `{"done":true,"totalSize":2,"records":[`+
+			`{"attributes":{"type":"Source__c"},"Name":"First One","Code__c":"a <b> & c","Count__c":3.0,"Price__c":9.99,"Where__c":{"latitude":10.5,"longitude":20.25}},`+
+			`{"attributes":{"type":"Source__c"},"Name":"Second","Code__c":"C2","Count__c":null,"Price__c":null,"Where__c":null}]}`)
+	}
+	out, errOut, status := run("cmdt", "generate", "fromorg", "-n", "Src", "-s", "Source__c")
+	if status != 0 || out != "Congrats! Created a Src custom metadata type with 2 records!\n" ||
+		errOut != "creating the CMDT object... creating the CMDT fields\ncreating the CMDT object... creating the CMDT recordscreating the CMDT object... custom metadata type and records creation in completed\n" {
+		t.Fatalf("status %d, stdout %q, stderr %q", status, out, errOut)
+	}
+	if query != "SELECT Name, Code__c,Count__c,Price__c,Where__c FROM Source__c" {
+		t.Errorf("query = %s", query)
+	}
+	objects := filepath.Join("force-app", "main", "default", "objects", "Src__mdt")
+	// sf writes the values of a field file without XML escaping.
+	if got := readFile(t, filepath.Join(objects, "fields", "Code__c.field-meta.xml")); got != "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<CustomField xmlns=\"http://soap.sforce.com/2006/04/metadata\">\n\t<fullName>Code__c</fullName>\n\t<description>A code & more</description>\n\t<externalId>true</externalId>\n\t<fieldManageability>DeveloperControlled</fieldManageability>\n\t<label>Code</label>\n\t<type>Text</type>\n\t<unique>true</unique>\n\t<length>20</length>\n</CustomField>\n" {
+		t.Errorf("Code__c field =\n%s", got)
+	}
+	// A currency field becomes a text field, and a location field two.
+	if got := readFile(t, filepath.Join(objects, "fields", "Price__c.field-meta.xml")); !strings.Contains(got, "\t<type>Text</type>\n\t<length>100</length>\n") || strings.Contains(got, "precision") {
+		t.Errorf("Price__c field =\n%s", got)
+	}
+	if got := readFile(t, filepath.Join(objects, "fields", "Long_Where__c.field-meta.xml")); !strings.Contains(got, "\t<label>Long_Where</label>\n\t<type>Text</type>\n\t<length>40</length>\n") {
+		t.Errorf("Long_Where__c field =\n%s", got)
+	}
+	records := filepath.Join("force-app", "main", "default", "customMetadata")
+	want := `<?xml version="1.0" encoding="UTF-8"?>
+<CustomMetadata xmlns="http://soap.sforce.com/2006/04/metadata" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <label>First One</label>
+    <protected>false</protected>
+    <values>
+        <field>Code__c</field>
+        <value xsi:type="xsd:string">a &lt;b&gt; &amp; c</value>
+    </values>
+    <values>
+        <field>Count__c</field>
+        <value xsi:type="xsd:int">3</value>
+    </values>
+    <values>
+        <field>Price__c</field>
+        <value xsi:type="xsd:string">9.99</value>
+    </values>
+    <values>
+        <field>Lat_Where__c</field>
+        <value xsi:type="xsd:string">10.5</value>
+    </values>
+    <values>
+        <field>Long_Where__c</field>
+        <value xsi:type="xsd:string">20.25</value>
+    </values>
+</CustomMetadata>`
+	if got := readFile(t, filepath.Join(records, "Src.First_One.md-meta.xml")); got != want {
+		t.Errorf("record =\n%s\nwant\n%s", got, want)
+	}
+	if got := readFile(t, filepath.Join(records, "Src.Second.md-meta.xml")); !strings.Contains(got, "<field>Count__c</field>\n        <value xsi:nil=\"true\"/>") || !strings.Contains(got, "<field>Lat_Where__c</field>\n        <value xsi:nil=\"true\"/>") {
+		t.Errorf("second record =\n%s", got)
+	}
+
+	// With --ignore-unsupported the currency and location fields are left out.
+	if _, errOut, status := run("cmdt", "generate", "fromorg", "-n", "Ign", "-s", "Source__c", "-i", "-v", "Protected", "-d", "types", "-r", "recs", "--json"); status != 0 {
+		t.Fatalf("ignore: status %d, stderr %s", status, errOut)
+	}
+	if exists(filepath.Join("types", "Ign__mdt", "fields", "Price__c.field-meta.xml")) || !exists(filepath.Join("types", "Ign__mdt", "fields", "Count__c.field-meta.xml")) {
+		t.Error("the wrong field files were written with --ignore-unsupported")
+	}
+	if got := readFile(t, filepath.Join("recs", "Ign.Second.md-meta.xml")); strings.Contains(got, "Price__c") || strings.Contains(got, "Where__c") || !strings.Contains(got, "<protected>true</protected>") {
+		t.Errorf("ignored record =\n%s", got)
+	}
+
+	_, errOut, status = run("cmdt", "generate", "fromorg", "-n", "Nope", "-s", "Missing__c")
+	if status != 1 || errOut != "Error (sobjectnameNoResultError): No sObject with name Missing__c found in the org.\n\n" {
+		t.Errorf("unknown object: status %d, stderr %q", status, errOut)
+	}
+	_, errOut, status = run("cmdt", "generate", "fromorg", "-s", "Source__c")
+	if status != 2 || !strings.Contains(errOut, "Missing required flag dev-name") {
+		t.Errorf("no name: status %d, stderr %q", status, errOut)
 	}
 }

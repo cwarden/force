@@ -1760,6 +1760,14 @@ func (fm *ForceMetadata) ListConnectedApps() (apps ForceConnectedApps, err error
 	return
 }
 
+// ReadMetadataXML calls readMetadata for one component and returns the
+// SOAP response.
+func (fm *ForceMetadata) ReadMetadataXML(metadataType, fullName string) ([]byte, error) {
+	var name bytes.Buffer
+	xml.EscapeText(&name, []byte(fullName))
+	return fm.soapExecute("readMetadata", fmt.Sprintf("<type>%s</type><fullNames>%s</fullNames>", metadataType, name.String()))
+}
+
 func (fm *ForceMetadata) soapExecute(action, query string) (response []byte, err error) {
 	// Retry once after refreshing the session. A session that is still
 	// rejected after a successful refresh returns SessionExpiredError.
