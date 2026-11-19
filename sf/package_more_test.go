@@ -150,3 +150,62 @@ func TestApiRequestGraphql(t *testing.T) {
 		t.Errorf("a response with errors exits with status %d, want 1", status)
 	}
 }
+
+func TestPackage1VersionListAndDisplay(t *testing.T) {
+	org := loggedInFakeOrg(t)
+	records := `[]`
+	var query string
+	org.handlers["/services/data/v67.0/tooling/query"] = func(w http.ResponseWriter, r *http.Request) {
+		query = r.URL.Query().Get("q")
+		w.Write([]byte(`{"done":true,"totalSize":1,"records":` + records + `}`))
+	}
+	_, errOut, status := run("package1", "version", "list")
+	if status != 0 || errOut != "Warning: No Results Found\n" {
+		t.Errorf("empty list: status %d, stderr %q", status, errOut)
+	}
+	expectRun(t, 0, "{\n  \"status\": 0,\n  \"result\": [],\n  \"warnings\": [\n    \"No Results Found\"\n  ]\n}\n", "package1", "version", "list", "--json")
+	_, errOut, status = run("package1", "version", "display", "-i", "04t000000000001AAA")
+	if status != 0 || errOut != "Warning: No results found\n" {
+		t.Errorf("empty display: status %d, stderr %q", status, errOut)
+	}
+
+	for _, c := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{"list", "-i", "033000000000001"}, "Error (InvalidIdLengthError): Parsing --package-id \n\tThe id must be 18 characters.\nSee more help with --help\n\n\n"},
+		{[]string{"list", "-i", "04t000000000001AAA"}, "Error (InvalidPrefixError): Parsing --package-id \n\tThe id must begin with 033.\nSee more help with --help\n\n\n"},
+		{[]string{"display"}, "Error (2): The following error occurred:\n  Missing required flag package-version-id\nSee more help with --help\n\n\n"},
+		{[]string{"display", "-i", "033000000000001AAA"}, "Error (InvalidPrefixError): Parsing --package-version-id \n\tThe id must begin with 04t.\nSee more help with --help\n\n\n"},
+		{[]string{"display", "-i", "04t0000"}, "Error (InvalidIdLengthError): Parsing --package-version-id \n\tThe id must be 15 or 18 characters.\nSee more help with --help\n\n\n"},
+	} {
+		if _, errOut, status := run(append([]string{"package1", "version"}, c.args...)...); status != 2 || errOut != c.want {
+			t.Errorf("%v: status %d, stderr %q", c.args, status, errOut)
+		}
+	}
+
+	// The table of a result follows the plugin source; the org used for
+	// the comparison with sf had no first-generation package.
+	records = `[{"Id":"04t000000000001AAA","MetadataPackageId":"033000000000001AAA","Name":"Spring","ReleaseState":"Released","MajorVersion":1,"MinorVersion":2,"PatchVersion":0,"BuildNumber":3}]`
+	expectRun(t, 0, `┌─────────────────────────────┬─────────────────────┬────────┬───────────────┬─────────┬──────────────┐
+│ Metadata Package Version Id │ Metadata Package Id │ Name   │ Release State │ Version │ Build Number │
+├─────────────────────────────┼─────────────────────┼────────┼───────────────┼─────────┼──────────────┤
+│ 04t000000000001AAA          │ 033000000000001AAA  │ Spring │ Released      │ 1.2.0   │ 3            │
+└─────────────────────────────┴─────────────────────┴────────┴───────────────┴─────────┴──────────────┘
+
+`, "package1", "version", "list", "-i", "033000000000001AAA")
+	if !strings.Contains(query, "WHERE MetadataPackageId = '033000000000001AAA' ORDER BY MetadataPackageId, MajorVersion") {
+		t.Errorf("query = %s", query)
+	}
+	out, _, status := run("package1", "version", "display", "-i", "04t000000000001AAA", "--json")
+	if status != 0 || !strings.Contains(out, `    {
+      "MetadataPackageVersionId": "04t000000000001AAA",
+      "MetadataPackageId": "033000000000001AAA",
+      "Name": "Spring",
+      "ReleaseState": "Released",
+      "Version": "1.2.0",
+      "BuildNumber": 3
+    }`) || !strings.Contains(query, "WHERE id = '04t000000000001AAA'") {
+		t.Errorf("display json: status %d, query %s\n%s", status, query, out)
+	}
+}

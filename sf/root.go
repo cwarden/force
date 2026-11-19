@@ -165,6 +165,7 @@ func NewRootCmd() *cobra.Command {
 		newForceLegacyCmd(),
 		newOrgCmd(),
 		newPackageCmd(),
+		newPackage1Cmd(),
 		newProjectCmd(),
 		newSchemaCmd(),
 		newSobjectCmd(),

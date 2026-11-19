@@ -489,3 +489,128 @@ func newPackageVersionCreateListCmd() *cobra.Command {
 	addTargetDevHubFlag(cmd)
 	return cmd
 }
+
+// salesforceIDFlag checks an id flag the way sf does: its length, which is
+// 18 or "15 or 18" characters, and its prefix.
+func salesforceIDFlag(flag, value, prefix string, both bool) error {
+	if both {
+		if len(value) != 15 && len(value) != 18 {
+			return flagParseError("InvalidIdLengthError", flag, "The id must be 15 or 18 characters.")
+		}
+	} else if len(value) != 18 {
+		return flagParseError("InvalidIdLengthError", flag, "The id must be 18 characters.")
+	}
+	if !strings.HasPrefix(value, prefix) {
+		return flagParseError("InvalidPrefixError", flag, "The id must begin with "+prefix+".")
+	}
+	return nil
+}
+
+// package1VersionRows converts MetadataPackageVersion records to the
+// result and the table rows of the package1 version commands.
+func package1VersionRows(records []*orderedMap) ([]*orderedMap, [][]string) {
+	result := []*orderedMap{}
+	rows := [][]string{}
+	for _, record := range records {
+		version := fmt.Sprintf("%v.%v.%v", record.values["MajorVersion"], record.values["MinorVersion"], record.values["PatchVersion"])
+		item := newOrderedMap()
+		item.Set("MetadataPackageVersionId", record.values["Id"])
+		item.Set("MetadataPackageId", record.values["MetadataPackageId"])
+		item.Set("Name", record.values["Name"])
+		item.Set("ReleaseState", record.values["ReleaseState"])
+		item.Set("Version", version)
+		item.Set("BuildNumber", record.values["BuildNumber"])
+		result = append(result, item)
+		rows = append(rows, []string{text(record.values["Id"]), text(record.values["MetadataPackageId"]), text(record.values["Name"]), text(record.values["ReleaseState"]), version, fmt.Sprint(record.values["BuildNumber"])})
+	}
+	return result, rows
+}
+
+var package1VersionHeaders = []string{"Metadata Package Version Id", "Metadata Package Id", "Name", "Release State", "Version", "Build Number"}
+
+func newPackage1VersionListCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:         "list",
+		Short:       "List package versions for the specified first-generation package or for the org.",
+		Args:        cobra.NoArgs,
+		Annotations: map[string]string{commandNameAnnotation: "Package1VersionListCommand"},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			id, _ := cmd.Flags().GetString("package-id")
+			condition := ""
+			if id != "" {
+				if err := salesforceIDFlag("package-id", id, "033", false); err != nil {
+					return err
+				}
+				condition = "WHERE MetadataPackageId = '" + id + "'"
+			}
+			org, err := resolveTargetOrg(cmd)
+			if err != nil {
+				return err
+			}
+			records, err := toolingRecords(org, "SELECT Id,MetadataPackageId,Name,ReleaseState,MajorVersion,MinorVersion,PatchVersion,BuildNumber FROM MetadataPackageVersion "+condition+" ORDER BY MetadataPackageId, MajorVersion, MinorVersion, PatchVersion, BuildNumber")
+			if err != nil {
+				return err
+			}
+			result, rows := package1VersionRows(records)
+			if len(rows) == 0 {
+				warn(cmd, "No Results Found")
+			}
+			return emit(cmd, result, func(w io.Writer) {
+				if len(rows) > 0 {
+					printTable(w, "", package1VersionHeaders, rows)
+				}
+			})
+		},
+	}
+	addJSONFlag(cmd)
+	addAPIVersionFlag(cmd)
+	cmd.Flags().StringP("package-id", "i", "", "Metadata package ID (starts with 033).")
+	addTargetOrgFlag(cmd)
+	return cmd
+}
+
+func newPackage1VersionDisplayCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:         "display",
+		Short:       "Display details about a first-generation package version.",
+		Args:        cobra.NoArgs,
+		Annotations: map[string]string{commandNameAnnotation: "Package1VersionDisplayCommand"},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			id, _ := cmd.Flags().GetString("package-version-id")
+			if id == "" {
+				return missingFlagError("package-version-id")
+			}
+			if err := salesforceIDFlag("package-version-id", id, "04t", true); err != nil {
+				return err
+			}
+			org, err := resolveTargetOrg(cmd)
+			if err != nil {
+				return err
+			}
+			records, err := toolingRecords(org, "SELECT Id, MetadataPackageId, Name, ReleaseState, MajorVersion, MinorVersion, PatchVersion, BuildNumber FROM MetadataPackageVersion WHERE id = '"+id+"'")
+			if err != nil {
+				return err
+			}
+			result, rows := package1VersionRows(records)
+			if len(rows) == 0 {
+				warn(cmd, "No results found")
+			}
+			return emit(cmd, result, func(w io.Writer) {
+				if len(rows) > 0 {
+					printTable(w, "", package1VersionHeaders, rows)
+				}
+			})
+		},
+	}
+	addJSONFlag(cmd)
+	addAPIVersionFlag(cmd)
+	cmd.Flags().StringP("package-version-id", "i", "", "ID (starts with 04t) of the metadata package version whose details you want to display.")
+	addTargetOrgFlag(cmd)
+	return cmd
+}
+
+func newPackage1Cmd() *cobra.Command {
+	return newGroup("package1", "Commands to develop first-generation managed and unmanaged packages.",
+		newGroup("version", "Commands for first-generation package versions.", newPackage1VersionListCmd(), newPackage1VersionDisplayCmd()),
+	)
+}

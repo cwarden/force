@@ -286,12 +286,12 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [ ] `package version retrieve`
 - [x] `package version update` (follows the sf plugin source)
 
-### package1 (4 open, 0 done)
+### package1 (2 open, 2 done)
 
 - [ ] `package1 version create`
 - [ ] `package1 version create get`
-- [ ] `package1 version display`
-- [ ] `package1 version list`
+- [x] `package1 version display` (compared with sf against a scratch org without first-generation packages; the table follows the plugin source)
+- [x] `package1 version list` (compared with sf against a scratch org without first-generation packages; the table follows the plugin source)
 
 ### cmdt (1 open, 4 done)
 
