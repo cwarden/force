@@ -75,7 +75,7 @@ func TestOrgLoginAccessTokenJSON(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &env); err != nil {
 		t.Fatal(err)
 	}
-	if env.Result["accessToken"] != redactedSecret || env.Result["username"] != "me@example.com" {
+	if env.Result["accessToken"] != redactedSecret() || env.Result["username"] != "me@example.com" {
 		t.Errorf("result = %v", env.Result)
 	}
 	if len(env.Warnings) != 2 || !strings.HasPrefix(env.Warnings[0], "Secrets are now hidden from 'sf org login access-token'") ||
@@ -138,7 +138,7 @@ Legend:  🌳=Default DevHub, 🍁=Default Org      Use --all to see expired and
 		t.Fatalf("result = %+v", env.Result)
 	}
 	entry := env.Result.Other[0]
-	if entry["accessToken"] != redactedSecret || entry["alias"] != "dev" || entry["isDefaultUsername"] != true || entry["isDefaultDevHubUsername"] != false {
+	if entry["accessToken"] != redactedSecret() || entry["alias"] != "dev" || entry["isDefaultUsername"] != true || entry["isDefaultDevHubUsername"] != false {
 		t.Errorf("entry = %v", entry)
 	}
 	if _, present := entry["connectedStatus"]; present {

@@ -314,3 +314,35 @@ func TestSandboxProgressDisplayColors(t *testing.T) {
 		}
 	}
 }
+
+func TestSuggestedCommandsNameTheBinaryThatWasStarted(t *testing.T) {
+	previous := binName
+	t.Cleanup(func() { binName = previous })
+	for argv0, want := range map[string]string{
+		"/usr/local/bin/force": "force --sf",
+		`C:\tools\force.exe`:   "force --sf",
+		"./my force":           "force --sf",
+		"/tmp/go-build1/main":  "main --sf",
+	} {
+		if SetInvocation(argv0); binName != want {
+			t.Errorf("SetInvocation(%q): binName = %q, want %q", argv0, binName, want)
+		}
+	}
+	SetInvocation("/usr/local/bin/force")
+
+	org := newSandboxOrg(t)
+	org.processes = []string{sandboxProcessJSON("Pending", 0, false)}
+	out, _, status := run("org", "resume", "sandbox", "-n", "dev1")
+	if status != 68 || !strings.Contains(out, "Run \"force --sf org resume sandbox --job-id 0GR000000000001AAA -o me@example.com\" to check for status.") {
+		t.Errorf("resume: status %d\n%s", status, out)
+	}
+	if strings.Contains(out, "\"sf org") {
+		t.Errorf("the output names sf:\n%s", out)
+	}
+	if out, _, _ := run("org", "display", "--json"); !strings.Contains(out, `"accessToken": "[REDACTED] Use 'force --sf org auth show-access-token' to view"`) {
+		t.Errorf("org display:\n%s", out)
+	}
+	if _, errOut, status := run("nosuchcommand"); status != 127 || !strings.Contains(errOut, "Run force --sf help for a list of available commands.") {
+		t.Errorf("unknown command: status %d, stderr %q", status, errOut)
+	}
+}

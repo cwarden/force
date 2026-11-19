@@ -216,9 +216,9 @@ func bulkJobURL(org *targetOrg, jobID string) string {
 func bulkJobActions(org *targetOrg, jobID string, withResults bool) []string {
 	var actions []string
 	if withResults {
-		actions = append(actions, fmt.Sprintf("Get the job results by running: \"sf data bulk results -o %s --job-id %s\".", org.Username, jobID))
+		actions = append(actions, fmt.Sprintf("Get the job results by running: \""+binName+" data bulk results -o %s --job-id %s\".", org.Username, jobID))
 	}
-	return append(actions, fmt.Sprintf("View the job in the org: \"sf org open -o %s --path '/lightning/setup/AsyncApiJobStatus/page?address=%%2F%s'\".", org.Username, jobID))
+	return append(actions, fmt.Sprintf("View the job in the org: \""+binName+" org open -o %s --path '/lightning/setup/AsyncApiJobStatus/page?address=%%2F%s'\".", org.Username, jobID))
 }
 
 // bulkWait reads --wait.  ok is false when the flag was not given, which
@@ -282,7 +282,7 @@ func finishIngestJob(cmd *cobra.Command, org *targetOrg, operation bulkOperation
 		frame(failedCounts)
 		return &Error{
 			Name:     "TimeoutError",
-			Message:  fmt.Sprintf("The operation timed out after %d minutes.\nRun \"sf data %s resume --job-id %s\" to resume it.", int(timeout.Minutes()), operation.name, jobID),
+			Message:  fmt.Sprintf("The operation timed out after %d minutes.\nRun \""+binName+" data %s resume --job-id %s\" to resume it.", int(timeout.Minutes()), operation.name, jobID),
 			ExitCode: 1,
 		}
 	}
@@ -493,7 +493,7 @@ func newDataBulkIngestCmd(operation bulkOperation, short string) *cobra.Command 
 				return emit(cmd, result, func(w io.Writer) {
 					stages := []bulkStage{{"Creating ingest job", "done", createTime}, {"Processing the job", "", 0}}
 					writeBulkProgress(w, operation.title+" (async)", stages, nil, string(closed.State), job.Id, bulkJobURL(org, job.Id), time.Since(started), false)
-					fmt.Fprintf(w, "Run \"sf data %s resume --job-id %s\" to resume the operation.\n", operation.name, job.Id)
+					fmt.Fprintf(w, "Run \""+binName+" data %s resume --job-id %s\" to resume the operation.\n", operation.name, job.Id)
 				})
 			}
 			return finishIngestJob(cmd, org, operation, job.Id, timeout, started, createTime)
@@ -648,7 +648,7 @@ func finishExportJob(cmd *cobra.Command, org *targetOrg, jobID string, output bu
 			frame(string(info.State))
 			return &Error{
 				Name:     "TimeoutError",
-				Message:  fmt.Sprintf("The operation timed out after %d minutes.\nRun \"sf data export resume --job-id %s\" to get the latest status and results.", int(timeout.Minutes()), jobID),
+				Message:  fmt.Sprintf("The operation timed out after %d minutes.\nRun \""+binName+" data export resume --job-id %s\" to get the latest status and results.", int(timeout.Minutes()), jobID),
 				ExitCode: 1,
 			}
 		}
@@ -780,7 +780,7 @@ func newDataExportBulkCmd() *cobra.Command {
 					// frame of its spinner in its place.
 					stages := []bulkStage{{"creating query job", "done", createTime}, {"done", "done", 0}}
 					writeBulkProgress(w, "Exporting data (async)", stages, nil, "⠁", job.Id, bulkJobURL(org, job.Id), time.Since(started), true)
-					fmt.Fprintf(w, "Run \"sf data export resume --job-id %s\" to get the latest status and results.\n", job.Id)
+					fmt.Fprintf(w, "Run \""+binName+" data export resume --job-id %s\" to get the latest status and results.\n", job.Id)
 				})
 			}
 			return finishExportJob(cmd, org, job.Id, output, timeout, started, createTime)
@@ -859,7 +859,7 @@ func newDataBulkResultsCmd() *cobra.Command {
 						Actions: []string{
 							"- Ensure the ID is from a previously run bulk ingest job, and not a query job.\n\n" +
 								"- Run this command and verify that the job ID for the bulk command exists in your org:\n\n" +
-								fmt.Sprintf("sf org open --target-org %s --path \"/lightning/setup/AsyncApiJobStatus/page?address=%%2F750\"", org.Username),
+								fmt.Sprintf(binName+" org open --target-org %s --path \"/lightning/setup/AsyncApiJobStatus/page?address=%%2F750\"", org.Username),
 						},
 					}
 				}

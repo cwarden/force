@@ -454,7 +454,7 @@ func waitForDeploy(org *targetOrg, id string, timeout time.Duration) (*deploySta
 		if time.Now().After(deadline) {
 			return state, &Error{
 				Name:     "ClientTimeoutError",
-				Message:  "The command has timed out, although the deployment is still running. Use \"sf project deploy resume\" to resume watching the deployment.",
+				Message:  "The command has timed out, although the deployment is still running. Use \"" + binName + " project deploy resume\" to resume watching the deployment.",
 				ExitCode: 69,
 			}
 		}
@@ -1011,7 +1011,7 @@ func newProjectDeployStartCmd(validate bool) *cobra.Command {
 						Name:     "NothingToDeploy",
 						Message:  "No local changes to deploy.",
 						ExitCode: 1,
-						Actions:  []string{"To see conflicts and ignored files, run \"sf project deploy preview\" with any of the manifest, directory, or metadata flags."},
+						Actions:  []string{"To see conflicts and ignored files, run \"" + binName + " project deploy preview\" with any of the manifest, directory, or metadata flags."},
 					}
 				}
 				manifestVersion := projectAPIVersion(project)
@@ -1078,9 +1078,9 @@ func newProjectDeployStartCmd(validate bool) *cobra.Command {
 					deployProgress(w, org, title, subtitle, state, true, prepare, 0)
 					fmt.Fprintln(w, "Deploy has been queued.")
 					fmt.Fprintln(w)
-					fmt.Fprintf(w, "Run \"sf project deploy resume --job-id %s\" to resume watching the deploy.\n", id)
-					fmt.Fprintf(w, "Run \"sf project deploy report --job-id %s\" to get the latest status.\n", id)
-					fmt.Fprintf(w, "Run \"sf project deploy cancel --job-id %s\" to cancel the deploy.\n", id)
+					fmt.Fprintf(w, "Run \""+binName+" project deploy resume --job-id %s\" to resume watching the deploy.\n", id)
+					fmt.Fprintf(w, "Run \""+binName+" project deploy report --job-id %s\" to get the latest status.\n", id)
+					fmt.Fprintf(w, "Run \""+binName+" project deploy cancel --job-id %s\" to cancel the deploy.\n", id)
 				})
 			}
 			minutes, _ := cmd.Flags().GetInt("wait")
@@ -1134,7 +1134,7 @@ func newProjectDeployStartCmd(validate bool) *cobra.Command {
 				if validate {
 					fmt.Fprintln(w)
 					fmt.Fprintln(w, paint(w, styleGreen, fmt.Sprintf("Successfully validated the deployment (%s).", id)))
-					fmt.Fprintf(w, "Run \"sf project deploy quick --job-id %s\" to execute this deploy\n", id)
+					fmt.Fprintf(w, "Run \""+binName+" project deploy quick --job-id %s\" to execute this deploy\n", id)
 				}
 			})
 		},
@@ -1486,9 +1486,9 @@ func newProjectDeployQuickCmd() *cobra.Command {
 				return emit(cmd, result, func(w io.Writer) {
 					fmt.Fprintln(w, "Deploy has been queued.")
 					fmt.Fprintln(w)
-					fmt.Fprintf(w, "Run \"sf project deploy resume --job-id %s\" to resume watching the deploy.\n", deployID)
-					fmt.Fprintf(w, "Run \"sf project deploy report --job-id %s\" to get the latest status.\n", deployID)
-					fmt.Fprintf(w, "Run \"sf project deploy cancel --job-id %s\" to cancel the deploy.\n", deployID)
+					fmt.Fprintf(w, "Run \""+binName+" project deploy resume --job-id %s\" to resume watching the deploy.\n", deployID)
+					fmt.Fprintf(w, "Run \""+binName+" project deploy report --job-id %s\" to get the latest status.\n", deployID)
+					fmt.Fprintf(w, "Run \""+binName+" project deploy cancel --job-id %s\" to cancel the deploy.\n", deployID)
 				})
 			}
 			minutes, _ := cmd.Flags().GetInt("wait")
@@ -1592,8 +1592,8 @@ func newProjectDeployCancelCmd() *cobra.Command {
 				return emit(cmd, result, func(w io.Writer) {
 					fmt.Fprintln(w, "Deploy has been queued for cancellation.")
 					fmt.Fprintln(w)
-					fmt.Fprintf(w, "Run \"sf project deploy resume --job-id %s\" to resume watching the deploy.\n", id)
-					fmt.Fprintf(w, "Run \"sf project deploy report --job-id %s\" to get the latest status.\n", id)
+					fmt.Fprintf(w, "Run \""+binName+" project deploy resume --job-id %s\" to resume watching the deploy.\n", id)
+					fmt.Fprintf(w, "Run \""+binName+" project deploy report --job-id %s\" to get the latest status.\n", id)
 				})
 			}
 			minutes, _ := cmd.Flags().GetInt("wait")

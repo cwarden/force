@@ -463,7 +463,7 @@ func newOrgGeneratePasswordCmd() *cobra.Command {
 				return emit(cmd, results[0], func(w io.Writer) {
 					username := text(results[0].values["username"])
 					fmt.Fprintln(w, paint(w, styleGreen, fmt.Sprintf("Successfully set the password \"%s\" for user %s.", text(results[0].values["password"]), username)))
-					fmt.Fprintf(w, "You can see the password again by running \"sf org auth show-user-password -o %s\".\n", username)
+					fmt.Fprintf(w, "You can see the password again by running \""+binName+" org auth show-user-password -o %s\".\n", username)
 				})
 			}
 			return emit(cmd, results, func(w io.Writer) {
@@ -564,7 +564,7 @@ func newOrgListUsersCmd() *cobra.Command {
 					item.Set("profileName", profileName)
 				}
 				item.Set("orgId", orgID)
-				item.Set("accessToken", redactedSecret)
+				item.Set("accessToken", redactedSecret())
 				item.Set("instanceUrl", fields.String("instanceUrl"))
 				item.Set("loginUrl", fields.String("loginUrl"))
 				if known {

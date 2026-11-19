@@ -133,7 +133,7 @@ func emitUninstallRequest(cmd *cobra.Command, org *targetOrg, record *orderedMap
 			fmt.Fprintf(w, "Successfully uninstalled package [%s]\n", text(record.values["SubscriberPackageVersionId"]))
 			return
 		}
-		fmt.Fprintf(w, "PackageUninstallRequest is currently InProgress.\nYou can continue to query the status using sf package uninstall report -i %s -o %s\n", id, org.Username)
+		fmt.Fprintf(w, "PackageUninstallRequest is currently InProgress.\nYou can continue to query the status using "+binName+" package uninstall report -i %s -o %s\n", id, org.Username)
 	})
 }
 

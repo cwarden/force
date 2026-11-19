@@ -764,7 +764,7 @@ func (r *apexTestRun) tap(org *targetOrg) string {
 		}
 	}
 	if r.TestRunId != "" {
-		lines = append(lines, fmt.Sprintf(`# Run "sf apex get test -i %s -o %s --result-format <format>" to retrieve test results in a different format.`, r.TestRunId, org.Username))
+		lines = append(lines, fmt.Sprintf(`# Run "`+binName+` apex get test -i %s -o %s --result-format <format>" to retrieve test results in a different format.`, r.TestRunId, org.Username))
 	}
 	return strings.Join(lines, "\n") + "\n"
 }
@@ -1129,7 +1129,7 @@ func newApexRunTestCmd() *cobra.Command {
 					result := newOrderedMap()
 					result.Set("testRunId", testRunID)
 					return emit(cmd, result, func(w io.Writer) {
-						fmt.Fprintf(w, "Run \"sf apex get test -i %s -o %s\" to retrieve test results\n", testRunID, org.Username)
+						fmt.Fprintf(w, "Run \""+binName+" apex get test -i %s -o %s\" to retrieve test results\n", testRunID, org.Username)
 						fmt.Fprintln(w, "Run with --synchronous or increase --wait timeout to wait for results.")
 					})
 				}

@@ -1043,7 +1043,7 @@ func newPackageVersionCreateCmd() *cobra.Command {
 			return emit(cmd, result, func(w io.Writer) {
 				fmt.Fprintf(w, "Successfully created the package version [%s]. Subscriber Package Version Id: %s\n", version.Id, version.SubscriberPackageVersionId)
 				fmt.Fprintf(w, "Package Installation URL: https://login.salesforce.com/packaging/installPackage.apexp?p0=%s\n", version.SubscriberPackageVersionId)
-				fmt.Fprintln(w, "As an alternative, you can use the \"sf package install\" command.")
+				fmt.Fprintln(w, "As an alternative, you can use the \""+binName+" package install\" command.")
 			})
 		},
 	}

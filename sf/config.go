@@ -106,7 +106,7 @@ func newConfigGetCmd() *cobra.Command {
 		Short: "Get the value of a configuration variable.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
-				return newError("NoConfigKeysFoundError", `You must provide one or more configuration variables to get. Run "sf config list" to see the configuration variables you've previously set.`)
+				return newError("NoConfigKeysFoundError", "%s", `You must provide one or more configuration variables to get. Run "`+binName+` config list" to see the configuration variables you've previously set.`)
 			}
 			verbose, _ := cmd.Flags().GetBool("verbose")
 			status := 0
@@ -286,7 +286,7 @@ func newConfigUnsetCmd() *cobra.Command {
 		Short: "Unset local or global configuration variables.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
-				return newError("NoConfigKeysFoundError", `You must provide one or more configuration variables to unset. Run "sf config list" to see the configuration variables you've previously set.`)
+				return newError("NoConfigKeysFoundError", "%s", `You must provide one or more configuration variables to unset. Run "`+binName+` config list" to see the configuration variables you've previously set.`)
 			}
 			global, _ := cmd.Flags().GetBool("global")
 			if !global {

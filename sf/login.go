@@ -188,7 +188,7 @@ func emitAuthorization(cmd *cobra.Command, command string, fields lib.SFDXAuthFi
 		}
 		value := fields[key]
 		if key == "accessToken" {
-			value = redactedSecret
+			value = redactedSecret()
 		}
 		result.Set(key, value)
 	}

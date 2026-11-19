@@ -201,10 +201,13 @@ func connectedStatus(org *targetOrg) string {
 	return message
 }
 
-const redactedSecret = "[REDACTED] Use 'sf org auth show-access-token' to view"
+// redactedSecret is the text sf shows in place of an access token.
+func redactedSecret() string {
+	return "[REDACTED] Use '" + binName + " org auth show-access-token' to view"
+}
 
 func secretsHiddenWarning(command string) string {
-	return fmt.Sprintf("Secrets are now hidden from 'sf %s' command output. Use the 'sf org auth' commands instead. As a temporary workaround, you can set SF_TEMP_SHOW_SECRETS=true to render these secrets. This workaround will be removed in an upcoming release.", command)
+	return fmt.Sprintf("Secrets are now hidden from '"+binName+" %s' command output. Use the '"+binName+" org auth' commands instead. As a temporary workaround, you can set SF_TEMP_SHOW_SECRETS=true to render these secrets. This workaround will be removed in an upcoming release.", command)
 }
 
 // defaultUsernames returns the usernames that the target-org and

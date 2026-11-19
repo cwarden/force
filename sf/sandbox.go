@@ -400,7 +400,7 @@ func (r *sandboxRun) unfinished(timedOut bool) {
 		arguments += " -o " + r.prod.Username
 	}
 	w := r.cmd.OutOrStdout()
-	fmt.Fprintln(w, paint(w, styleDim, fmt.Sprintf("Run \"sf org resume sandbox%s\" to check for status.\nIf the org is ready, checking the status also authorizes the org for use with Salesforce CLI.", arguments)))
+	fmt.Fprintln(w, paint(w, styleDim, fmt.Sprintf("Run \""+binName+" org resume sandbox%s\" to check for status.\nIf the org is ready, checking the status also authorizes the org for use with Salesforce CLI.", arguments)))
 }
 
 // tracking returns the tracksSource value for the sandbox.
@@ -451,7 +451,7 @@ func (r *sandboxRun) finished(process *orderedMap, username string) error {
 	r.removeEntry()
 	if !jsonRequested(r.cmd) {
 		w := r.cmd.OutOrStdout()
-		fmt.Fprintln(w, paint(w, styleGreen, fmt.Sprintf("Your sandbox is ready.\nYou can open it by running \"sf org open -o %s\"", username)))
+		fmt.Fprintln(w, paint(w, styleGreen, fmt.Sprintf("Your sandbox is ready.\nYou can open it by running \""+binName+" org open -o %s\"", username)))
 	}
 	return nil
 }
@@ -1247,7 +1247,7 @@ func newOrgResumeSandboxCmd() *cobra.Command {
 						ids = append(ids, text(other.values["Id"]))
 						statuses = append(statuses, text(other.values["Status"]))
 					}
-					warn(cmd, fmt.Sprintf("We found multiple sandbox processes for \"%s\" in a resumable state. We're ignoring the sandbox process ID(s) \"%s\" in status(es) \"%s\" and using the most recent process ID \"%s\". To resume a different sandbox process, use that unique sandbox process ID with the command. For example, \"sf org resume sandbox --job-id %s -o %s\".",
+					warn(cmd, fmt.Sprintf("We found multiple sandbox processes for \"%s\" in a resumable state. We're ignoring the sandbox process ID(s) \"%s\" in status(es) \"%s\" and using the most recent process ID \"%s\". To resume a different sandbox process, use that unique sandbox process ID with the command. For example, \""+binName+" org resume sandbox --job-id %s -o %s\".",
 						text(several[1].values["SandboxName"]), strings.Join(ids, ","), strings.Join(statuses, ","), text(process.values["Id"]), ids[0], run.prod.Username))
 				}
 			default:

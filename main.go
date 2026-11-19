@@ -13,6 +13,7 @@ func main() {
 		return
 	}
 	if args, ok := sf.StripModeFlag(os.Args[1:]); ok {
+		sf.SetInvocation(os.Args[0])
 		os.Exit(sf.Run(args, os.Stdout, os.Stderr))
 	}
 	command.Execute()

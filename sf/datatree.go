@@ -567,9 +567,9 @@ func newDataImportTreeCmd() *cobra.Command {
 						Message:  fmt.Sprintf("Data plan file %s did not validate against the schema. Errors: %s.", plan, err.Error()),
 						ExitCode: 1,
 						Actions: []string{
-							"Did you run the \"sf data export tree\" command with the --plan flag?",
+							"Did you run the \"" + binName + " data export tree\" command with the --plan flag?",
 							"Make sure you're importing a plan definition file.",
-							"Get help with the import plan schema by running \"sf data import tree --help\".",
+							"Get help with the import plan schema by running \"" + binName + " data import tree --help\".",
 						},
 					}
 				}

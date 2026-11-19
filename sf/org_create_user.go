@@ -421,7 +421,7 @@ func newOrgCreateUserCmd() *cobra.Command {
 				status = 1
 			}
 			if err := emitStatus(cmd, status, result, func(w io.Writer) {
-				created := fmt.Sprintf("Successfully created user \"%s\" with ID %s for org %s.\n\nSee more details about this user by running \"sf org user display -o %s\".", username, userID, orgID, username)
+				created := fmt.Sprintf("Successfully created user \"%s\" with ID %s for org %s.\n\nSee more details about this user by running \""+binName+" org user display -o %s\".", username, userID, orgID, username)
 				if len(failures) == 0 {
 					fmt.Fprintln(w, created)
 					return

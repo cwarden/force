@@ -256,7 +256,7 @@ func newOrgCreateScratchCmd() *cobra.Command {
 						{label: "Send Request", state: "done", elapsed: elapsed},
 						{label: "Done", state: "done"},
 					}, infoLines)
-					fmt.Fprintf(w, "Resume scratch org creation by running \"sf org resume scratch --job-id %s\"\n", created.Id)
+					fmt.Fprintf(w, "Resume scratch org creation by running \""+binName+" org resume scratch --job-id %s\"\n", created.Id)
 				})
 			}
 			done, err := completeScratchOrg(hub, created.Id, settings, alias, setDefault, tracksSource)
@@ -411,7 +411,7 @@ func completeScratchOrg(hub *targetOrg, id string, settings *orderedMap, alias s
 			Name:     "ScratchOrgCreateError",
 			Message:  err.Error(),
 			ExitCode: 1,
-			Actions:  []string{fmt.Sprintf("Resume scratch org creation by running \"sf org resume scratch --job-id %s\"", id)},
+			Actions:  []string{fmt.Sprintf("Resume scratch org creation by running \""+binName+" org resume scratch --job-id %s\"", id)},
 		}
 	}
 	info, err := scratchOrgRequest(hub, id)
@@ -497,7 +497,7 @@ func completeScratchOrg(hub *targetOrg, id string, settings *orderedMap, alias s
 		}
 		value := fields[key]
 		if key == "accessToken" {
-			value = redactedSecret
+			value = redactedSecret()
 		}
 		authFields.Set(key, value)
 	}

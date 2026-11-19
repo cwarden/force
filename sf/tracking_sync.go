@@ -97,13 +97,13 @@ func conflictError(cmd *cobra.Command, rows []*orderedMap, deploy bool) error {
 		message := "There are changes in your local files that conflict with the org changes you're trying to retrieve."
 		actions := []string{
 			"To overwrite the local changes, rerun this command with the --ignore-conflicts flag.",
-			"To overwrite the remote changes, run the \"sf project deploy start\" command with the --ignore-conflicts flag.",
+			"To overwrite the remote changes, run the \"" + binName + " project deploy start\" command with the --ignore-conflicts flag.",
 		}
 		if deploy {
 			message = "There are changes in the org that conflict with the local changes you're trying to deploy."
 			actions = []string{
 				"To overwrite the remote changes, rerun this command with the --ignore-conflicts flag.",
-				"To overwrite the local changes, run the \"sf project retrieve start\" command with the --ignore-conflicts flag.",
+				"To overwrite the local changes, run the \"" + binName + " project retrieve start\" command with the --ignore-conflicts flag.",
 			}
 		}
 		return &Error{Name: "SourceConflictError", Label: "1", Message: message, ExitCode: 1, Actions: actions}

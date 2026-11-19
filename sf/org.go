@@ -229,7 +229,7 @@ func (e *orgEntry) listJSON(withStatus bool) *orderedMap {
 		}
 		value := e.org.Fields[key]
 		if key == "accessToken" {
-			value = redactedSecret
+			value = redactedSecret()
 		}
 		result.Set(key, value)
 	}
@@ -325,7 +325,7 @@ func newOrgListCmd() *cobra.Command {
 				}
 			}
 			if clean, _ := cmd.Flags().GetBool("clean"); inactive > 0 && !clean {
-				warn(cmd, fmt.Sprintf("You have %d expired or deleted local scratch org authorizations. To remove authorizations for inactive orgs, run \"sf org list --clean\".\n", inactive))
+				warn(cmd, fmt.Sprintf("You have %d expired or deleted local scratch org authorizations. To remove authorizations for inactive orgs, run \""+binName+" org list --clean\".\n", inactive))
 			}
 			warnJSON(cmd, secretsHiddenWarning("org list"))
 			return emit(cmd, result, func(w io.Writer) {
@@ -444,7 +444,7 @@ func newOrgListAuthCmd() *cobra.Command {
 				item.Set("isDevHub", entry.isDevHub)
 				item.Set("isSandbox", entry.isSandbox)
 				item.Set("orgId", fields.String("orgId"))
-				item.Set("accessToken", redactedSecret)
+				item.Set("accessToken", redactedSecret())
 				item.Set("oauthMethod", oauthMethod(fields))
 				if expiration := fields.String("expirationDate"); expiration != "" {
 					expires, err := time.Parse("2006-01-02", expiration)
@@ -537,12 +537,12 @@ func newOrgDisplayCmd() *cobra.Command {
 			result.Set("id", fields.String("orgId"))
 			set("devHubId", devHub)
 			result.Set("apiVersion", fields.String("instanceApiVersion"))
-			result.Set("accessToken", redactedSecret)
+			result.Set("accessToken", redactedSecret())
 			result.Set("instanceUrl", fields.String("instanceUrl"))
 			result.Set("username", org.Username)
 			set("clientId", fields.String("clientId"))
 			if fields.String("password") != "" {
-				result.Set("password", "[REDACTED] Use 'sf org auth show-user-password' to view")
+				result.Set("password", "[REDACTED] Use '"+binName+" org auth show-user-password' to view")
 			}
 			if devHub != "" {
 				// A scratch org is described by its record in the Dev
@@ -566,7 +566,7 @@ func newOrgDisplayCmd() *cobra.Command {
 				result.Set("connectedStatus", status)
 			}
 			if verbose, _ := cmd.Flags().GetBool("verbose"); verbose && fields.String("refreshToken") != "" {
-				result.Set("sfdxAuthUrl", "[REDACTED] Use 'sf org auth show-sfdx-auth-url' to view")
+				result.Set("sfdxAuthUrl", "[REDACTED] Use '"+binName+" org auth show-sfdx-auth-url' to view")
 			}
 			set("alias", org.Alias)
 			warn(cmd, secretsHiddenWarning("org display"))
@@ -616,7 +616,7 @@ func newOrgDisplayUserCmd() *cobra.Command {
 			}
 			fields := org.Fields
 			result := newOrderedMap()
-			result.Set("accessToken", redactedSecret)
+			result.Set("accessToken", redactedSecret())
 			result.Set("id", id)
 			result.Set("instanceUrl", fields.String("instanceUrl"))
 			result.Set("loginUrl", fields.String("loginUrl"))
@@ -628,7 +628,7 @@ func newOrgDisplayUserCmd() *cobra.Command {
 				{"Profile Name", profileName},
 				{"Id", id},
 				{"Org Id", fields.String("orgId")},
-				{"Access Token", redactedSecret},
+				{"Access Token", redactedSecret()},
 				{"Instance Url", fields.String("instanceUrl")},
 				{"Login Url", fields.String("loginUrl")},
 			}
@@ -774,7 +774,7 @@ func newOrgAuthShowCmd(use, short, className string) *cobra.Command {
 			label: "SFDX Auth URL", key: "sfdxAuthUrl",
 			prompt:      `You're about to reveal the SFDX Auth URL for "%s". This URL contains a refresh token that can be used to authenticate to the org without user interaction. Do you want to continue?`,
 			warning:     "This command exposes an SFDX Auth URL. Unlike an access token, this credential contains a refresh token that allows extended access to an org. Avoid sharing or logging this URL. For additional information about org authorization, review https://developer.salesforce.com/docs/atlas.en-us.sfdx_dev.meta/sfdx_dev/sfdx_dev_auth_url.htm.",
-			missingName: "NoRefreshTokenError", missing: `An SFDX Auth URL is not available for "%s". This URL is only available for orgs authenticated via a web-based login flow. Re-authenticate to the org using "sf org login web" to make it available.`,
+			missingName: "NoRefreshTokenError", missing: `An SFDX Auth URL is not available for "%s". This URL is only available for orgs authenticated via a web-based login flow. Re-authenticate to the org using "` + binName + ` org login web" to make it available.`,
 			value: func(fields lib.SFDXAuthFields) string {
 				if fields.String("refreshToken") == "" {
 					return ""
@@ -786,7 +786,7 @@ func newOrgAuthShowCmd(use, short, className string) *cobra.Command {
 			label: "Password", key: "password",
 			prompt:      `You're about to reveal the password for "%s". Do you want to continue?`,
 			warning:     "This command exposes a user password. While a password alone isn't sufficient to gain access to an org (additional factors like a security token or an enabled OAuth username-password flow are required), treat it as a sensitive credential and avoid sharing or logging it.",
-			missingName: "NoPasswordError", missing: `No password found for "%s". A password is available only if one was previously generated locally in your DX project by running either "sf org generate password" or "sf org create user". If you generated a password in your org using Setup, it's not available to this command.`,
+			missingName: "NoPasswordError", missing: `No password found for "%s". A password is available only if one was previously generated locally in your DX project by running either "` + binName + ` org generate password" or "` + binName + ` org create user". If you generated a password in your org using Setup, it's not available to this command.`,
 			value: func(fields lib.SFDXAuthFields) string { return fields.String("password") },
 		},
 	}

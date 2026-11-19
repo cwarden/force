@@ -32,6 +32,27 @@ func InvokedAsSf(argv0 string) bool {
 	return name == "sf"
 }
 
+// binName is the command line that starts this mode.  sf names its own
+// binary in the commands it suggests ("Run \"sf org resume sandbox ...\"");
+// this mode names the binary it was started as, so that the suggested
+// command runs this program and not another sf on the PATH.
+var binName = "sf"
+
+// SetInvocation records how sf-compatible mode was started when it was
+// started through the mode flag: "force --sf" for a binary named force.
+// A name that cannot be written in a message without quoting is replaced
+// by "force".
+func SetInvocation(argv0 string) {
+	name := filepath.Base(strings.ReplaceAll(argv0, "\\", "/"))
+	if len(name) > 4 && strings.EqualFold(name[len(name)-4:], ".exe") {
+		name = name[:len(name)-4]
+	}
+	if name == "" || strings.ContainsAny(name, " %\"'`") {
+		name = "force"
+	}
+	binName = name + " " + ModeFlag
+}
+
 // ModeFlag is the force flag that selects sf-compatible mode.
 const ModeFlag = "--sf"
 

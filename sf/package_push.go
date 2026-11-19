@@ -235,7 +235,7 @@ func newPackagePushUpgradeReportCmd() *cobra.Command {
 				styledHeader(w, paint(w, styleRed, "Errors"))
 				warn(cmd, strings.Join(lines, "\n"))
 				if len(reasons) > pushErrorLimit {
-					warn(cmd, fmt.Sprintf("To see all errors, run: sf data query -q \"SELECT ErrorMessage FROM PackagePushError WHERE PackagePushJob.PackagePushRequestId='%s'\"", pushCell(record.values["Id"])))
+					warn(cmd, fmt.Sprintf("To see all errors, run: "+binName+" data query -q \"SELECT ErrorMessage FROM PackagePushError WHERE PackagePushJob.PackagePushRequestId='%s'\"", pushCell(record.values["Id"])))
 				}
 			})
 		},

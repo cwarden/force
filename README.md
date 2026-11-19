@@ -36,6 +36,9 @@ values of `sf` (`~/.sfdx` and `~/.sf`), and prints output in the format of
     sf project deploy start --source-dir force-app
     force --sf org list # the same mode without the symlink
 
+Commands that the mode suggests in its messages are written the way the program was started:
+`sf ...` under the name `sf`, and `force --sf ...` when started with the flag.
+
 148 `sf` commands are implemented.
 [docs/sf-compatibility.md](docs/sf-compatibility.md) lists them with the
 `force` command each corresponds to, the flags that are not supported, and the
