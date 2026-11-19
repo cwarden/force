@@ -27,6 +27,7 @@ sf mode does not read or write `~/.force`. It uses the files `sf` uses:
 | `<project>/.sf/config.json` | Config values of the project that contains the working directory. |
 | `~/.sfdx/sfdx-config.json`, `<project>/.sfdx/sfdx-config.json` | Read for `defaultusername`, `defaultdevhubusername`, `apiVersion` and `instanceUrl` when the `.sf` file does not set the value. Not written. |
 | `~/.sf/bulk-data-*-cache.json` | Bulk jobs started without `--wait`, for the resume commands. |
+| `~/.sf/deploy-cache.json` | Deployments started by `project deploy start` and `validate`, for `--use-most-recent` and for finding the org of a job ID. |
 
 A config value is taken from the environment (`SF_TARGET_ORG`, `SF_TARGET_DEV_HUB`, `SF_ORG_API_VERSION`, `SF_ORG_INSTANCE_URL`, `SF_ORG_MAX_QUERY_LIMIT`, `SF_DISABLE_TELEMETRY`, and the `SFDX_` names), then the project file, then the global file. `--target-org` and `--target-dev-hub` are used before any of them.
 
@@ -87,17 +88,22 @@ Logins, aliases and config values written by this mode were read by `sf` 2.138.6
 | `sf force data bulk delete` | `force bulk delete` | Sends the file as one batch; sf splits it into batches of 10,000 records. | Follows the sf plugin source |
 | `sf force data bulk status` | `force bulk job`, `force bulk batch` |  | Follows the sf plugin source |
 | `sf force data bulk upsert` | `force bulk upsert` | Sends the file as one batch. | Follows the sf plugin source |
+| `sf org assign permset` | none |  | Follows the sf plugin source |
+| `sf org assign permsetlicense` | none |  | Follows the sf plugin source |
 | `sf org auth show-access-token` | none |  | Compared with sf |
 | `sf org auth show-sfdx-auth-url` | none |  | Error output compared with sf; the URL format follows the sf source |
 | `sf org auth show-user-password` | none | No command of this mode stores a password, so it finds one only in an authorization file that sf wrote. | Follows the sf plugin source |
 | `sf org create scratch` | `force login scratch` | `--async`, `--client-id`, `--no-ancestors`, `--track-source`, `--source-org`, `--snapshot`; definition file key `objectSettings`. | Follows the sf plugin source |
+| `sf org delete scratch` | none |  | Follows the sf plugin source |
 | `sf org display` | `force whoami`, `force active` | Scratch org fields are limited to the Dev Hub username and expiration date. | Compared with sf |
 | `sf org display user` | `force whoami` |  | Compared with sf |
+| `sf org generate password` | `force password reset` (sets a password the org generates) | The password is stored only for users that have an authorization file. | Follows the sf plugin source |
 | `sf org list` | `force logins --sfdx` | `--clean` and `--verbose` are accepted and have no effect. The connection status of every org is checked with one request to the org. | Compared with sf |
 | `sf org list auth` | `force logins` |  | Compared with sf |
 | `sf org list limits` | `force limits` |  | Follows the sf plugin source |
 | `sf org list metadata` | `force describe metadata --type` |  | Compared with sf |
 | `sf org list metadata-types` | `force describe metadata` |  | Compared with sf |
+| `sf org list sobject record-counts` | none |  | Follows the sf plugin source |
 | `sf org login access-token` | none (`SF_ACCESS_TOKEN` and `SF_INSTANCE_URL` in force) |  | Compared with sf |
 | `sf org login jwt` | `force login -u <user> -k <key> --connected-app-client-id <id>` |  | Not compared; no JWT-enabled org was available |
 | `sf org login sfdx-url` | none |  | Follows the sf plugin source |
@@ -115,10 +121,10 @@ Logins, aliases and config values written by this mode were read by `sf` 2.138.6
 | `sf package version report` | `force package version get` | `--verbose` is accepted and adds nothing. | Follows the sf plugin source |
 | `sf project convert mdapi` | `force fetch` (source format writer) | `--manifest`, `--metadata-dir`, `--metadata` | Compared with sf |
 | `sf project convert source` | `force import` (source format conversion) | `--package-name` | Compared with sf |
-| `sf project deploy cancel` | `force deploys cancel` | `--use-most-recent` | Follows the sf plugin source |
-| `sf project deploy quick` | `force quickdeploy` | `--use-most-recent` | Follows the sf plugin source |
-| `sf project deploy report` | `force deploys status` | `--use-most-recent`, `--coverage-formatters`, `--junit`, `--results-dir` | Follows the sf plugin source |
-| `sf project deploy resume` | `force deploys watch` | `--use-most-recent`, `--coverage-formatters`, `--junit`, `--results-dir` | Follows the sf plugin source |
+| `sf project deploy cancel` | `force deploys cancel` |  | Follows the sf plugin source |
+| `sf project deploy quick` | `force quickdeploy` |  | Follows the sf plugin source |
+| `sf project deploy report` | `force deploys status` | `--coverage-formatters`, `--junit`, `--results-dir` | Follows the sf plugin source |
+| `sf project deploy resume` | `force deploys watch` | `--coverage-formatters`, `--junit`, `--results-dir` | Follows the sf plugin source |
 | `sf project deploy start` | `force push`, `force import` | `--pre-destructive-changes`, `--post-destructive-changes`, `--coverage-formatters`, `--junit`, `--results-dir`. Requires `--source-dir`, `--metadata`, `--manifest` or `--metadata-dir`; there is no source tracking. Prints the last frame of the progress display once. | Queued output and progress layout compared with sf; result tables follow the sf plugin source |
 | `sf project deploy validate` | `force import --checkonly` | As `project deploy start`. | As `project deploy start` |
 | `sf project generate manifest` | none | `--from-org`, `--include-packages`. sf reports an error when a content file is ignored by `.forceignore` and its `-meta.xml` file is not; this mode leaves both out. | Compared with sf |
@@ -194,30 +200,25 @@ A flag listed as unsupported returns an error that names the flag.
 
 ## sf Commands Not Implemented
 
-156 of the 239 commands of `sf` 2.138.6 and its bundled and install-on-first-use plugins are not implemented. Third-party plugins and the retired Functions plugin are not counted. Running one of these commands prints the message `sf` prints for an unknown command and exits with status 127.
+151 of the 239 commands of `sf` 2.138.6 and its bundled and install-on-first-use plugins are not implemented. Third-party plugins and the retired Functions plugin are not counted. Running one of these commands prints the message `sf` prints for an unknown command and exits with status 127.
 
 ### org
 
 | sf command | Summary | What is required |
 |---|---|---|
-| `sf org assign permset` | Assign a permission set to one or more org users. | Create PermissionSetAssignment or PermissionSetLicenseAssign records. |
-| `sf org assign permsetlicense` | Assign a permission set license to one or more org users. | Create PermissionSetAssignment or PermissionSetLicenseAssign records. |
 | `sf org create agent-user` | Create the default Salesforce user that is used to run an agent. | Create an agent User record and assign permission sets. |
 | `sf org create sandbox` | Create a sandbox org. | Create a SandboxInfo record through the Tooling API and poll SandboxProcess; no force code exists. |
 | `sf org create shape` | Create a scratch org configuration (shape) based on the specified source org. | Create a ShapeRepresentation record. |
 | `sf org create snapshot` | Create a snapshot of a scratch org. | Create an OrgSnapshot record in the Dev Hub. |
 | `sf org create user` | Create a user for a scratch org. | Create a User from a definition file, set its password and write an authorization file. |
 | `sf org delete sandbox` | Delete a sandbox. | Delete the SandboxInfo record and remove the authorization file. |
-| `sf org delete scratch` | Delete a scratch org. | Delete the ActiveScratchOrg record in the Dev Hub and remove the authorization file. |
 | `sf org delete shape` | Delete all org shapes for a target org. | Delete ShapeRepresentation records. |
 | `sf org delete snapshot` | Delete a scratch org snapshot. | Delete an OrgSnapshot record. |
 | `sf org disable tracking` | Prevent Salesforce CLI from tracking changes in your source files between your project and an org. | Source tracking is not implemented. |
 | `sf org enable tracking` | Allow Salesforce CLI to track changes in your source files between your project and an org. | Source tracking is not implemented. |
-| `sf org generate password` | Generate a random password for scratch org users. | Set a generated password with the `password` resource and store it in the authorization file. |
 | `sf org get snapshot` | Get details about a scratch org snapshot. | Query OrgSnapshot. |
 | `sf org list shape` | List all org shapes you’ve created. | Query ShapeRepresentation in each authorized org. |
 | `sf org list snapshot` | List scratch org snapshots. | Query OrgSnapshot. |
-| `sf org list sobject record-counts` | Display record counts for the specified standard or custom objects. | One request to the `limits/recordCount` resource. |
 | `sf org list users` | List all locally-authenticated users of an org. | Read the users sf records in authorization files of scratch orgs. |
 | `sf org open agent` | Open an agent in your org's Agentforce Builder UI in a browser. | Build the Agentforce Builder URL for an agent and open it as `org open` does. |
 | `sf org refresh sandbox` | Refresh a sandbox org using the sandbox name. | As `org create sandbox`. |
@@ -452,7 +453,6 @@ A flag listed as unsupported returns an error that names the flag.
 | Feature | What is required |
 |---|---|
 | Source tracking | Record the revision of each component in `<project>/.sf/orgs/<orgId>/` and query SourceMember, so that deploy and retrieve work without naming components. |
-| `--use-most-recent` on the deploy commands | Write and read `~/.sf/deploy-cache.json`. |
 | `--flags-dir` | Read one file per flag from the directory before parsing. |
 | `--coverage-formatters`, `--junit`, `--results-dir` on the deploy commands | Write coverage and JUnit files from the deploy result; `lib/junit` has a JUnit writer. |
 | Destructive changes on deploy | Add destructiveChangesPre.xml and destructiveChangesPost.xml to the deploy zip. |

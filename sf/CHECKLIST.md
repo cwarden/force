@@ -90,7 +90,7 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [ ] `project convert source`: `--package-name`
 - [ ] `project deploy start`, `project deploy validate`: `--pre-destructive-changes`, `--post-destructive-changes`, `--coverage-formatters`, `--junit`, `--results-dir`
 - [ ] `project deploy report`, `project deploy resume`: `--coverage-formatters`, `--junit`, `--results-dir` (not defined)
-- [ ] `project deploy quick`, `report`, `resume`, `cancel`: `--use-most-recent`
+- [x] `project deploy quick`, `report`, `resume`, `cancel`: `--use-most-recent`
 - [ ] `project generate manifest`: `--from-org`, `--include-packages`
 - [ ] `project retrieve start`: `--single-package`; more than one `--package-name`
 
@@ -129,7 +129,7 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 ## Unimplemented Features Shared By Several Commands
 
 - [ ] `--flags-dir` on every command
-- [ ] `--use-most-recent` on the deploy commands (needs `~/.sf/deploy-cache.json`)
+- [x] `--use-most-recent` on the deploy commands (needs `~/.sf/deploy-cache.json`)
 - [ ] Source tracking (deploy and retrieve without naming components; `project deploy preview`, `project retrieve preview`, the tracking commands)
 - [x] `.forceignore` (sf reports an error when a content file is ignored and its `-meta.xml` file is not; this mode leaves both out)
 - [ ] Destructive changes on deploy
@@ -146,10 +146,10 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 
 163 commands of sf 2.138.6 and its bundled and install-on-first-use plugins. `docs/sf-compatibility.md` says what each needs. Commands under "dev" and most under "CLI management" manage the Node.js CLI and its plugins and do not apply to force.
 
-### org (23 open, 4 done)
+### org (18 open, 9 done)
 
-- [ ] `org assign permset`
-- [ ] `org assign permsetlicense`
+- [x] `org assign permset` (follows the sf plugin source)
+- [x] `org assign permsetlicense` (follows the sf plugin source)
 - [x] `org auth show-access-token`
 - [x] `org auth show-sfdx-auth-url`
 - [x] `org auth show-user-password` (follows the sf plugin source)
@@ -159,16 +159,16 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [ ] `org create snapshot`
 - [ ] `org create user`
 - [ ] `org delete sandbox`
-- [ ] `org delete scratch`
+- [x] `org delete scratch` (follows the sf plugin source)
 - [ ] `org delete shape`
 - [ ] `org delete snapshot`
 - [ ] `org disable tracking`
 - [ ] `org enable tracking`
-- [ ] `org generate password`
+- [x] `org generate password` (follows the sf plugin source)
 - [ ] `org get snapshot`
 - [ ] `org list shape`
 - [ ] `org list snapshot`
-- [ ] `org list sobject record-counts`
+- [x] `org list sobject record-counts` (follows the sf plugin source)
 - [ ] `org list users`
 - [x] `org login sfdx-url` (follows the sf plugin source)
 - [ ] `org open agent`

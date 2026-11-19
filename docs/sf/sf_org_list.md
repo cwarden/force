@@ -25,4 +25,5 @@ sf org list [flags]
 * [sf org list limits](sf_org_list_limits.md)	 - Display information about limits in your org.
 * [sf org list metadata](sf_org_list_metadata.md)	 - List the metadata components and properties of a specified type.
 * [sf org list metadata-types](sf_org_list_metadata-types.md)	 - Display details about the metadata types that are enabled for your org.
+* [sf org list sobject](sf_org_list_sobject.md)	 - List sObject information.
 

@@ -351,17 +351,106 @@ func addDeployJobFlags(cmd *cobra.Command) {
 	addTargetOrgFlag(cmd)
 }
 
-// deployJobID reads --job-id.  --use-most-recent needs sf's deploy cache,
-// which this mode does not keep.
-func deployJobID(cmd *cobra.Command) (string, error) {
-	if err := unsupportedFlags(cmd, "use-most-recent"); err != nil {
+// deployCachePath returns ~/.sf/deploy-cache.json, where sf records the
+// deployments it starts.
+func deployCachePath() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
 		return "", err
 	}
-	id, _ := cmd.Flags().GetString("job-id")
-	if id == "" {
-		return "", exactlyOneError("use-most-recent", "job-id")
+	return filepath.Join(home, ".sf", "deploy-cache.json"), nil
+}
+
+func readDeployCache() (map[string]map[string]interface{}, error) {
+	entries := map[string]map[string]interface{}{}
+	path, err := deployCachePath()
+	if err != nil {
+		return nil, err
 	}
-	return id, nil
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return entries, nil
+		}
+		return nil, err
+	}
+	if err := json.Unmarshal(data, &entries); err != nil {
+		return nil, fmt.Errorf("%s: %w", path, err)
+	}
+	return entries, nil
+}
+
+// recordDeploy adds or updates the cache entry of a deployment.  The other
+// entries and the fields sf wrote in an existing entry are kept.
+func recordDeploy(id string, fields map[string]interface{}) error {
+	entries, err := readDeployCache()
+	if err != nil {
+		return err
+	}
+	entry := entries[id]
+	if entry == nil {
+		entry = map[string]interface{}{}
+	}
+	for key, value := range fields {
+		entry[key] = value
+	}
+	entry["timestamp"] = time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
+	entries[id] = entry
+	path, err := deployCachePath()
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	data, err := json.MarshalIndent(entries, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0o600)
+}
+
+// deployJob returns the deployment a command acts on, from --job-id or,
+// with --use-most-recent, the newest entry of the deploy cache.  It also
+// returns the org the deployment was started in: --target-org when given,
+// then the org in the cache entry, then the default org.
+func deployJob(cmd *cobra.Command) (string, *targetOrg, error) {
+	id, _ := cmd.Flags().GetString("job-id")
+	mostRecent, _ := cmd.Flags().GetBool("use-most-recent")
+	if (id == "") == !mostRecent {
+		return "", nil, exactlyOneError("use-most-recent", "job-id")
+	}
+	entries, err := readDeployCache()
+	if err != nil {
+		return "", nil, err
+	}
+	if mostRecent {
+		newest := ""
+		for key, entry := range entries {
+			stamp, _ := entry["timestamp"].(string)
+			if id == "" || stamp > newest {
+				id, newest = key, stamp
+			}
+		}
+		if id == "" {
+			return "", nil, newError("NoRecentJobIdError", "There are no recent job IDs available.")
+		}
+	}
+	if targetOrgFlag(cmd) == "" {
+		if cached, _ := entries[id]["target-org"].(string); cached != "" {
+			org, err := loadOrg(cached)
+			if err != nil {
+				return "", nil, newError("NamedOrgNotFoundError", "No authorization information found for %s.", cached)
+			}
+			if version := org.Fields.String("instanceApiVersion"); version != "" {
+				lib.SetApiVersion(version)
+				org.Force.Metadata = lib.NewForceMetadata(org.Force)
+			}
+			return id, org, nil
+		}
+	}
+	org, err := resolveTargetOrg(cmd)
+	return id, org, err
 }
 
 func newProjectDeployStartCmd(validate bool) *cobra.Command {
@@ -461,6 +550,9 @@ func newProjectDeployStartCmd(validate bool) *cobra.Command {
 			if err != nil {
 				return apiError(err)
 			}
+			if err := recordDeploy(id, map[string]interface{}{"target-org": org.Username, "isMdapi": metadataDir != "", "api": "SOAP"}); err != nil {
+				return err
+			}
 			async, _ := cmd.Flags().GetBool("async")
 			if async {
 				state := &deployState{status: lib.ForceCheckDeploymentStatusResult{Id: id, Status: "Queued"}}
@@ -487,6 +579,9 @@ func newProjectDeployStartCmd(validate bool) *cobra.Command {
 				deployProgress(out, org, title, subtitle, state, false, prepare, time.Since(started))
 			}
 			if err != nil {
+				return err
+			}
+			if err := recordDeploy(id, map[string]interface{}{"status": state.status.Status}); err != nil {
 				return err
 			}
 			return finishDeploy(cmd, org, state, source, len(archive), len(files), func(w io.Writer) {
@@ -533,11 +628,7 @@ func newProjectDeployResumeCmd() *cobra.Command {
 		Args:        cobra.NoArgs,
 		Annotations: map[string]string{commandNameAnnotation: "DeployMetadataResume"},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			id, err := deployJobID(cmd)
-			if err != nil {
-				return err
-			}
-			org, err := resolveTargetOrg(cmd)
+			id, org, err := deployJob(cmd)
 			if err != nil {
 				return err
 			}
@@ -574,11 +665,7 @@ func newProjectDeployReportCmd() *cobra.Command {
 		Args:        cobra.NoArgs,
 		Annotations: map[string]string{commandNameAnnotation: "DeployMetadataReport"},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			id, err := deployJobID(cmd)
-			if err != nil {
-				return err
-			}
-			org, err := resolveTargetOrg(cmd)
+			id, org, err := deployJob(cmd)
 			if err != nil {
 				return err
 			}
@@ -625,11 +712,7 @@ func newProjectDeployQuickCmd() *cobra.Command {
 		Args:        cobra.NoArgs,
 		Annotations: map[string]string{commandNameAnnotation: "DeployMetadataQuick"},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			id, err := deployJobID(cmd)
-			if err != nil {
-				return err
-			}
-			org, err := resolveTargetOrg(cmd)
+			id, org, err := deployJob(cmd)
 			if err != nil {
 				return err
 			}
@@ -687,11 +770,7 @@ func newProjectDeployCancelCmd() *cobra.Command {
 		Args:        cobra.NoArgs,
 		Annotations: map[string]string{commandNameAnnotation: "DeployMetadataCancel"},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			id, err := deployJobID(cmd)
-			if err != nil {
-				return err
-			}
-			org, err := resolveTargetOrg(cmd)
+			id, org, err := deployJob(cmd)
 			if err != nil {
 				return err
 			}

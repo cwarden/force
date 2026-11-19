@@ -489,8 +489,44 @@ func TestProjectDeployQuickReportResumeAndCancel(t *testing.T) {
 		"project", "deploy", "cancel", "-i", "0Af000000000001AAA", "--async")
 
 	_, errOut, status = run("project", "deploy", "report", "--use-most-recent")
-	if status != 1 || !strings.Contains(errOut, "The --use-most-recent flag is not supported") {
-		t.Errorf("--use-most-recent: status %d, stderr %q", status, errOut)
+	if status != 1 || !strings.Contains(errOut, "Error (NoRecentJobIdError): There are no recent job IDs available.") {
+		t.Errorf("--use-most-recent with an empty cache: status %d, stderr %q", status, errOut)
+	}
+}
+
+func TestDeployCacheSuppliesTheMostRecentJobAndItsOrg(t *testing.T) {
+	_, fake, _ := deploySetup(t)
+	if _, errOut, status := run("project", "deploy", "start", "-d", "force-app", "--async", "--json"); status != 0 {
+		t.Fatalf("deploy: status %d %s", status, errOut)
+	}
+	data, err := os.ReadFile(filepath.Join(os.Getenv("HOME"), ".sf", "deploy-cache.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cache map[string]map[string]interface{}
+	json.Unmarshal(data, &cache)
+	entry := cache["0Af000000000001AAA"]
+	if entry["target-org"] != "me@example.com" || entry["isMdapi"] != false || entry["timestamp"] == nil {
+		t.Errorf("cache entry = %v", entry)
+	}
+
+	// The default org is removed, so the report finds the org in the
+	// cache entry.
+	if _, _, status := run("config", "unset", "target-org", "--global"); status != 0 {
+		t.Fatal("config unset failed")
+	}
+	fake.requests = nil
+	out, errOut, status := run("project", "deploy", "report", "--use-most-recent")
+	if status != 0 || !strings.HasPrefix(out, "0Af000000000001AAA... Succeeded\n") {
+		t.Errorf("report --use-most-recent: status %d, stderr %q\n%s", status, errOut, out)
+	}
+	out, _, status = run("project", "deploy", "resume", "-r", "--json")
+	if status != 0 || !strings.Contains(out, `"id": "0Af000000000001AAA"`) {
+		t.Errorf("resume -r: status %d\n%s", status, out)
+	}
+	_, errOut, status = run("project", "deploy", "report")
+	if status != 2 || !strings.Contains(errOut, "Exactly one of the following must be provided: --use-most-recent, --job-id") {
+		t.Errorf("no job: status %d, stderr %q", status, errOut)
 	}
 }
 

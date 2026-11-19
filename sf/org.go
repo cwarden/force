@@ -21,6 +21,7 @@ func newOrgCmd() *cobra.Command {
 			newOrgListLimitsCmd(),
 			newOrgListMetadataCmd(),
 			newOrgListMetadataTypesCmd(),
+			newGroup("sobject", "List sObject information.", newOrgListSobjectRecordCountsCmd()),
 		),
 		newOrgOpenCmd(),
 		withSubcommands(newOrgDisplayCmd(),
@@ -31,7 +32,10 @@ func newOrgCmd() *cobra.Command {
 			newOrgAuthShowCmd("show-sfdx-auth-url", "Display the SFDX auth URL of an org.", "OrgAuthShowSfdxAuthUrl"),
 			newOrgAuthShowCmd("show-user-password", "Display the locally stored password of an org user.", "OrgAuthShowUserPassword"),
 		),
+		newGroup("assign", "Assign permission sets and licenses.", newOrgAssignPermsetCmd(), newOrgAssignPermsetLicenseCmd()),
 		newGroup("create", "Create scratch orgs.", newOrgCreateScratchCmd()),
+		newGroup("delete", "Delete scratch orgs.", newOrgDeleteScratchCmd()),
+		newGroup("generate", "Generate a password.", newOrgGeneratePasswordCmd()),
 		newOrgLoginCmd(),
 		newOrgLogoutCmd(),
 	)
