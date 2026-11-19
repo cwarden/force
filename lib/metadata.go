@@ -232,6 +232,9 @@ type ForceMetadataFiles map[string][]byte
 type ForceMetadata struct {
 	ApiVersion string
 	Force      *Force
+	// RetrieveStatusHook, when set, receives the SOAP response of each
+	// completed retrieve, without the content of the zip file.
+	RetrieveStatusHook func(body []byte)
 }
 
 type ForceDeployOptions struct {
@@ -941,6 +944,9 @@ func (fm *ForceMetadata) checkRetrieveStatusTo(id string, zipOut io.Writer) (pro
 		return
 	}
 	problems = status.Problems
+	if fm.RetrieveStatusHook != nil {
+		fm.RetrieveStatusHook(body)
+	}
 	return
 }
 

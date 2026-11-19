@@ -174,11 +174,43 @@ type fileResult struct {
 	State    string `json:"state"`
 }
 
+// componentLocator returns a function that gives the path at which a
+// retrieved file belongs when its component already has files in one of
+// the package directories of the project, or "" when it has none.  The
+// argument is the path of the file under a package directory's main/default
+// directory, such as classes/Greeter.cls.
+func componentLocator(project *sfProject) (func(relative string) string, error) {
+	components, err := projectComponents(project)
+	if err != nil {
+		return nil, err
+	}
+	return func(relative string) string {
+		metadataType, fullName := componentOfSourceFile("x/" + relative)
+		component := components[metadataType+"###"+fullName]
+		if component == nil && metadataType != "CustomObject" {
+			// A new part of a decomposed object belongs with the object.
+			if object, _, isChild := strings.Cut(fullName, "."); isChild {
+				component = components["CustomObject###"+object]
+			}
+		}
+		if component == nil || len(component.files) == 0 {
+			return ""
+		}
+		typeDirectory, _, _ := strings.Cut(relative, "/")
+		existing := component.files[0]
+		index := strings.LastIndex("/"+existing, "/"+typeDirectory+"/")
+		if index < 0 {
+			return ""
+		}
+		return filepath.Join(project.Root, filepath.FromSlash(existing[:index]), filepath.FromSlash(relative))
+	}, nil
+}
+
 // writeSourceFormat writes metadata format files under root in source
 // format and returns one entry for each file written, with paths relative
 // to the working directory.  The files are converted in a temporary
 // directory first, so that each can be compared with the file it replaces.
-func writeSourceFormat(root string, files lib.ForceMetadataFiles, query lib.ForceMetadataQuery) ([]fileResult, error) {
+func writeSourceFormat(root string, files lib.ForceMetadataFiles, query lib.ForceMetadataQuery, locate ...func(relative string) string) ([]fileResult, error) {
 	staging, err := os.MkdirTemp("", "sf-source-format")
 	if err != nil {
 		return nil, err
@@ -209,6 +241,11 @@ func writeSourceFormat(root string, files lib.ForceMetadataFiles, query lib.Forc
 			return err
 		}
 		target := filepath.Join(root, relative)
+		if len(locate) > 0 {
+			if located := locate[0](filepath.ToSlash(relative)); located != "" {
+				target = located
+			}
+		}
 		state := "Add"
 		if existing, err := os.ReadFile(target); err == nil {
 			state = "Changed"

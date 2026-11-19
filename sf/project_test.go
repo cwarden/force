@@ -272,6 +272,9 @@ type fakeDeploy struct {
 	options      string
 	statusResult string // content of <result> for checkDeployStatus
 	retrieveZip  []byte
+	// retrieveDetails is the content the retrieve result has between
+	// <done> and <id>: file properties.  retrieveMessages follows <id>.
+	retrieveDetails, retrieveMessages string
 }
 
 func soapBody(content string) string {
@@ -310,7 +313,7 @@ func serveMetadata(org *fakeOrg) *fakeDeploy {
 			io.WriteString(w, soapBody("<cancelDeployResponse><result><done>false</done><id>0Af000000000001AAA</id></result></cancelDeployResponse>"))
 		case is("checkRetrieveStatus"):
 			fake.requests = append(fake.requests, "checkRetrieveStatus")
-			io.WriteString(w, soapBody("<checkRetrieveStatusResponse><result><done>true</done><id>09S000000000001AAA</id><status>Succeeded</status><success>true</success><zipFile>"+base64.StdEncoding.EncodeToString(fake.retrieveZip)+"</zipFile></result></checkRetrieveStatusResponse>"))
+			io.WriteString(w, soapBody("<checkRetrieveStatusResponse><result><done>true</done>"+fake.retrieveDetails+"<id>09S000000000001AAA</id>"+fake.retrieveMessages+"<status>Succeeded</status><success>true</success><zipFile>"+base64.StdEncoding.EncodeToString(fake.retrieveZip)+"</zipFile></result></checkRetrieveStatusResponse>"))
 		case is("retrieve"):
 			fake.requests = append(fake.requests, "retrieve")
 			fake.options = body
@@ -743,6 +746,148 @@ Retrieved Source
 	}
 }
 
+func TestProjectRetrieveStartReportsTheResponseOfTheOrg(t *testing.T) {
+	_, fake, project := deploySetup(t)
+	fake.retrieveZip = retrieveZip(t, map[string]string{
+		"classes/Remote.cls":          "public class Remote {}",
+		"classes/Remote.cls-meta.xml": greeterMeta,
+		"package.xml":                 "<Package/>",
+	})
+	fake.retrieveDetails = `<fileProperties><createdById>005000000000001AAA</createdById><fileName>unpackaged/classes/Remote.cls</fileName><fullName>Remote</fullName><id>01p000000000001AAA</id><type>ApexClass</type></fileProperties>`
+	out, errOut, status := run("project", "retrieve", "start", "-m", "ApexClass:Remote", "--json")
+	if status != 0 {
+		t.Fatalf("status %d, stderr %s\n%s", status, errOut, out)
+	}
+	class := filepath.Join(project, "force-app", "main", "default", "classes", "Remote.cls")
+	want := `{
+  "status": 0,
+  "result": {
+    "done": true,
+    "fileProperties": [
+      {
+        "createdById": "005000000000001AAA",
+        "fileName": "unpackaged/classes/Remote.cls",
+        "fullName": "Remote",
+        "id": "01p000000000001AAA",
+        "type": "ApexClass"
+      }
+    ],
+    "id": "09S000000000001AAA",
+    "status": "Succeeded",
+    "success": true,
+    "messages": [],
+    "files": [
+      {
+        "fullName": "Remote",
+        "type": "ApexClass",
+        "state": "Created",
+        "filePath": "` + class + `"
+      },
+      {
+        "fullName": "Remote",
+        "type": "ApexClass",
+        "state": "Created",
+        "filePath": "` + class + `-meta.xml"
+      }
+    ]
+  },
+  "warnings": []
+}
+`
+	if out != want {
+		t.Errorf("json =\n%s\nwant\n%s", out, want)
+	}
+
+	// A component the org does not have is a message of the response, a
+	// failed file, and a row of the warnings table.
+	fake.retrieveMessages = `<messages><fileName>unpackaged/package.xml</fileName><problem>Entity of type 'ApexClass' named 'Nope' cannot be found</problem></messages>`
+	out, _, status = run("project", "retrieve", "start", "-m", "ApexClass:Remote", "-m", "ApexClass:Nope", "--json")
+	for _, want := range []string{`    "id": "09S000000000001AAA",
+    "messages": [
+      {
+        "fileName": "unpackaged/package.xml",
+        "problem": "Entity of type 'ApexClass' named 'Nope' cannot be found"
+      }
+    ],
+    "status": "Succeeded",
+    "success": true,
+    "files": [
+      {
+        "fullName": "Nope",
+        "type": "ApexClass",
+        "state": "Failed",
+        "error": "Entity of type 'ApexClass' named 'Nope' cannot be found",
+        "problemType": "Error"
+      },
+      {
+        "fullName": "Remote",`, `"warnings": []`} {
+		if status != 0 || !strings.Contains(out, want) {
+			t.Errorf("status %d, json lacks %s:\n%s", status, want, out)
+		}
+	}
+	out, errOut, status = run("project", "retrieve", "start", "-m", "ApexClass:Remote", "-m", "ApexClass:Nope")
+	if status != 0 || errOut != "" || !strings.HasSuffix(out, `└─────────┴────────┴───────────┴────────────────────────────────────────────────────┘
+
+
+Warnings
+┌────────────────────────┬─────────────────────────────────────────────────────────┐
+│ File                   │ Problem                                                 │
+├────────────────────────┼─────────────────────────────────────────────────────────┤
+│ unpackaged/package.xml │ Entity of type 'ApexClass' named 'Nope' cannot be found │
+└────────────────────────┴─────────────────────────────────────────────────────────┘
+
+`) {
+		t.Errorf("status %d, stderr %q\n%s", status, errOut, out)
+	}
+	// When only the missing component was asked for, sf warns that
+	// nothing was retrieved and still prints the table.
+	fake.retrieveZip = retrieveZip(t, map[string]string{"package.xml": "<Package/>"})
+	out, errOut, status = run("project", "retrieve", "start", "-m", "ApexClass:Nope")
+	if status != 0 || errOut != " ›   Warning: Nothing retrieved\n" || !strings.Contains(out, "\n\nWarnings\n┌") || strings.Contains(out, "Retrieved Source") {
+		t.Errorf("only missing: status %d, stderr %q\n%s", status, errOut, out)
+	}
+}
+
+func TestProjectRetrieveStartWritesAComponentWhereItIs(t *testing.T) {
+	_, fake, project := deploySetup(t)
+	os.WriteFile(filepath.Join(project, "sfdx-project.json"), []byte(`{"packageDirectories":[{"path":"force-app","default":true},{"path":"other"}],"sourceApiVersion":"67.0"}`), 0o644)
+	other := filepath.Join(project, "other", "main", "default", "classes")
+	os.MkdirAll(other, 0o755)
+	os.WriteFile(filepath.Join(other, "Elsewhere.cls"), []byte("public class Elsewhere { /* local */ }"), 0o644)
+	os.WriteFile(filepath.Join(other, "Elsewhere.cls-meta.xml"), []byte(greeterMeta), 0o644)
+	fake.retrieveZip = retrieveZip(t, map[string]string{
+		"classes/Elsewhere.cls":          "public class Elsewhere {}",
+		"classes/Elsewhere.cls-meta.xml": greeterMeta,
+		"classes/Remote.cls":             "public class Remote {}",
+		"classes/Remote.cls-meta.xml":    greeterMeta,
+		"package.xml":                    "<Package/>",
+	})
+	out, errOut, status := run("project", "retrieve", "start", "-m", "ApexClass:Elsewhere", "-m", "ApexClass:Remote")
+	// The rows are in the order of their paths.
+	if status != 0 || !strings.HasSuffix(out, `
+│ Created │ Remote    │ ApexClass │ force-app/main/default/classes/Remote.cls          │
+│ Created │ Remote    │ ApexClass │ force-app/main/default/classes/Remote.cls-meta.xml │
+│ Changed │ Elsewhere │ ApexClass │ other/main/default/classes/Elsewhere.cls           │
+│ Changed │ Elsewhere │ ApexClass │ other/main/default/classes/Elsewhere.cls-meta.xml  │
+└─────────┴───────────┴───────────┴────────────────────────────────────────────────────┘
+
+`) {
+		t.Fatalf("status %d, stderr %s\n%s", status, errOut, out)
+	}
+	if content := readFile(t, filepath.Join(other, "Elsewhere.cls")); content != "public class Elsewhere {}" {
+		t.Errorf("class in the second package directory = %q", content)
+	}
+	if exists(filepath.Join(project, "force-app", "main", "default", "classes", "Elsewhere.cls")) {
+		t.Error("the class was also written to the default package directory")
+	}
+
+	// With --output-dir every file goes to that directory.
+	out, errOut, status = run("project", "retrieve", "start", "-m", "ApexClass:Elsewhere", "-r", "third")
+	if status != 0 || !exists(filepath.Join(project, "third", "main", "default", "classes", "Elsewhere.cls")) {
+		t.Errorf("output-dir: status %d, stderr %s\n%s", status, errOut, out)
+	}
+}
+
 func TestProjectRetrieveStartToMetadataDirectory(t *testing.T) {
 	_, fake, _ := deploySetup(t)
 	fake.retrieveZip = retrieveZip(t, map[string]string{"classes/Remote.cls": "public class Remote {}", "package.xml": "<Package/>"})
@@ -750,13 +895,24 @@ func TestProjectRetrieveStartToMetadataDirectory(t *testing.T) {
 	manifest := filepath.Join(os.Getenv("HOME"), "package.xml")
 	os.WriteFile(manifest, []byte(`<Package xmlns="http://soap.sforce.com/2006/04/metadata"><types><members>Remote</members><name>ApexClass</name></types><version>67.0</version></Package>`), 0o644)
 	out, _, status := run("project", "retrieve", "start", "-x", manifest, "-t", target, "--unzip")
-	if status != 0 || !strings.HasSuffix(out, "Wrote retrieve zip file to "+filepath.Join(target, "unpackaged.zip")+".\nExtracted unpackaged to "+filepath.Join(target, "unpackaged")+".\n") {
+	if status != 0 || !strings.HasSuffix(out, "Wrote retrieve zip file to "+filepath.Join(target, "unpackaged.zip")+".\nExtracted "+filepath.Join(target, "unpackaged.zip")+" to "+filepath.Join(target, "unpackaged")+".\n") {
 		t.Errorf("status %d\n%s", status, out)
 	}
 	if content, _ := os.ReadFile(filepath.Join(target, "unpackaged", "unpackaged", "classes", "Remote.cls")); string(content) != "public class Remote {}" {
 		t.Errorf("extracted class = %q", content)
 	}
-	archive, err := zip.OpenReader(filepath.Join(target, "unpackaged.zip"))
+	// sf deletes the zip file after it extracted it.
+	if exists(filepath.Join(target, "unpackaged.zip")) {
+		t.Error("the zip file is still there after --unzip")
+	}
+	// A relative directory is reported as an absolute path, and the
+	// version is the one of the project.
+	wd, _ := os.Getwd()
+	out, _, status = run("project", "retrieve", "start", "-x", manifest, "-t", "relative-out")
+	if status != 0 || !strings.HasSuffix(out, "Wrote retrieve zip file to "+filepath.Join(wd, "relative-out", "unpackaged.zip")+".\n") {
+		t.Errorf("relative: status %d\n%s", status, out)
+	}
+	archive, err := zip.OpenReader(filepath.Join(wd, "relative-out", "unpackaged.zip"))
 	if err != nil {
 		t.Fatal(err)
 	}

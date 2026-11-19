@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -966,6 +967,94 @@ func newProjectDeployCancelCmd() *cobra.Command {
 	return cmd
 }
 
+// retrieveJSON returns the fields of the retrieve responses that sf reports,
+// and the messages of the org about components it did not retrieve.  A
+// retrieve that was split into several requests is reported as the first
+// response with the file properties and messages of all of them.
+func retrieveJSON(responses []*orderedMap, problems []string) (*orderedMap, []*orderedMap) {
+	result := newOrderedMap()
+	var properties []interface{}
+	messages := []*orderedMap{}
+	list := func(value interface{}) []interface{} {
+		switch v := value.(type) {
+		case nil:
+			return nil
+		case []interface{}:
+			return v
+		}
+		return []interface{}{value}
+	}
+	for i, response := range responses {
+		properties = append(properties, list(response.values["fileProperties"])...)
+		for _, message := range list(response.values["messages"]) {
+			if object, ok := message.(*orderedMap); ok {
+				messages = append(messages, object)
+			}
+		}
+		if i > 0 {
+			continue
+		}
+		for _, key := range response.keys {
+			switch key {
+			case "zipFile":
+			case "done", "success":
+				result.Set(key, response.values[key] == "true")
+			default:
+				result.Set(key, response.values[key])
+			}
+		}
+	}
+	if len(responses) == 0 {
+		// The org was not asked, or the response could not be read.
+		result.Set("done", true)
+		result.Set("status", "Succeeded")
+		result.Set("success", true)
+		for _, problem := range problems {
+			message := newOrderedMap()
+			message.Set("problem", problem)
+			messages = append(messages, message)
+		}
+		return result, messages
+	}
+	if properties == nil {
+		properties = []interface{}{}
+	}
+	if _, present := result.values["fileProperties"]; present {
+		result.Set("fileProperties", properties)
+	}
+	// The messages keep their place in the response; sf adds an empty
+	// list at the end when the org sent none.
+	result.Set("messages", messages)
+	return result, messages
+}
+
+var retrieveProblemPattern = regexp.MustCompile(`.+'(.+)'.+'(.+)'`)
+
+// retrieveFailures returns the entries sf lists in "files" for the
+// components the org reported a problem with.
+func retrieveFailures(messages []*orderedMap) []*orderedMap {
+	var failures []*orderedMap
+	for _, message := range messages {
+		problem := text(message.values["problem"])
+		item := newOrderedMap()
+		if match := retrieveProblemPattern.FindStringSubmatch(problem); match != nil {
+			item.Set("fullName", match[2])
+			item.Set("type", match[1])
+			item.Set("state", "Failed")
+			item.Set("error", problem)
+			item.Set("problemType", "Error")
+		} else {
+			item.Set("fullName", "")
+			item.Set("type", "")
+			item.Set("problemType", "Error")
+			item.Set("state", "Failed")
+			item.Set("error", problem)
+		}
+		failures = append(failures, item)
+	}
+	return failures
+}
+
 func newProjectRetrieveStartCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:         "start",
@@ -995,6 +1084,12 @@ func newProjectRetrieveStartCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
+			}
+			// A retrieve in metadata format does not need a project, and
+			// uses the API version of one when there is one.
+			versionProject := project
+			if versionProject == nil {
+				versionProject, _ = loadProject()
 			}
 			var query lib.ForceMetadataQuery
 			for _, name := range metadata {
@@ -1113,8 +1208,8 @@ func newProjectRetrieveStartCmd() *cobra.Command {
 			}
 			version := lib.ApiVersionNumber()
 			sourceVersion := version
-			if project != nil {
-				sourceVersion = projectAPIVersion(project)
+			if versionProject != nil {
+				sourceVersion = projectAPIVersion(versionProject)
 			}
 			subtitle := fmt.Sprintf("Retrieving v%s metadata from %s using the v%s SOAP API", sourceVersion, org.Username, version)
 			stages := []stage{
@@ -1130,9 +1225,15 @@ func newProjectRetrieveStartCmd() *cobra.Command {
 			}
 			requestStart := time.Now()
 			var (
-				files    lib.ForceMetadataFiles
-				problems []string
+				files     lib.ForceMetadataFiles
+				problems  []string
+				responses []*orderedMap
 			)
+			org.Force.Metadata.RetrieveStatusHook = func(body []byte) {
+				if results, err := soapResults(body); err == nil {
+					responses = append(responses, results...)
+				}
+			}
 			switch {
 			case len(packageNames) == 1:
 				files, problems, err = org.Force.Metadata.RetrievePackage(packageNames[0])
@@ -1155,13 +1256,8 @@ func newProjectRetrieveStartCmd() *cobra.Command {
 			stages[1] = stage{label: "Sending request to org", state: "done", elapsed: time.Since(requestStart)}
 			stages[2] = stage{label: "Waiting for the org to respond", state: "done"}
 			stages[3] = stage{label: "Done", state: "done"}
-			for _, problem := range problems {
-				warnJSON(cmd, problem)
-			}
-			result := newOrderedMap()
-			result.Set("done", true)
-			result.Set("status", "Succeeded")
-			result.Set("success", true)
+			result, messages := retrieveJSON(responses, problems)
+			failed := retrieveFailures(messages)
 			if targetMetadataDir != "" {
 				zipName, _ := cmd.Flags().GetString("zip-file-name")
 				if zipName == "" {
@@ -1171,6 +1267,10 @@ func newProjectRetrieveStartCmd() *cobra.Command {
 					zipName += ".zip"
 				}
 				archive, err := zipFiles(files, "unpackaged/")
+				if err != nil {
+					return err
+				}
+				targetMetadataDir, err = filepath.Abs(targetMetadataDir)
 				if err != nil {
 					return err
 				}
@@ -1190,6 +1290,10 @@ func newProjectRetrieveStartCmd() *cobra.Command {
 							return err
 						}
 					}
+					// sf deletes the zip file after it extracted it.
+					if err := os.Remove(zipPath); err != nil {
+						return err
+					}
 				}
 				result.Set("zipFilePath", zipPath)
 				result.Set("files", []interface{}{})
@@ -1197,15 +1301,21 @@ func newProjectRetrieveStartCmd() *cobra.Command {
 				return emit(cmd, result, func(w io.Writer) {
 					fmt.Fprintf(w, "Wrote retrieve zip file to %s.\n", zipPath)
 					if unzip {
-						fmt.Fprintf(w, "Extracted %s to %s.\n", strings.TrimSuffix(zipName, ".zip"), extracted)
-					}
-					for _, problem := range problems {
-						warn(cmd, problem)
+						fmt.Fprintf(w, "Extracted %s to %s.\n", zipPath, extracted)
 					}
 				})
 			}
+			// Without --output-dir, a component that the project already
+			// has is written where it is, and a new one to the default
+			// package directory.
+			var locate []func(string) string
 			if outputDir == "" {
 				outputDir = project.defaultPackageDir()
+				locator, err := componentLocator(project)
+				if err != nil {
+					return err
+				}
+				locate = append(locate, locator)
 			}
 			target, err := filepath.Abs(filepath.Join(outputDir, "main", "default"))
 			if err != nil {
@@ -1214,21 +1324,21 @@ func newProjectRetrieveStartCmd() *cobra.Command {
 			if len(query) == 0 {
 				query = wildcardQuery
 			}
-			written, err := writeSourceFormat(target, files, query)
+			written, err := writeSourceFormat(target, files, query, locate...)
 			if err != nil {
 				return err
 			}
-			// sf lists the files by type, name and path, and reports every
-			// file of a component that existed as changed.
+			// sf lists the files by type and path, and reports every file
+			// of a component that existed as changed.
 			sort.SliceStable(written, func(i, j int) bool {
 				a, b := written[i], written[j]
 				if a.Type != b.Type {
 					return a.Type < b.Type
 				}
-				if a.FullName != b.FullName {
-					return a.FullName < b.FullName
+				if a.FilePath != b.FilePath {
+					return a.FilePath < b.FilePath
 				}
-				return a.FilePath < b.FilePath
+				return a.FullName < b.FullName
 			})
 			existed := map[string]bool{}
 			for _, file := range written {
@@ -1236,7 +1346,7 @@ func newProjectRetrieveStartCmd() *cobra.Command {
 					existed[file.Type+"###"+file.FullName] = true
 				}
 			}
-			fileItems := make([]*orderedMap, 0, len(written))
+			fileItems := append(make([]*orderedMap, 0, len(written)+len(failed)), failed...)
 			rows := make([][]string, 0, len(written))
 			for _, file := range written {
 				state := "Created"
@@ -1305,13 +1415,18 @@ func newProjectRetrieveStartCmd() *cobra.Command {
 			frame("Succeeded")
 			return emit(cmd, result, func(w io.Writer) {
 				if len(rows) == 0 {
-					warn(cmd, "Nothing retrieved")
+					fmt.Fprintln(cmd.ErrOrStderr(), " ›   Warning: Nothing retrieved")
 				} else {
 					fmt.Fprintln(w)
 					printTable(w, paint(w, style{"\x1b[1m\x1b[34m", "\x1b[39m\x1b[22m"}, "Retrieved Source"), []string{"State", "Name", "Type", "Path"}, rows)
 				}
-				for _, problem := range problems {
-					warn(cmd, problem)
+				if len(messages) > 0 {
+					table := make([][]string, 0, len(messages))
+					for _, message := range messages {
+						table = append(table, []string{text(message.values["fileName"]), text(message.values["problem"])})
+					}
+					fmt.Fprintln(w)
+					printTable(w, paint(w, style{"\x1b[1m\x1b[34m", "\x1b[39m\x1b[22m"}, "Warnings"), []string{"File", "Problem"}, table)
 				}
 			})
 		},

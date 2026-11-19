@@ -134,7 +134,7 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [ ] Unknown metadata type name: the "Did you mean one of the following types?" line (needs sf's list of all type names)
 - [ ] `package version list`: ancestor version numbers and code coverage
 - [ ] `force data bulk delete`, `force data bulk upsert`: batches of 10,000 records (the file is sent as one batch)
-- [ ] `project retrieve start`: `fileProperties` in the JSON result
+- [x] `project retrieve start`: `fileProperties`, `id` and `messages` in the JSON result, failed entries in `files` and the Warnings table for components the org does not have (compared with sf against a scratch org)
 - [ ] `api request rest --include`: headers in the order received
 - [ ] `config set`, `config get`: the prompt that suggests a similar config name
 - [ ] A topic given without a command (`sf org`): sf's prompt to pick a command
@@ -152,7 +152,7 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
   - [x] Deploy and retrieve without naming components, and update the tracking files after a deploy or retrieve (compared with sf against a scratch org)
   - [x] Conflict detection (`--ignore-conflicts`)
   - [x] Send the client name of sf (`sfdx toolbelt:`) with SOAP requests; the org records the source members of a deploy only for that client
-  - [ ] Retrieve a changed component into the package directory it is in (it is written to the default package directory)
+  - [x] Retrieve a changed component into the package directory it is in
   - [ ] The warning sf prints when the org does not report the source members of a deploy in time
   - [ ] Detection of moved files
   - [ ] Write `maxRevision.json` as fileVersion 1 when `SF_SOURCE_TRACKING_FILE_VERSION=1` (the file is read in both versions)

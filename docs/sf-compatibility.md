@@ -158,7 +158,7 @@ The files written by the `template generate` commands come from the salesforcedx
 | `sf project generate manifest` | none | `--from-org`, `--include-packages`. sf reports an error when a content file is ignored by `.forceignore` and its `-meta.xml` file is not; this mode leaves both out. | Compared with sf |
 | `sf project list ignored` | none |  | Compared with sf |
 | `sf project retrieve preview` | none; reads the source tracking files | A component of the org that has no local files is never reported as ignored. | Compared with sf |
-| `sf project retrieve start` | `force fetch`, `force export` | `--single-package`; one `--package-name` value. The JSON result has `files`, `status`, `success` and `done`; it has no `fileProperties`, `id` or `messages`. Without `--metadata`, `--manifest`, `--source-dir` or `--package-name`, retrieves the changes in the org that source tracking reports; the org must track source. Retrieved components are written to the default package directory, also when they exist in another one. | Compared with sf |
+| `sf project retrieve start` | `force fetch`, `force export` | `--single-package`; one `--package-name` value. Without `--metadata`, `--manifest`, `--source-dir` or `--package-name`, retrieves the changes in the org that source tracking reports; the org must track source. A component that the project already has is written where it is; a new one is written to the default package directory. | Compared with sf |
 | `sf schema generate tab` | none |  | Compared with sf |
 | `sf sobject describe` | `force describe sobject --name <name> --json` |  | Compared with sf |
 | `sf sobject list` | `force sobject list` |  | Compared with sf |
