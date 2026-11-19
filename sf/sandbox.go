@@ -26,8 +26,26 @@ const sandboxProcessFields = "Id,Status,SandboxName,SandboxInfoId,LicenseType,Cr
 const sandboxInfoFields = "Id,IsDeleted,CreatedDate,CreatedById,LastModifiedDate,LastModifiedById,SandboxName,LicenseType,TemplateId,HistoryDays,CopyChatter,AutoActivate,ApexClassId,Description,SourceId,ActivationUserGroupId,Features,PostCopyConfig"
 
 // sandboxRedirectURI is the redirect URI sf names when it asks the
-// production org to authorize a sandbox user.
+// production org to authorize a sandbox user.  It is the callback URL of
+// the connected app of sf, PlatformCLI.
 const sandboxRedirectURI = "http://localhost:1717/OauthRedirect"
+
+// sandboxClient returns the connected app and the callback URL to name in
+// the authorization request for a sandbox.  The production org checks that
+// the callback URL belongs to the connected app, so an org that was
+// authorized with the connected app of force, as "org login web" of this
+// mode does, needs the callback URL of that app.  sf always sends its own
+// callback URL, and its request fails for such an org.
+func sandboxClient(prod *targetOrg) (clientID, callbackURL string) {
+	clientID = prod.Fields.String("clientId")
+	switch clientID {
+	case "":
+		return "PlatformCLI", sandboxRedirectURI
+	case lib.ClientId:
+		return clientID, lib.RedirectUri
+	}
+	return clientID, sandboxRedirectURI
+}
 
 // sandboxSleep waits between two checks of a sandbox process.  Tests
 // replace it.
@@ -80,11 +98,8 @@ func sandboxAuthorization(prod *targetOrg, process *orderedMap) (*orderedMap, er
 	if process.values["EndDate"] == nil {
 		return nil, nil
 	}
-	clientID := prod.Fields.String("clientId")
-	if clientID == "" {
-		clientID = "PlatformCLI"
-	}
-	body, err := json.Marshal(orderedFields("clientId", clientID, "sandboxName", process.values["SandboxName"], "callbackUrl", sandboxRedirectURI))
+	clientID, callbackURL := sandboxClient(prod)
+	body, err := json.Marshal(orderedFields("clientId", clientID, "sandboxName", process.values["SandboxName"], "callbackUrl", callbackURL))
 	if err != nil {
 		return nil, err
 	}
@@ -134,11 +149,8 @@ func writeSandboxAuthorization(prod *targetOrg, process, granted *orderedMap) (s
 		auth.privateKey = keyFile
 		auth.order = []string{"accessToken", "instanceUrl", "orgId", "username", "loginUrl", "privateKey", "clientId"}
 	} else {
-		clientID := prod.Fields.String("clientId")
-		if clientID == "" {
-			clientID = "PlatformCLI"
-		}
-		session, err := lib.SessionFromAuthCode(loginURL, text(granted.values["authCode"]), clientID, sandboxRedirectURI)
+		clientID, callbackURL := sandboxClient(prod)
+		session, err := lib.SessionFromAuthCode(loginURL, text(granted.values["authCode"]), clientID, callbackURL)
 		if err != nil {
 			return "", newError("AuthCodeExchangeError", "%s", err.Error())
 		}

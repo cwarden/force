@@ -2,6 +2,7 @@ package sf
 
 import (
 	"fmt"
+	"github.com/ForceCLI/force/lib"
 	"io"
 	"net/http"
 	"os"
@@ -323,6 +324,31 @@ func TestOrgResumeSandboxReportsAFailedAuthorizationRequest(t *testing.T) {
 	out, _, status = run("org", "resume", "sandbox", "-n", "dev1", "--json")
 	if status != 68 || !strings.Contains(out, `"Message": "The sandbox org completed successfully, but the local authentication file could not be written: The sandbox dev1 does not have an authorized username.. Run \"org resume sandbox\" again to retry authentication."`) {
 		t.Errorf("login failure: status %d\n%s", status, out)
+	}
+}
+
+func TestSandboxAuthorizationNamesTheCallbackOfTheConnectedApp(t *testing.T) {
+	org := newSandboxOrg(t)
+	org.processes = []string{sandboxProcessJSON("Completed", 100, true)}
+	// The production org was authorized with the connected app of force.
+	if err := lib.UpdateSFDXAuthFields("me@example.com", lib.SFDXAuthFields{"clientId": lib.ClientId}); err != nil {
+		t.Fatal(err)
+	}
+	if _, errOut, status := run("org", "resume", "sandbox", "-n", "dev1", "-o", "prod"); status != 0 {
+		t.Fatalf("resume: status %d, stderr %q", status, errOut)
+	}
+	want := `POST sandboxAuth {"clientId":"` + lib.ClientId + `","sandboxName":"dev1","callbackUrl":"` + lib.RedirectUri + `"}`
+	if len(org.requests) != 1 || org.requests[0] != want {
+		t.Errorf("requests = %q, want %q", org.requests, want)
+	}
+	var exchange map[string][]string
+	for _, form := range org.refreshRequests {
+		if len(form["grant_type"]) == 1 && form["grant_type"][0] == "authorization_code" {
+			exchange = form
+		}
+	}
+	if exchange == nil || exchange["client_id"][0] != lib.ClientId || exchange["redirect_uri"][0] != lib.RedirectUri {
+		t.Errorf("code exchange = %v", exchange)
 	}
 }
 
