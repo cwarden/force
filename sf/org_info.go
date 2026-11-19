@@ -8,6 +8,9 @@ import (
 	"io"
 	"net/url"
 	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 
@@ -27,14 +30,119 @@ type orgOpenResult struct {
 // openBrowser is replaced in tests.
 var openBrowser = desktop.Open
 
+// browserCommands gives, for each value of --browser, the programs that
+// start that browser on Linux.  On macOS and Windows the browser is started
+// by its application name.
+var browserCommands = map[string][]string{
+	"chrome":  {"google-chrome", "google-chrome-stable", "chromium", "chromium-browser"},
+	"edge":    {"microsoft-edge", "microsoft-edge-stable", "microsoft-edge-dev"},
+	"firefox": {"firefox"},
+}
+
+// openInBrowser opens a URL in the named browser.  Tests replace it.
+var openInBrowser = func(browser, uri string) error {
+	switch runtime.GOOS {
+	case "darwin":
+		app := map[string]string{"chrome": "google chrome", "edge": "microsoft edge", "firefox": "firefox"}[browser]
+		return exec.Command("open", "-a", app, uri).Start()
+	case "windows":
+		app := map[string]string{"chrome": "chrome", "edge": "msedge", "firefox": "firefox"}[browser]
+		return exec.Command("cmd", "/c", "start", "", app, uri).Start()
+	}
+	for _, name := range browserCommands[browser] {
+		if path, err := exec.LookPath(name); err == nil {
+			return exec.Command(path, uri).Start()
+		}
+	}
+	return newError("BrowserNotFoundError", "Unable to find the %s browser. Tried: %s", browser, strings.Join(browserCommands[browser], ", "))
+}
+
+// sourceFilePath returns the page of the org that shows the metadata in a
+// source file: the setup page of an Apex class or a custom object, the
+// builder of a flow, a bot or a Lightning page, or a Visualforce page
+// itself.  Another metadata file gives the list of Lightning pages, and a
+// file that is not metadata gives the home page of the org, as in sf.
+func sourceFilePath(org *targetOrg, file string) (string, error) {
+	if _, err := os.Stat(file); err != nil {
+		return "", nil
+	}
+	name := filepath.Base(file)
+	single := func(tooling bool, soql string) (string, bool) {
+		var records []*orderedMap
+		var err error
+		if tooling {
+			records, err = toolingRecords(org, soql)
+		} else {
+			records, err = restRecords(org, soql)
+		}
+		if err != nil || len(records) != 1 {
+			return "", false
+		}
+		for _, key := range []string{"Id", "DurableId"} {
+			if id := text(records[0].values[key]); id != "" {
+				return id, true
+			}
+		}
+		return "", false
+	}
+	switch {
+	case strings.HasSuffix(name, ".cls") || strings.HasSuffix(name, ".cls-meta.xml"):
+		id, ok := single(true, fmt.Sprintf("SELECT Id FROM ApexClass WHERE Name = '%s'", strings.TrimSuffix(name, ".cls")))
+		if !ok {
+			return "", newError("ApexClassIdNotFoundError", "ID not found for Apex class %s.", file)
+		}
+		return "lightning/setup/ApexClasses/page?address=%2F" + id, nil
+	case strings.HasSuffix(name, ".object-meta.xml"):
+		id, ok := single(true, fmt.Sprintf("SELECT Id FROM CustomObject WHERE DeveloperName = '%s'", strings.TrimSuffix(strings.ReplaceAll(name, "__c", ""), ".object-meta.xml")))
+		if !ok {
+			return "", newError("CustomObjectIdNotFoundError", "ID not found for custom object %s.", file)
+		}
+		return "lightning/setup/ObjectManager/" + id + "/Details/view", nil
+	case strings.HasSuffix(name, ".bot-meta.xml"):
+		id, ok := single(false, fmt.Sprintf("SELECT id FROM BotDefinition WHERE DeveloperName='%s'", strings.TrimSuffix(name, ".bot-meta.xml")))
+		if !ok {
+			return "", nil
+		}
+		return "/AiCopilot/copilotStudio.app#/copilot/builder?copilotId=" + id, nil
+	case strings.HasSuffix(name, ".page") || strings.HasSuffix(name, ".page-meta.xml"):
+		return "/apex/" + strings.TrimSuffix(strings.TrimSuffix(name, ".page-meta.xml"), ".page"), nil
+	case strings.HasSuffix(name, ".flow-meta.xml"):
+		id, ok := single(false, fmt.Sprintf("SELECT DurableId FROM FlowVersionView WHERE FlowDefinitionView.ApiName = '%s' ORDER BY VersionNumber DESC LIMIT 1", strings.TrimSuffix(name, ".flow-meta.xml")))
+		if !ok {
+			return "", newError("FlowIdNotFoundError", "ID not found for Flow %s.", file)
+		}
+		return "/builder_platform_interaction/flowBuilder.app?flowId=" + id, nil
+	case strings.HasSuffix(name, ".flexipage-meta.xml"):
+		id, ok := single(true, fmt.Sprintf("SELECT id FROM flexipage WHERE DeveloperName='%s'", strings.TrimSuffix(name, ".flexipage-meta.xml")))
+		if !ok {
+			return "", nil
+		}
+		return "/visualEditor/appBuilder.app?pageId=" + id, nil
+	}
+	if strings.HasSuffix(name, "-meta.xml") {
+		return "/lightning/setup/FlexiPageList/home", nil
+	}
+	if _, err := os.Stat(file + "-meta.xml"); err == nil {
+		return "/lightning/setup/FlexiPageList/home", nil
+	}
+	return "", nil
+}
+
 func newOrgOpenCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "open",
 		Short: "Open your default scratch org, or another specified org, in a browser.",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := unsupportedFlags(cmd, "private", "browser", "source-file"); err != nil {
+			if err := unsupportedFlags(cmd, "private"); err != nil {
 				return err
+			}
+			if err := sandboxFlagConflicts(cmd, [][2]string{{"browser", "url-only"}}); err != nil {
+				return err
+			}
+			browser, _ := cmd.Flags().GetString("browser")
+			if browser != "" && browserCommands[browser] == nil {
+				return &Error{Message: fmt.Sprintf("Expected --browser=%s to be one of: chrome, edge, firefox\nSee more help with --help", browser), ExitCode: 2}
 			}
 			org, err := resolveTargetOrg(cmd)
 			if err != nil {
@@ -43,6 +151,11 @@ func newOrgOpenCmd() *cobra.Command {
 			path, _ := cmd.Flags().GetString("path")
 			if path == "" {
 				path = os.Getenv("FORCE_OPEN_URL")
+			}
+			if sourceFile, _ := cmd.Flags().GetString("source-file"); sourceFile != "" {
+				if path, err = sourceFilePath(org, sourceFile); err != nil {
+					return err
+				}
 			}
 			// sf requests a single-use URL from the UI Bridge API.
 			request := "/services/oauth2/singleaccess"
@@ -72,6 +185,9 @@ func newOrgOpenCmd() *cobra.Command {
 				fmt.Fprintln(w, paint(w, styleGreen, fmt.Sprintf("Opening org %s as user %s", result.OrgId, result.Username)))
 			}); err != nil {
 				return err
+			}
+			if browser != "" {
+				return openInBrowser(browser, result.URL)
 			}
 			return openBrowser(result.URL)
 		},

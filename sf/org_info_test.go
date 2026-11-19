@@ -3,6 +3,8 @@ package sf
 import (
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -59,6 +61,76 @@ func TestOrgOpenStartsTheBrowser(t *testing.T) {
 	_, errOut, status := run("org", "open", "--private")
 	if status != 1 || !strings.Contains(errOut, "The --private flag is not supported") {
 		t.Errorf("--private: status %d, stderr %q", status, errOut)
+	}
+}
+
+func TestOrgOpenSourceFileAndBrowser(t *testing.T) {
+	org := loggedInFakeOrg(t)
+	var redirect string
+	org.handlers["/services/oauth2/singleaccess"] = func(w http.ResponseWriter, r *http.Request) {
+		redirect = r.URL.Query().Get("redirect_uri")
+		io.WriteString(w, `{"frontdoor_uri":"https://example.my.salesforce.com/secur/frontdoor.jsp?otp=abc"}`)
+	}
+	org.handlers["/services/data/v67.0/tooling/query"] = func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query().Get("q")
+		switch {
+		case strings.Contains(query, "FROM ApexClass WHERE Name = 'Greeter'"):
+			io.WriteString(w, `{"done":true,"totalSize":1,"records":[{"Id":"01p000000000001AAA"}]}`)
+		case strings.Contains(query, "FROM CustomObject WHERE DeveloperName = 'Invoice'"):
+			io.WriteString(w, `{"done":true,"totalSize":1,"records":[{"Id":"01I000000000001AAA"}]}`)
+		case strings.Contains(query, "FROM flexipage WHERE DeveloperName='Home_Page'"):
+			io.WriteString(w, `{"done":true,"totalSize":1,"records":[{"Id":"0M0000000000001AAA"}]}`)
+		default:
+			io.WriteString(w, `{"done":true,"totalSize":0,"records":[]}`)
+		}
+	}
+	org.queries["FROM FlowVersionView WHERE FlowDefinitionView.ApiName = 'Approve'"] = []map[string]interface{}{{"DurableId": "301000000000001AAA"}}
+	dir := t.TempDir()
+	file := func(name string) string {
+		path := filepath.Join(dir, name)
+		os.WriteFile(path, []byte("x"), 0o644)
+		return path
+	}
+	for name, want := range map[string]string{
+		"Greeter.cls":                  "lightning/setup/ApexClasses/page?address=%2F01p000000000001AAA",
+		"Invoice__c.object-meta.xml":   "lightning/setup/ObjectManager/01I000000000001AAA/Details/view",
+		"Welcome.page":                 "/apex/Welcome",
+		"Approve.flow-meta.xml":        "/builder_platform_interaction/flowBuilder.app?flowId=301000000000001AAA",
+		"Home_Page.flexipage-meta.xml": "/visualEditor/appBuilder.app?pageId=0M0000000000001AAA",
+		"Admin.permissionset-meta.xml": "/lightning/setup/FlexiPageList/home",
+		"notes.txt":                    "",
+	} {
+		redirect = "unset"
+		if _, errOut, status := run("org", "open", "-r", "-f", file(name)); status != 0 || redirect != want {
+			t.Errorf("%s: status %d, redirect %q, want %q, stderr %q", name, status, redirect, want, errOut)
+		}
+	}
+	// A file that does not exist gives the home page of the org.
+	redirect = "unset"
+	if _, _, status := run("org", "open", "-r", "-f", filepath.Join(dir, "Missing.cls")); status != 0 || redirect != "" {
+		t.Errorf("missing file: status %d, redirect %q", status, redirect)
+	}
+	_, errOut, status := run("org", "open", "-r", "-f", file("Unknown.cls"))
+	if status != 1 || !strings.Contains(errOut, "Error (ApexClassIdNotFoundError): ID not found for Apex class ") {
+		t.Errorf("class that is not in the org: status %d, stderr %q", status, errOut)
+	}
+
+	var opened []string
+	previous := openInBrowser
+	openInBrowser = func(browser, url string) error {
+		opened = []string{browser, url}
+		return nil
+	}
+	defer func() { openInBrowser = previous }()
+	expectRun(t, 0, "Opening org 00D000000000000 as user me@example.com\n", "org", "open", "-b", "firefox")
+	if len(opened) != 2 || opened[0] != "firefox" || opened[1] != "https://example.my.salesforce.com/secur/frontdoor.jsp?otp=abc" {
+		t.Errorf("opened %q", opened)
+	}
+	if _, errOut, status := run("org", "open", "-b", "lynx"); status != 2 || !strings.Contains(errOut, "Expected --browser=lynx to be one of: chrome, edge, firefox") {
+		t.Errorf("other browser: status %d, stderr %q", status, errOut)
+	}
+	if _, errOut, status := run("org", "open", "-b", "firefox", "-r"); status != 2 || !strings.Contains(errOut, "--browser=firefox cannot also be provided when using --url-only") {
+		t.Errorf("browser with url-only: status %d, stderr %q", status, errOut)
 	}
 }
 
