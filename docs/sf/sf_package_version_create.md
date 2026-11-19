@@ -40,4 +40,6 @@ sf package version create [flags]
 ### SEE ALSO
 
 * [sf package version](sf_package_version.md)	 - Commands to manage package versions.
+* [sf package version create list](sf_package_version_create_list.md)	 - List package version creation requests.
+* [sf package version create report](sf_package_version_create_report.md)	 - Retrieve details about a package version creation request.
 

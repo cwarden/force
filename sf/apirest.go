@@ -18,6 +18,7 @@ func newApiCmd() *cobra.Command {
 	return newGroup("api", "Commands to send API requests to your org.",
 		newGroup("request", "Make an authenticated HTTP request to your org.",
 			newApiRequestRestCmd(),
+			newApiRequestGraphqlCmd(),
 		),
 	)
 }
@@ -148,6 +149,105 @@ func newApiRequestRestCmd() *cobra.Command {
 	cmd.Flags().StringArrayP("header", "H", nil, "HTTP header in \"key:value\" format.")
 	cmd.Flags().StringP("file", "f", "", "JSON file that contains values for the request header, body, method, and URL.")
 	cmd.Flags().StringP("body", "b", "", "File or content for the body of the HTTP request.")
+	cmd.Flags().BoolP("include", "i", false, "Include the HTTP response status and headers in the output.")
+	cmd.Flags().StringP("stream-to-file", "S", "", "Stream responses to a file.")
+	addAPIVersionFlag(cmd)
+	addTargetOrgFlag(cmd)
+	return cmd
+}
+
+func newApiRequestGraphqlCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "graphql",
+		Short: "Execute a GraphQL statement.",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			warn(cmd, "This command is currently in beta. Any aspect of this command can change without advanced notice. Don't use beta commands in your scripts.")
+			body, _ := cmd.Flags().GetString("body")
+			if body == "" {
+				return missingFlagError("body")
+			}
+			// --body is a file, "-" for standard input, or the statement.
+			query := body
+			if body == "-" {
+				data, err := io.ReadAll(cmd.InOrStdin())
+				if err != nil {
+					return err
+				}
+				query = string(data)
+			} else if data, err := os.ReadFile(body); err == nil {
+				query = string(data)
+			}
+			org, err := resolveTargetOrg(cmd)
+			if err != nil {
+				return err
+			}
+			if _, err := org.Force.GetAbsolute("/services/data/" + lib.ApiVersion()); err != nil {
+				return apiError(err)
+			}
+			payload, err := encodeJSON(map[string]string{"query": query})
+			if err != nil {
+				return err
+			}
+			request, err := http.NewRequest("POST", org.Force.Credentials.InstanceUrl+"/services/data/"+lib.ApiVersion()+"/graphql", strings.NewReader(payload))
+			if err != nil {
+				return err
+			}
+			request.Header.Set("Authorization", "Bearer "+org.Force.Credentials.AccessToken)
+			request.Header.Set("Content-Type", "application/json")
+			response, err := http.DefaultClient.Do(request)
+			if err != nil {
+				return err
+			}
+			defer response.Body.Close()
+			out := cmd.OutOrStdout()
+			if streamFile, _ := cmd.Flags().GetString("stream-to-file"); streamFile != "" {
+				file, err := os.Create(streamFile)
+				if err != nil {
+					return err
+				}
+				defer file.Close()
+				if _, err := io.Copy(file, response.Body); err != nil {
+					return err
+				}
+				fmt.Fprintf(out, "File saved to %s\n", streamFile)
+				return nil
+			}
+			content, err := io.ReadAll(response.Body)
+			if err != nil {
+				return err
+			}
+			if include, _ := cmd.Flags().GetBool("include"); include {
+				fmt.Fprintf(out, "HTTP/%d.%d %d\n", response.ProtoMajor, response.ProtoMinor, response.StatusCode)
+				names := make([]string, 0, len(response.Header))
+				for name := range response.Header {
+					names = append(names, name)
+				}
+				sort.Strings(names)
+				for _, name := range names {
+					fmt.Fprintf(out, "%s: %s\n", strings.ToLower(name), strings.Join(response.Header[name], ","))
+				}
+			}
+			failed := response.StatusCode >= 400
+			if parsed, err := parseOrderedJSON(content); err == nil {
+				writeJSON(out, parsed)
+				// A GraphQL response reports errors in the body with
+				// status 200.
+				if object, ok := parsed.(*orderedMap); ok {
+					if errors, ok := object.values["errors"].([]interface{}); ok && len(errors) > 0 {
+						failed = true
+					}
+				}
+			} else {
+				fmt.Fprintln(out, string(content))
+			}
+			if failed {
+				return exitStatus(1)
+			}
+			return nil
+		},
+	}
+	cmd.Flags().String("body", "", "File or content with the GraphQL statement. Specify \"-\" to read from standard input.")
 	cmd.Flags().BoolP("include", "i", false, "Include the HTTP response status and headers in the output.")
 	cmd.Flags().StringP("stream-to-file", "S", "", "Stream responses to a file.")
 	addAPIVersionFlag(cmd)

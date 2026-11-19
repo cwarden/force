@@ -85,6 +85,8 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [ ] `package create`: `--no-namespace`, `--org-dependent`, `--error-notification-username`
 - [ ] `package install`: `--publish-wait`, `--skip-handlers`
 - [ ] `package version create`: `--installation-key`, `--definition-file`, `--branch`, `--post-install-script`, `--post-install-url`, `--releasenotes-url`, `--uninstall-script`, `--language`, `--generate-pkg-zip`, `--skip-ancestor-check`, `--verbose`
+- [ ] `package update`: `--skip-ancestor-check`
+- [ ] `package version create list`: `--show-conversions-only`, `--verbose`
 - [ ] `package version list`: `--show-conversions-only`
 - [ ] `project convert mdapi`: `--manifest`, `--metadata-dir`, `--metadata`
 - [ ] `project convert source`: `--package-name`
@@ -213,9 +215,9 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [ ] `flow get test`
 - [ ] `flow run test`
 
-### api (1 open, 0 done)
+### api (0 open, 1 done)
 
-- [ ] `api request graphql`
+- [x] `api request graphql` (follows the sf plugin source)
 
 ### schema (4 open, 0 done)
 
@@ -238,24 +240,24 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [ ] `template generate static-resource`
 - [ ] `template generate ui-bundle`
 
-### package (16 open, 0 done)
+### package (8 open, 8 done)
 
 - [ ] `package convert`
-- [ ] `package delete`
-- [ ] `package install report`
+- [x] `package delete` (follows the sf plugin source)
+- [x] `package install report` (follows the sf plugin source)
 - [ ] `package push-upgrade abort`
 - [ ] `package push-upgrade list`
 - [ ] `package push-upgrade report`
 - [ ] `package push-upgrade schedule`
-- [ ] `package uninstall report`
-- [ ] `package update`
-- [ ] `package version create list`
-- [ ] `package version create report`
-- [ ] `package version delete`
+- [x] `package uninstall report` (follows the sf plugin source)
+- [x] `package update` (follows the sf plugin source)
+- [x] `package version create list` (follows the sf plugin source)
+- [x] `package version create report` (follows the sf plugin source)
+- [x] `package version delete` (follows the sf plugin source)
 - [ ] `package version displayancestry`
 - [ ] `package version displaydependencies`
 - [ ] `package version retrieve`
-- [ ] `package version update`
+- [x] `package version update` (follows the sf plugin source)
 
 ### package1 (4 open, 0 done)
 

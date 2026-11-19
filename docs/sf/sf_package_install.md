@@ -27,4 +27,5 @@ sf package install [flags]
 ### SEE ALSO
 
 * [sf package](sf_package.md)	 - Commands to develop and install unlocked packages and managed 2GP packages.
+* [sf package install report](sf_package_install_report.md)	 - Retrieve the status of a package installation request.
 

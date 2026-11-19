@@ -21,15 +21,19 @@ var packagePollInterval = 2 * time.Second
 func newPackageCmd() *cobra.Command {
 	return newGroup("package", "Commands to develop and install unlocked packages and managed 2GP packages.",
 		newPackageCreateCmd(),
+		newPackageDeleteCmd(false),
 		newPackageListCmd(),
-		newPackageInstallCmd(),
+		newPackageUpdateCmd(),
+		withSubcommands(newPackageInstallCmd(), newPackageInstallReportCmd()),
 		newGroup("installed", "List installed packages.", newPackageInstalledListCmd()),
-		newPackageUninstallCmd(),
+		withSubcommands(newPackageUninstallCmd(), newPackageUninstallReportCmd()),
 		newGroup("version", "Commands to manage package versions.",
-			newPackageVersionCreateCmd(),
+			withSubcommands(newPackageVersionCreateCmd(), newPackageVersionCreateListCmd(), newPackageVersionCreateReportCmd()),
+			newPackageDeleteCmd(true),
 			newPackageVersionListCmd(),
 			newPackageVersionReportCmd(),
 			newPackageVersionPromoteCmd(),
+			newPackageVersionUpdateCmd(),
 		),
 	)
 }
@@ -482,27 +486,7 @@ func newPackageInstallCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			status := strings.ToUpper(text(record.values["Status"]))
-			if status == "ERROR" {
-				var messages []string
-				if errors, ok := record.values["Errors"].(*orderedMap); ok {
-					if items, ok := errors.values["errors"].([]interface{}); ok {
-						for i, item := range items {
-							if detail, ok := item.(*orderedMap); ok {
-								messages = append(messages, fmt.Sprintf("(%d) %s", i+1, text(detail.values["message"])))
-							}
-						}
-					}
-				}
-				return newError("PackageInstallError", "Encountered errors installing the package! Installation errors: \n%s", strings.Join(messages, "\n"))
-			}
-			return emit(cmd, record, func(w io.Writer) {
-				if status == "SUCCESS" {
-					fmt.Fprintf(w, "Successfully installed package [%s]\n", text(record.values["SubscriberPackageVersionKey"]))
-					return
-				}
-				fmt.Fprintf(w, "PackageInstallRequest is currently InProgress. You can continue to query the status using\nsf package:install:report -i %s -o %s\n", id, org.Username)
-			})
+			return emitInstallRequest(cmd, org, record)
 		},
 	}
 	addJSONFlag(cmd)
@@ -546,22 +530,7 @@ func newPackageUninstallCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			status := text(record.values["Status"])
-			if strings.EqualFold(status, "Error") {
-				messages, _ := toolingRecords(org, fmt.Sprintf("SELECT Message FROM PackageVersionUninstallRequestError WHERE ParentRequest.Id = '%s' ORDER BY Message", id))
-				var lines []string
-				for i, message := range messages {
-					lines = append(lines, fmt.Sprintf("(%d) %s", i+1, text(message.values["Message"])))
-				}
-				return newError("UNINSTALL_ERROR", "Can't uninstall the package %s during uninstall request %s.\n%s", text(record.values["SubscriberPackageVersionId"]), id, strings.Join(lines, "\n"))
-			}
-			return emit(cmd, record, func(w io.Writer) {
-				if strings.EqualFold(status, "Success") {
-					fmt.Fprintf(w, "Successfully uninstalled package [%s]\n", text(record.values["SubscriberPackageVersionId"]))
-					return
-				}
-				fmt.Fprintf(w, "PackageUninstallRequest is currently InProgress.\nYou can continue to query the status using sf package uninstall report -i %s -o %s\n", id, org.Username)
-			})
+			return emitUninstallRequest(cmd, org, record)
 		},
 	}
 	addJSONFlag(cmd)

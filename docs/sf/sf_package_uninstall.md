@@ -20,4 +20,5 @@ sf package uninstall [flags]
 ### SEE ALSO
 
 * [sf package](sf_package.md)	 - Commands to develop and install unlocked packages and managed 2GP packages.
+* [sf package uninstall report](sf_package_uninstall_report.md)	 - Retrieve the status of a package uninstall request.
 

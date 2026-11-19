@@ -61,6 +61,7 @@ Logins, aliases and config values written by this mode were read by `sf` 2.138.6
 | `sf apex trace create` | `force trace start` | This command is in plugin-apex versions newer than the one bundled with sf 2.138.6. | Follows the sf plugin source |
 | `sf apex trace delete` | `force trace delete` | As above. | Follows the sf plugin source |
 | `sf apex trace list` | `force trace list` | As above. | Follows the sf plugin source |
+| `sf api request graphql` | none | With `--include`, headers are listed in alphabetical order. | Follows the sf plugin source |
 | `sf api request rest` | `force rest` | `--file`. With `--include`, headers are listed in alphabetical order; sf lists them in the order received. | Compared with sf |
 | `sf commands` | none | Lists only the commands this mode implements. sf prints more columns. | Not compared |
 | `sf config get` | none; reads sf config files | Does not suggest a name for an unknown config name. | Compared with sf |
@@ -111,14 +112,22 @@ Logins, aliases and config values written by this mode were read by `sf` 2.138.6
 | `sf org logout` | `force logout` | `--client-app` is accepted and has no effect. | Compared with sf |
 | `sf org open` | `force open` | `--private`, `--browser`, `--source-file` | Follows the sf plugin source |
 | `sf package create` | `force package create` | `--no-namespace`, `--org-dependent`, `--error-notification-username` | Follows the sf plugin source |
+| `sf package delete` | none |  | Follows the sf plugin source |
 | `sf package install` | `force package install` | `--publish-wait`, `--skip-handlers`. Does not prompt about remote site settings; they are enabled. | Follows the sf plugin source |
+| `sf package install report` | none |  | Follows the sf plugin source |
 | `sf package installed list` | `force package installed` |  | Follows the sf plugin source |
 | `sf package list` | `force package list` |  | Follows the sf plugin source |
 | `sf package uninstall` | `force package uninstall` |  | Follows the sf plugin source |
+| `sf package uninstall report` | none |  | Follows the sf plugin source |
+| `sf package update` | none | `--skip-ancestor-check` | Follows the sf plugin source |
 | `sf package version create` | `force package version create` | `--installation-key`, `--definition-file`, `--branch`, `--post-install-script`, `--post-install-url`, `--releasenotes-url`, `--uninstall-script`, `--language`, `--generate-pkg-zip`, `--skip-ancestor-check`, `--verbose`. `--wait` is accepted; the command always waits. | Follows the sf plugin source |
+| `sf package version create list` | none | `--show-conversions-only`, `--verbose` | Follows the sf plugin source |
+| `sf package version create report` | none |  | Follows the sf plugin source |
+| `sf package version delete` | none |  | Follows the sf plugin source |
 | `sf package version list` | `force package version list` | `--show-conversions-only`. Ancestor version numbers and code coverage are not looked up. | Follows the sf plugin source |
 | `sf package version promote` | `force package version release` |  | Follows the sf plugin source |
 | `sf package version report` | `force package version get` | `--verbose` is accepted and adds nothing. | Follows the sf plugin source |
+| `sf package version update` | none |  | Follows the sf plugin source |
 | `sf project convert mdapi` | `force fetch` (source format writer) | `--manifest`, `--metadata-dir`, `--metadata` | Compared with sf |
 | `sf project convert source` | `force import` (source format conversion) | `--package-name` | Compared with sf |
 | `sf project deploy cancel` | `force deploys cancel` |  | Follows the sf plugin source |
@@ -200,7 +209,7 @@ A flag listed as unsupported returns an error that names the flag.
 
 ## sf Commands Not Implemented
 
-151 of the 239 commands of `sf` 2.138.6 and its bundled and install-on-first-use plugins are not implemented. Third-party plugins and the retired Functions plugin are not counted. Running one of these commands prints the message `sf` prints for an unknown command and exits with status 127.
+142 of the 239 commands of `sf` 2.138.6 and its bundled and install-on-first-use plugins are not implemented. Third-party plugins and the retired Functions plugin are not counted. Running one of these commands prints the message `sf` prints for an unknown command and exits with status 127.
 
 ### org
 
@@ -269,12 +278,6 @@ A flag listed as unsupported returns an error that names the flag.
 | `sf flow get test` | Display test results for a specific asynchronous test run. | As the `logic` commands. |
 | `sf flow run test` | Invoke flow tests in an org. | As the `logic` commands. |
 
-### api
-
-| sf command | Summary | What is required |
-|---|---|---|
-| `sf api request graphql` | Execute a GraphQL statement. | POST the query to the `graphql` resource; the request code of `api request rest` can be shared. |
-
 ### schema
 
 | sf command | Summary | What is required |
@@ -305,21 +308,13 @@ A flag listed as unsupported returns an error that names the flag.
 | sf command | Summary | What is required |
 |---|---|---|
 | `sf package convert` | Convert a managed-released first-generation managed package into a second-generation managed package. | Create a Package2VersionCreateRequest for a first-generation package. |
-| `sf package delete` | Delete a package. | Set IsDeprecated on a Package2 record. |
-| `sf package install report` | Retrieve the status of a package installation request. | Read a PackageInstallRequest by Id; `toolingRecord` in `sf/package.go` does the request. |
 | `sf package push-upgrade abort` | Abort a package push upgrade that has been scheduled. Only push upgrade requests with a status of Created or Pending can be aborted. | PackagePushRequest and PackagePushJob records; no force code exists. |
 | `sf package push-upgrade list` | Lists the status of push upgrade requests for a given package. | PackagePushRequest and PackagePushJob records; no force code exists. |
 | `sf package push-upgrade report` | Retrieve the status of a package push upgrade. | PackagePushRequest and PackagePushJob records; no force code exists. |
 | `sf package push-upgrade schedule` | Schedule a package push upgrade. | PackagePushRequest and PackagePushJob records; no force code exists. |
-| `sf package uninstall report` | Retrieve the status of a package uninstall request. | Read a SubscriberPackageVersionUninstallRequest by Id. |
-| `sf package update` | Update package details. | Update fields of a Package2 record. |
-| `sf package version create list` | List package version creation requests. | Query Package2VersionCreateRequest. |
-| `sf package version create report` | Retrieve details about a package version creation request. | Query Package2VersionCreateRequest. |
-| `sf package version delete` | Delete a package version. | Set IsDeprecated on a Package2Version record. |
 | `sf package version displayancestry` | Display the ancestry tree for a 2GP managed package version. | Walk AncestorId of Package2Version records and print the tree. |
 | `sf package version displaydependencies` | Display the dependency graph for an unlocked or 2GP managed package version. | Read the dependencies of SubscriberPackageVersion records. |
 | `sf package version retrieve` | Retrieve package metadata for a specified package version. Package metadata can be retrieved for only second-generation managed package versions or unlocked packages. | Download the metadata zip of a package version and convert it to source format. |
-| `sf package version update` | Update a package version. | Update fields of a Package2Version record. |
 
 ### package1
 
