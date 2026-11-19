@@ -18,11 +18,12 @@ sf org [flags]
 * [sf org assign](sf_org_assign.md)	 - Assign permission sets and licenses.
 * [sf org auth](sf_org_auth.md)	 - Show stored credentials of an org.
 * [sf org create](sf_org_create.md)	 - Create scratch orgs and users.
-* [sf org delete](sf_org_delete.md)	 - Delete scratch orgs.
+* [sf org delete](sf_org_delete.md)	 - Delete scratch orgs and snapshots.
 * [sf org disable](sf_org_disable.md)	 - Disable source tracking.
 * [sf org display](sf_org_display.md)	 - Display information about an org.
 * [sf org enable](sf_org_enable.md)	 - Enable source tracking.
 * [sf org generate](sf_org_generate.md)	 - Generate a password.
+* [sf org get](sf_org_get.md)	 - Get details about a snapshot.
 * [sf org list](sf_org_list.md)	 - List all orgs you've created or authenticated to.
 * [sf org login](sf_org_login.md)	 - Authorize an org for use with Salesforce CLI.
 * [sf org logout](sf_org_logout.md)	 - Log out of a Salesforce org.

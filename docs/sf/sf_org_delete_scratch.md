@@ -17,5 +17,5 @@ sf org delete scratch [flags]
 
 ### SEE ALSO
 
-* [sf org delete](sf_org_delete.md)	 - Delete scratch orgs.
+* [sf org delete](sf_org_delete.md)	 - Delete scratch orgs and snapshots.
 

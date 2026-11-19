@@ -112,6 +112,7 @@ The files written by the `template generate` commands come from the salesforcedx
 | `sf org create scratch` | `force login scratch` | `--client-id`, `--no-ancestors`, `--source-org`, `--snapshot`; definition file key `objectSettings`. The `--async` output follows a transcript of `sf`; this mode was not run against a Dev Hub. | Follows the sf plugin source |
 | `sf org resume scratch` | none; reads `~/.sf/scratch-create-cache.json` and finishes the request as `force login scratch` does | The output follows a transcript of `sf`; this mode was not run against a Dev Hub. The case of an org that is not ready follows the plugin source. | Follows the sf plugin source |
 | `sf org create user` | none; creates the user with the SCIM API and writes its authorization file | An org that was authorized with the JWT flow. | Compared with sf |
+| `sf org delete snapshot` | none | The Dev Hub used for the comparison did not have snapshots enabled: the error for that case was compared, and the tables follow the plugin source. Dates are formatted for the en-US locale. | Follows the sf plugin source |
 | `sf org delete scratch` | none | For an org that has expired, `sf` removes the local authorization and reports it as marked for deletion; this mode asks the Dev Hub and reports it as deleted. | Compared with sf |
 | `sf org display` | `force whoami`, `force active` | An HTML response from the org, such as the one an expired scratch org gives, is reported in other words than in `sf`. | Compared with sf |
 | `sf org display user` | `force whoami` |  | Compared with sf |
@@ -122,6 +123,8 @@ The files written by the `template generate` commands come from the salesforcedx
 | `sf org list metadata` | `force describe metadata --type` |  | Compared with sf |
 | `sf org list metadata-types` | `force describe metadata` |  | Compared with sf |
 | `sf org list users` | none; reads `~/.sfdx/<orgId>.json` and queries User and Profile | `SF_TEMP_SHOW_SECRETS` is not read; the access token is always redacted. | Compared with sf |
+| `sf org get snapshot` | none | The Dev Hub used for the comparison did not have snapshots enabled: the error for that case was compared, and the tables follow the plugin source. Dates are formatted for the en-US locale. | Follows the sf plugin source |
+| `sf org list snapshot` | none | The Dev Hub used for the comparison did not have snapshots enabled: the error for that case was compared, and the tables follow the plugin source. Dates are formatted for the en-US locale. | Follows the sf plugin source |
 | `sf org list sobject record-counts` | none |  | Compared with sf |
 | `sf org login access-token` | none (`SF_ACCESS_TOKEN` and `SF_INSTANCE_URL` in force) |  | Compared with sf |
 | `sf org login jwt` | `force login -u <user> -k <key> --connected-app-client-id <id>` |  | Not compared; no JWT-enabled org was available |
@@ -246,7 +249,7 @@ A flag listed as unsupported returns an error that names the flag.
 
 ## sf Commands Not Implemented
 
-110 of the 239 commands of `sf` 2.138.6 and its bundled and install-on-first-use plugins are not implemented. Third-party plugins and the retired Functions plugin are not counted. Running one of these commands prints the message `sf` prints for an unknown command and exits with status 127.
+107 of the 239 commands of `sf` 2.138.6 and its bundled and install-on-first-use plugins are not implemented. Third-party plugins and the retired Functions plugin are not counted. Running one of these commands prints the message `sf` prints for an unknown command and exits with status 127.
 
 ### org
 
@@ -258,10 +261,7 @@ A flag listed as unsupported returns an error that names the flag.
 | `sf org create snapshot` | Create a snapshot of a scratch org. | Create an OrgSnapshot record in the Dev Hub. |
 | `sf org delete sandbox` | Delete a sandbox. | Delete the SandboxInfo record and remove the authorization file. |
 | `sf org delete shape` | Delete all org shapes for a target org. | Delete ShapeRepresentation records. |
-| `sf org delete snapshot` | Delete a scratch org snapshot. | Delete an OrgSnapshot record. |
-| `sf org get snapshot` | Get details about a scratch org snapshot. | Query OrgSnapshot. |
 | `sf org list shape` | List all org shapes you’ve created. | Query ShapeRepresentation in each authorized org. |
-| `sf org list snapshot` | List scratch org snapshots. | Query OrgSnapshot. |
 | `sf org open agent` | Open an agent in your org's Agentforce Builder UI in a browser. | Build the Agentforce Builder URL for an agent and open it as `org open` does. |
 | `sf org refresh sandbox` | Refresh a sandbox org using the sandbox name. | As `org create sandbox`. |
 | `sf org resume sandbox` | Check the status of a sandbox creation, and log in to it if it's ready. | As `org create sandbox`. |
