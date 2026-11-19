@@ -52,11 +52,11 @@ Reference: `sf` 2.138.6. Update this file as each item is finished.
 - [x] `template generate visualforce page`, `template generate visualforce component`
 
 ## Step 6: project
-- [ ] Move deploy and fetch helpers from `command/` to `lib`
-- [ ] `project deploy start`, `project deploy validate`
-- [ ] `project deploy quick`, `project deploy report`, `project deploy resume`, `project deploy cancel`
-- [ ] `project retrieve start`
-- [ ] `project convert source`, `project convert mdapi`
+- [x] Source collection for sf mode is built on `lib.PackageBuilder` in `sf/project_files.go`; the helpers in `command/` did not need to move
+- [x] `project deploy start`, `project deploy validate` (queued output and progress layout compared with sf; the tables after a finished deploy follow the sf plugin source, because sf cannot finish a deploy against the local test server)
+- [x] `project deploy quick`, `project deploy report`, `project deploy resume`, `project deploy cancel`
+- [x] `project retrieve start` (failure output compared with sf; the result table follows the sf plugin source)
+- [x] `project convert source`, `project convert mdapi`
 
 ## Step 7: package
 - [ ] `package create`, `package list`

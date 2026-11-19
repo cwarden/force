@@ -842,7 +842,14 @@ func (fm *ForceMetadata) CancelDeploy(id string) (ForceCancelDeployResult, error
 }
 
 func (fm *ForceMetadata) CheckDeployStatus(id string) (results ForceCheckDeploymentStatusResult, err error) {
-	body, err := fm.soapExecute("checkDeployStatus", fmt.Sprintf("<id>%s</id><includeDetails>true</includeDetails>", id))
+	results, _, err = fm.CheckDeployStatusXML(id)
+	return
+}
+
+// CheckDeployStatusXML is CheckDeployStatus and also returns the SOAP
+// response, for callers that report fields the result struct leaves out.
+func (fm *ForceMetadata) CheckDeployStatusXML(id string) (results ForceCheckDeploymentStatusResult, body []byte, err error) {
+	body, err = fm.soapExecute("checkDeployStatus", fmt.Sprintf("<id>%s</id><includeDetails>true</includeDetails>", id))
 	if err != nil {
 		return
 	}
@@ -853,7 +860,7 @@ func (fm *ForceMetadata) CheckDeployStatus(id string) (results ForceCheckDeploym
 
 	if err = xml.Unmarshal(body, &deployResult); err != nil {
 		err = errors.New("Error decoding SOAP body: " + err.Error())
-		return results, err
+		return results, body, err
 	}
 
 	results = deployResult.Results

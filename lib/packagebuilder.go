@@ -942,3 +942,11 @@ func findMetadataPath(folder string, metadataName string) (string, error) {
 
 var lwcJsTestFile = regexp.MustCompile(".*\\.test\\.js$")
 var lwcJsTestDir = regexp.MustCompile(fmt.Sprintf("%s__tests__$", regexp.QuoteMeta(string(os.PathSeparator))))
+
+// MetadataTypeForDirectory returns the name of the metadata type whose
+// components are stored in a directory of this name, such as ApexClass for
+// classes.
+func MetadataTypeForDirectory(directory string) (string, bool) {
+	mp, ok := metapathForDirectory(directory)
+	return mp.name, ok
+}
