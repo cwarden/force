@@ -55,7 +55,9 @@ func TestProjectListIgnored(t *testing.T) {
       "force-app/main/default/classes/GreeterTest.cls"
     ]
   },
-  "warnings": []
+  "warnings": [
+    "The \"force source ignored list\" command has been deprecated. Use \"project list ignored\" instead."
+  ]
 }
 `, "force:source:ignored:list", "-p", "force-app/main/default/classes", "--json")
 }

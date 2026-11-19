@@ -41,6 +41,7 @@ The files written by the `template generate` commands come from the salesforcedx
 
 - `--json` prints the `sf` envelope: `{"status", "result", "warnings"}`. Result fields keep the order of the API response, as in `sf`.
 - An error prints `Error (<name>): <message>` on stderr, or with `--json` an envelope with `name`, `message`, `exitCode`, `context`, `code`, `status` and `commandName`. The envelope has no `stack` or `cause` field, and `data` holds only `errorCode` and `message`.
+- A legacy command id, such as `force:org:list`, runs the current command and reports the deprecation warning `sf` reports: on stderr, or in the `warnings` array with `--json`.
 - Exit status follows `sf`: 2 for a missing or malformed flag, 1 for a flag value outside its list of options, 127 for an unknown command, 100 for failing Apex tests, 1 for other failures.
 - Color is used when `FORCE_COLOR` is set to a value other than `0`, when `COLORTERM=truecolor`, or when the output is a terminal. `NO_COLOR` and `FORCE_COLOR=0` turn it off.
 - `sf` redraws a progress display while it waits for a bulk job, deploy, retrieve or scratch org. This mode prints the last frame once.
@@ -68,6 +69,10 @@ The files written by the `template generate` commands come from the salesforcedx
 | `sf api request graphql` | none | With `--include`, headers are listed in alphabetical order. | Follows the sf plugin source |
 | `sf api request rest` | `force rest` | The `formdata` body mode of `--file`. With `--include`, headers are listed in alphabetical order; sf lists them in the order received. | Compared with sf |
 | `sf autocomplete` | `force completion` | Prints instructions for the completion scripts cobra generates (`sf autocomplete script <shell>`); sf builds a cache from its plugins. `--refresh-cache` has no effect. | Not compared; the mechanism differs |
+| `sf cmdt generate field` | none |  | Compared with sf |
+| `sf cmdt generate object` | none |  | Compared with sf |
+| `sf cmdt generate record` | none |  | Compared with sf |
+| `sf cmdt generate records` | none |  | Compared with sf |
 | `sf commands` | none | Lists only the commands this mode implements. sf prints more columns. | Not compared |
 | `sf config get` | none; reads sf config files | Does not suggest a name for an unknown config name. | Compared with sf |
 | `sf config list` | `force active` (for the default org) |  | Compared with sf |
@@ -225,7 +230,7 @@ A flag listed as unsupported returns an error that names the flag.
 
 ## sf Commands Not Implemented
 
-130 of the 239 commands of `sf` 2.138.6 and its bundled and install-on-first-use plugins are not implemented. Third-party plugins and the retired Functions plugin are not counted. Running one of these commands prints the message `sf` prints for an unknown command and exits with status 127.
+126 of the 239 commands of `sf` 2.138.6 and its bundled and install-on-first-use plugins are not implemented. Third-party plugins and the retired Functions plugin are not counted. Running one of these commands prints the message `sf` prints for an unknown command and exits with status 127.
 
 ### org
 
@@ -329,11 +334,7 @@ A flag listed as unsupported returns an error that names the flag.
 
 | sf command | Summary | What is required |
 |---|---|---|
-| `sf cmdt generate field` | Generate a field for a custom metadata type based on the provided field type. | Write custom metadata type files; these commands make no API requests except `cmdt generate fromorg`. |
-| `sf cmdt generate fromorg` | Generate a custom metadata type and all its records from a Salesforce object. | Write custom metadata type files; these commands make no API requests except `cmdt generate fromorg`. |
-| `sf cmdt generate object` | Generate a new custom metadata type in the current project. | Write custom metadata type files; these commands make no API requests except `cmdt generate fromorg`. |
-| `sf cmdt generate record` | Generate a new record for a given custom metadata type in the current project. | Write custom metadata type files; these commands make no API requests except `cmdt generate fromorg`. |
-| `sf cmdt generate records` | Generate new custom metadata type records from a CSV file. | Write custom metadata type files; these commands make no API requests except `cmdt generate fromorg`. |
+| `sf cmdt generate fromorg` | Generate a custom metadata type and all its records from a Salesforce object. | Describe the object with the REST API, query its records, and write the type, field and record files that the other `cmdt generate` commands write. |
 
 ### community
 

@@ -3,6 +3,15 @@ package sf
 // legacyCommandIds maps the alias ids that sf 2.138.6 accepts to the current
 // command id.  Generated from `sf commands --json`.
 var legacyCommandIds = map[string]string{
+	"cmdt:create":                           "cmdt:generate:object",
+	"cmdt:field:create":                     "cmdt:generate:field",
+	"cmdt:record:create":                    "cmdt:generate:record",
+	"cmdt:record:insert":                    "cmdt:generate:records",
+	"force:cmdt:create":                     "cmdt:generate:object",
+	"force:cmdt:field:create":               "cmdt:generate:field",
+	"force:cmdt:generate":                   "cmdt:generate:fromorg",
+	"force:cmdt:record:create":              "cmdt:generate:record",
+	"force:cmdt:record:insert":              "cmdt:generate:records",
 	"analytics:generate:template":           "template:generate:analytics:template",
 	"apex:generate:class":                   "template:generate:apex:class",
 	"apex:generate:trigger":                 "template:generate:apex:trigger",

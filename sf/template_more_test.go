@@ -89,7 +89,9 @@ func TestTemplateGenerateProjectVariants(t *testing.T) {
     ],
     "rawOutput": "target dir = `+os.Getenv("HOME")+`\n  create emp/config/project-scratch-def.json\n  create emp/README.md\n  create emp/sfdx-project.json\n  create emp/.forceignore\n"
   },
-  "warnings": []
+  "warnings": [
+    "The \"force project create\" command has been deprecated. Use \"template generate project\" instead."
+  ]
 }
 `, "force:project:create", "-n", "emp", "-t", "empty", "--json")
 

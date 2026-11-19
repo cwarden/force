@@ -52,7 +52,9 @@ func TestApexRun(t *testing.T) {
     "column": -1,
     "logs": "DEBUG | hello from apex"
   },
-  "warnings": []
+  "warnings": [
+    "The \"force apex execute\" command has been deprecated. Use \"apex run\" instead."
+  ]
 }
 `, "force:apex:execute", "--file", file, "--json")
 

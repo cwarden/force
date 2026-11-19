@@ -89,7 +89,9 @@ func TestOrgListLimits(t *testing.T) {
       "remaining": 3
     }
   ],
-  "warnings": []
+  "warnings": [
+    "The \"force limits api display\" command has been deprecated. Use \"org list limits\" instead."
+  ]
 }
 `, "force:limits:api:display", "--json")
 }

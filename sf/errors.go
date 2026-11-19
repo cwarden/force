@@ -21,6 +21,9 @@ type Error struct {
 	Label string
 	// Data is written as the "data" field of the JSON envelope.
 	Data interface{}
+	// Compact prints one blank line after the message instead of two, as
+	// the sf plugins that are installed on first use do.
+	Compact bool
 }
 
 func (e *Error) Error() string {
@@ -126,7 +129,11 @@ func writeError(out, errOut io.Writer, cmd *cobra.Command, err error, jsonOutput
 	if label == "" {
 		label = fmt.Sprintf("%d", e.ExitCode)
 	}
-	fmt.Fprintf(errOut, "%s %s\n\n\n", paint(errOut, styleBoldRed, fmt.Sprintf("Error (%s):", label)), e.Message)
+	ending := "\n\n\n"
+	if e.Compact {
+		ending = "\n\n"
+	}
+	fmt.Fprintf(errOut, "%s %s%s", paint(errOut, styleBoldRed, fmt.Sprintf("Error (%s):", label)), e.Message, ending)
 	if len(e.Actions) > 0 {
 		fmt.Fprintf(errOut, "%s\n\n", paint(errOut, styleDim, "Try this:"))
 		for _, action := range e.Actions {

@@ -23,7 +23,9 @@ func TestSobjectList(t *testing.T) {
   "result": [
     "Invoice__c"
   ],
-  "warnings": []
+  "warnings": [
+    "The \"force schema sobject list\" command has been deprecated. Use \"sobject list\" instead."
+  ]
 }
 `, "force:schema:sobject:list", "--sobject", "CUSTOM", "--json")
 	org.handlers["/services/data/v67.0/sobjects"] = func(w http.ResponseWriter, r *http.Request) {
@@ -139,7 +141,9 @@ func TestTemplateGenerateApexClass(t *testing.T) {
     ],
     "rawOutput": "target dir = `+project+`\n  create Other.cls\n  create Other.cls-meta.xml\n"
   },
-  "warnings": []
+  "warnings": [
+    "The \"apex generate class\" command has been deprecated. Use \"template generate apex class\" instead."
+  ]
 }
 `, "apex:generate:class", "--name", "Other", "--api-version", "60.0", "--json")
 	meta, _ = os.ReadFile(filepath.Join(project, "Other.cls-meta.xml"))

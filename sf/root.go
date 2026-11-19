@@ -57,7 +57,7 @@ func Execute() {
 // Run executes the sf command tree and returns the exit status.
 func Run(args []string, out, errOut io.Writer) int {
 	root := NewRootCmd()
-	args = normalizeArgsFor(root, args)
+	args, deprecation := normalizeArgsFor(root, args)
 	jsonOutput := hasJSONFlag(args)
 	if expanded, err := expandFlagsDir(root, args); err != nil {
 		return writeError(out, errOut, nil, err, jsonOutput)
@@ -66,9 +66,17 @@ func Run(args []string, out, errOut io.Writer) int {
 		jsonOutput = hasJSONFlag(args)
 	}
 	root.SetArgs(args)
-	root.SetContext(context.WithValue(context.Background(), runStateKey{}, &runState{}))
+	state := &runState{}
+	root.SetContext(context.WithValue(context.Background(), runStateKey{}, state))
 	root.SetOut(out)
 	root.SetErr(errOut)
+	if deprecation != "" {
+		if jsonOutput {
+			state.warnings = append(state.warnings, deprecation)
+		} else {
+			fmt.Fprintf(errOut, "%s %s\n", paint(errOut, styleBoldYellow, "Warning:"), deprecation)
+		}
+	}
 
 	// lib reports some failures by calling ErrorAndExit.  Print those in
 	// sf's format.  ErrorAndExit exits with status 1 after the handler.
@@ -110,6 +118,7 @@ func NewRootCmd() *cobra.Command {
 		newApexCmd(),
 		newApiCmd(),
 		newAutocompleteCmd(),
+		newCmdtCmd(),
 		newCommandsCmd(),
 		newConfigCmd(),
 		newDataCmd(),
@@ -165,7 +174,31 @@ func normalizeFlagName(f *pflag.FlagSet, name string) pflag.NormalizedName {
 	if current, ok := legacyFlagNames[name]; ok {
 		return pflag.NormalizedName(current)
 	}
+	for _, candidate := range commandLegacyFlagNames[name] {
+		if f.Lookup(candidate.current) != nil && (candidate.marker == "" || f.Lookup(candidate.marker) != nil) {
+			return pflag.NormalizedName(candidate.current)
+		}
+	}
 	return pflag.NormalizedName(name)
+}
+
+// commandLegacyFlagNames maps a legacy flag name that only some commands
+// accept to the current name.  The name applies to a command that has the
+// current flag and, when marker is set, the marker flag as well.
+var commandLegacyFlagNames = map[string][]struct{ current, marker string }{
+	"outputdir":       {{"output-directory", ""}},
+	"outputdirectory": {{"output-directory", ""}},
+	"inputdir":        {{"input-directory", ""}},
+	"inputdirectory":  {{"input-directory", ""}},
+	"typename":        {{"type-name", ""}},
+	"plurallabel":     {{"plural-label", ""}},
+	"recordname":      {{"record-name", ""}},
+	"picklistvalues":  {{"picklist-values", ""}},
+	"decimalplaces":   {{"decimal-places", ""}},
+	"namecolumn":      {{"name-column", ""}},
+	"fieldname":       {{"name", "decimal-places"}},
+	"fieldtype":       {{"type", "decimal-places"}},
+	"filepath":        {{"csv", "name-column"}},
 }
 
 const topicAnnotation = "sfTopic"
@@ -174,9 +207,9 @@ const topicAnnotation = "sfTopic"
 // rewritten when the words already name a command of the tree that is at
 // least as long: "project generate manifest" is a command, although
 // "project generate" is a legacy id of "template generate project".
-func normalizeArgsFor(root *cobra.Command, args []string) []string {
+func normalizeArgsFor(root *cobra.Command, args []string) ([]string, string) {
 	if len(args) == 0 || strings.HasPrefix(args[0], "-") {
-		return args
+		return args, ""
 	}
 	words := append(strings.Split(args[0], ":"), args[1:]...)
 	positional := 0
@@ -184,17 +217,42 @@ func normalizeArgsFor(root *cobra.Command, args []string) []string {
 		positional++
 	}
 	if found, _, err := root.Find(words[:positional]); err == nil && found != root && found.Annotations[topicAnnotation] == "" {
-		return words
+		return words, ""
 	}
-	return normalizeArgs(args)
+	result, legacy, current := rewriteLegacyID(args)
+	if legacy == "" || aliasesWithoutWarning[legacy] {
+		return result, ""
+	}
+	// The warning is for a command this mode has.  An alias of a command
+	// that is not implemented reports the unknown command only.
+	if found, _, err := root.Find(strings.Split(current, ":")); err != nil || found == root || found.Annotations[topicAnnotation] != "" {
+		return result, ""
+	}
+	return result, fmt.Sprintf("The %q command has been deprecated. Use %q instead.", strings.ReplaceAll(legacy, ":", " "), strings.ReplaceAll(current, ":", " "))
+}
+
+// Legacy ids that sf accepts without a deprecation warning.
+var aliasesWithoutWarning = map[string]bool{
+	"force:package:push-upgrade:list": true,
+	"whatsnew":                        true,
+	"plugins:add":                     true,
+	"plugins:unlink":                  true,
+	"plugins:remove":                  true,
 }
 
 // normalizeArgs converts the colon form of a command id ("org:login:web") to
 // separate words and replaces legacy ids ("force:org:list", "deploy
 // metadata") with the current id.
 func normalizeArgs(args []string) []string {
+	result, _, _ := rewriteLegacyID(args)
+	return result
+}
+
+// rewriteLegacyID is normalizeArgs that also returns the legacy id it
+// replaced and the current id, or empty strings when it replaced none.
+func rewriteLegacyID(args []string) ([]string, string, string) {
 	if len(args) == 0 || strings.HasPrefix(args[0], "-") {
-		return args
+		return args, "", ""
 	}
 	words := strings.Split(args[0], ":")
 	rest := args[1:]
@@ -208,13 +266,14 @@ func normalizeArgs(args []string) []string {
 		if n < len(words) {
 			break
 		}
-		if current, ok := legacyCommandIds[strings.Join(candidates[:n], ":")]; ok {
+		legacy := strings.Join(candidates[:n], ":")
+		if current, ok := legacyCommandIds[legacy]; ok {
 			result := strings.Split(current, ":")
 			result = append(result, candidates[n:]...)
-			return append(result, rest[positional:]...)
+			return append(result, rest[positional:]...), legacy, current
 		}
 	}
-	return append(words, rest...)
+	return append(words, rest...), "", ""
 }
 
 // expandFlagsDir implements --flags-dir: each file in the directory is

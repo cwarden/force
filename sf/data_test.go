@@ -70,7 +70,10 @@ func TestDataQueryJSONKeepsFieldOrder(t *testing.T) {
 }
 `
 	expectRun(t, 0, want, "data", "query", "--query", "SELECT Phone, Name FROM Account", "--json")
-	expectRun(t, 0, want, "force:data:soql:query", "-q", "SELECT Phone, Name FROM Account", "--json")
+	deprecated := strings.Replace(want, `"warnings": []`, `"warnings": [
+    "The \"force data soql query\" command has been deprecated. Use \"data query\" instead."
+  ]`, 1)
+	expectRun(t, 0, deprecated, "force:data:soql:query", "-q", "SELECT Phone, Name FROM Account", "--json")
 
 	// --result-format json prints the envelope without "warnings" and no
 	// progress line.

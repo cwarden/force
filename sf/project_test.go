@@ -96,7 +96,9 @@ func TestProjectConvertSourceWritesMetadataFormat(t *testing.T) {
   "result": {
     "location": "`+filepath.Join(home, "one")+`"
   },
-  "warnings": []
+  "warnings": [
+    "The \"force source convert\" command has been deprecated. Use \"project convert source\" instead."
+  ]
 }
 `, "force:source:convert", "--metadata", "ApexClass:Greeter", "--output-dir", filepath.Join(home, "one"), "--json")
 	if _, err := os.Stat(filepath.Join(home, "one", "classes", "GreeterTest.cls")); !os.IsNotExist(err) {

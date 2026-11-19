@@ -242,7 +242,12 @@ func TestOrgDisplay(t *testing.T) {
 		{"force:org:display", "-u", "dev", "--json"},
 		{"org:display", "--targetusername", "dev", "--json"},
 	} {
-		expectRun(t, 0, want, args...)
+		expected := want
+		if args[0] == "force:org:display" {
+			expected = strings.Replace(want, `"warnings": [`, `"warnings": [
+    "The \"force org display\" command has been deprecated. Use \"org display\" instead.",`, 1)
+		}
+		expectRun(t, 0, expected, args...)
 	}
 
 	out, errOut, status = run("org", "display", "-o", "dev")

@@ -6,6 +6,8 @@ Reference: `sf` 2.138.6. Update this file as each item is finished.
 - [x] Binary name detection in `main.go`, and the `force --sf` flag
 - [x] sf root command, colon-form ids, legacy command aliases
 - [x] Legacy flag names (`--targetusername`, `-u`, `--targetdevhubusername`, `--apiversion`)
+- [x] Deprecation warning when a legacy command id is used (`force:org:list`)
+- [ ] Legacy flag names of each command (`--classname`, `--outputdir`, ...; 392 in sf) and their deprecation warnings
 - [x] `--json` envelope, error envelope, human error format, table renderer
 - [x] `ErrorAndExit` handler hook
 - [x] `version`, `commands`
@@ -271,13 +273,13 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [ ] `package1 version display`
 - [ ] `package1 version list`
 
-### cmdt (5 open, 0 done)
+### cmdt (1 open, 4 done)
 
-- [ ] `cmdt generate field`
+- [x] `cmdt generate field`
 - [ ] `cmdt generate fromorg`
-- [ ] `cmdt generate object`
-- [ ] `cmdt generate record`
-- [ ] `cmdt generate records`
+- [x] `cmdt generate object`
+- [x] `cmdt generate record`
+- [x] `cmdt generate records`
 
 ### community (3 open, 0 done)
 
