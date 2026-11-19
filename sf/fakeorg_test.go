@@ -69,8 +69,10 @@ func (o *fakeOrg) serve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// SOAP requests carry the session ID in the request body.
+	// Bulk API 1.0 requests carry it in the X-SFDC-Session header.
 	isSOAP := strings.HasPrefix(r.URL.Path, "/services/Soap/")
-	if !isSOAP && r.Header.Get("Authorization") != "Bearer "+fakeToken {
+	isBulkV1 := strings.HasPrefix(r.URL.Path, "/services/async/") && r.Header.Get("X-SFDC-Session") == fakeToken
+	if !isSOAP && !isBulkV1 && r.Header.Get("Authorization") != "Bearer "+fakeToken {
 		w.WriteHeader(http.StatusUnauthorized)
 		json.NewEncoder(w).Encode([]map[string]string{{"errorCode": "INVALID_SESSION_ID", "message": "Session expired or invalid"}})
 		return

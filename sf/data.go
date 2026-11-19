@@ -17,6 +17,7 @@ func newDataCmd() *cobra.Command {
 	return newGroup("data", "Manage records in your org.",
 		newDataQueryCmd(),
 		newDataSearchCmd(),
+		newLegacyBulkStatusCmd("resume", "View the status of a bulk data load job or batch. Uses Bulk API 1.0."),
 		newGroup("bulk", "Get the results of bulk jobs.", newDataBulkResultsCmd()),
 		newGroup("create", "Create a record.", newDataCreateRecordCmd()),
 		newGroup("get", "Retrieve a record.", newDataGetRecordCmd()),
