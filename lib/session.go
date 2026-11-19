@@ -22,6 +22,22 @@ func (f *Force) refreshOauth() (err error) {
 	return
 }
 
+// RefreshTokenError is returned when the OAuth token endpoint refuses a
+// refresh token.  It holds the reason the endpoint gave.  errors.Is reports
+// it as SessionRefreshError, whose message it has.
+type RefreshTokenError struct {
+	Code        string `json:"error"`
+	Description string `json:"error_description"`
+}
+
+func (e *RefreshTokenError) Error() string {
+	return SessionRefreshError.Error()
+}
+
+func (e *RefreshTokenError) Is(target error) bool {
+	return target == SessionRefreshError
+}
+
 // RefreshAccessToken exchanges the refresh token for a new access token and
 // updates the credentials in memory.  It does not save them.
 func (f *Force) RefreshAccessToken() error {
@@ -61,7 +77,9 @@ func (f *Force) requestOauthRefresh() (result ForceSession, err error) {
 		return
 	}
 	if res.StatusCode != 200 {
-		err = SessionRefreshError
+		refused := &RefreshTokenError{}
+		json.Unmarshal(body, refused)
+		err = refused
 		return
 	}
 

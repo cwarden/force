@@ -109,10 +109,10 @@ The files written by the `template generate` commands come from the salesforcedx
 | `sf org auth show-user-password` | none | No command of this mode stores a password, so it finds one only in an authorization file that sf wrote. | Follows the sf plugin source |
 | `sf org create scratch` | `force login scratch` | `--async`, `--client-id`, `--no-ancestors`, `--track-source`, `--source-org`, `--snapshot`; definition file key `objectSettings`. | Follows the sf plugin source |
 | `sf org delete scratch` | none |  | Follows the sf plugin source |
-| `sf org display` | `force whoami`, `force active` | Scratch org fields are limited to the Dev Hub username and expiration date. | Compared with sf |
+| `sf org display` | `force whoami`, `force active` | An HTML response from the org, such as the one an expired scratch org gives, is reported in other words than in `sf`. | Compared with sf |
 | `sf org display user` | `force whoami` |  | Compared with sf |
 | `sf org generate password` | `force password reset` (sets a password the org generates) | The password is stored only for users that have an authorization file. | Follows the sf plugin source |
-| `sf org list` | `force logins --sfdx` | `--clean` and `--verbose` are accepted and have no effect. The connection status of every org is checked with one request to the org. | Compared with sf |
+| `sf org list` | `force logins --sfdx` | `--clean` and `--verbose` are accepted and have no effect. An authorization file that `sf` cannot decrypt (`AuthDecryptError`) may be decrypted, because every key found is tried. No warning for an http instance URL. | Compared with sf |
 | `sf org list auth` | `force logins` |  | Compared with sf |
 | `sf org list limits` | `force limits` |  | Follows the sf plugin source |
 | `sf org list metadata` | `force describe metadata --type` |  | Compared with sf |

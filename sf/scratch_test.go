@@ -110,11 +110,77 @@ func TestOrgCreateScratchFromDefinitionFile(t *testing.T) {
 		t.Errorf("Dev Hub auth = %v, err = %v", hub, err)
 	}
 
-	// The scratch org is listed as a scratch org.
+	// The scratch org is listed as a scratch org, with the status of its
+	// record in the Dev Hub.
+	org.queries["FROM ScratchOrgInfo WHERE ScratchOrg IN ('00D000000000000')"] = []map[string]interface{}{{
+		"attributes": map[string]interface{}{"type": "ScratchOrgInfo"}, "Status": "Active", "SignupUsername": "test-scratch@example.com", "ScratchOrg": "00D000000000000",
+		"ExpirationDate": "2026-12-31", "Edition": "Developer", "OrgName": "Company", "CreatedDate": "2026-11-01T00:00:00.000+0000", "Namespace": nil,
+		"CreatedBy": map[string]interface{}{"Username": "me@example.com"}, "LoginUrl": org.URL,
+	}}
 	out, _, _ = run("org", "list", "--json", "--skip-connection-status")
 	if !strings.Contains(out, `"scratchOrgs": [
-      {`) || !strings.Contains(out, `"devHubUsername": "me@example.com"`) {
+      {`) || !strings.Contains(out, `"devHubUsername": "me@example.com"`) || !strings.Contains(out, `"status": "Active",
+        "isExpired": false,
+        "namespace": null`) {
 		t.Errorf("org list:\n%s", out)
+	}
+	out, _, _ = run("org", "list")
+	if !strings.Contains(out, "│ Scratch │") || !strings.Contains(out, "test-scratch@example.com │ 00D000000000000 │ Active") {
+		t.Errorf("org list:\n%s", out)
+	}
+
+	// sf describes the org from that record, without a connected status.
+	out, _, _ = run("org", "display", "-o", "test-scratch@example.com", "--json")
+	for _, want := range []string{`"devHubId": "me@example.com"`, `"status": "Active"`, `"expirationDate": "2026-12-31"`, `"createdBy": "me@example.com"`, `"edition": "Developer"`, `"orgName": "Company"`, `"signupUsername": "test-scratch@example.com"`} {
+		if !strings.Contains(out, want) {
+			t.Errorf("org display lacks %s:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "connectedStatus") {
+		t.Errorf("org display of a scratch org has a connected status:\n%s", out)
+	}
+	out, _, _ = run("org", "display", "-o", "test-scratch@example.com")
+	if !strings.Contains(out, "│ Dev Hub Id      │ me@example.com") || !strings.Contains(out, "│ Status          │ Active") {
+		t.Errorf("org display:\n%s", out)
+	}
+
+	// A deleted scratch org is listed only with --all, and a scratch org
+	// without a record in the Dev Hub is not listed and cannot be
+	// displayed.
+	org.queries["FROM ScratchOrgInfo WHERE ScratchOrg IN ('00D000000000000')"][0]["Status"] = "Deleted"
+	if out, _, _ := run("org", "list"); strings.Contains(out, "test-scratch@example.com") {
+		t.Errorf("a deleted scratch org is listed without --all:\n%s", out)
+	}
+	if out, _, _ := run("org", "list", "--all"); !strings.Contains(out, "test-scratch@example.com │ 00D000000000000 │ Deleted") {
+		t.Errorf("org list --all:\n%s", out)
+	}
+	org.queries["FROM ScratchOrgInfo WHERE ScratchOrg IN ('00D000000000000')"] = nil
+	if out, _, _ := run("org", "list", "--all"); strings.Contains(out, "test-scratch@example.com") {
+		t.Errorf("a scratch org without a Dev Hub record is listed:\n%s", out)
+	}
+	_, errOut, status = run("org", "display", "-o", "test-scratch@example.com")
+	if status != 1 || !strings.Contains(errOut, "Error (NoScratchInfo): No information for scratch org with ID 00D000000000000 found in Dev Hub me@example.com.") {
+		t.Errorf("org display without a record: status %d, stderr %q", status, errOut)
+	}
+}
+
+// An access token that the org refuses is not reported as connected. The
+// list of API versions is answered without a token, so the status comes
+// from a request that needs one.
+func TestConnectedStatusNeedsAValidAccessToken(t *testing.T) {
+	org := loggedInFakeOrg(t)
+	refuse := func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		io.WriteString(w, `[{"errorCode":"INVALID_SESSION_ID","message":"Session expired or invalid"}]`)
+	}
+	org.handlers["/services/data/v67.0"] = refuse
+	org.handlers["/services/data/v67.0/"] = refuse
+	out, errOut, status := run("org", "display", "-o", "dev")
+	if status != 0 || strings.Contains(out, "│ Connected Status │ Connected") || !strings.HasPrefix(errOut, "Warning: unable to refresh auth for org\n") {
+		t.Errorf("status %d, stdout\n%s\nstderr %q", status, out, errOut)
+	}
+	if out, _, _ := run("org", "list"); strings.Contains(out, "│ Connected") {
+		t.Errorf("org list reports the org as connected:\n%s", out)
 	}
 }
 

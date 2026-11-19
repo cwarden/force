@@ -15,6 +15,7 @@ import (
 	"github.com/spf13/pflag"
 
 	forceerror "github.com/ForceCLI/force/error"
+	"github.com/ForceCLI/force/lib"
 )
 
 // CompatVersion is the sf release whose commands, flags and output this
@@ -99,6 +100,12 @@ func Run(args []string, out, errOut io.Writer) int {
 		root.SetOut(out)
 		root.SetErr(errOut)
 	}
+
+	// lib reports progress, such as a session refresh, on stderr.  sf
+	// prints nothing for those steps.
+	previousLog := lib.Log
+	lib.Log = silentLogger{}
+	defer func() { lib.Log = previousLog }()
 
 	// lib reports some failures by calling ErrorAndExit.  Print those in
 	// sf's format.  ErrorAndExit exits with status 1 after the handler.
@@ -650,3 +657,8 @@ func targetOrgFlag(cmd *cobra.Command) string {
 func versionString() string {
 	return fmt.Sprintf("@salesforce/cli/%s %s force-%s", CompatVersion, platform(), forceVersion())
 }
+
+// silentLogger discards the progress messages of lib.
+type silentLogger struct{}
+
+func (silentLogger) Info(...interface{}) {}

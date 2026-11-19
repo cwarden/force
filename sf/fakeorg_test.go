@@ -87,6 +87,10 @@ func (o *fakeOrg) serve(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	switch {
+	case r.URL.Path == "/services/data/v67.0" || r.URL.Path == "/services/data/v67.0/":
+		// The resources of the version, which an org answers only with a
+		// valid access token.
+		json.NewEncoder(w).Encode(map[string]string{"sobjects": "/services/data/v67.0/sobjects"})
 	case r.URL.Path == "/services/data" || r.URL.Path == "/services/data/":
 		json.NewEncoder(w).Encode([]map[string]string{
 			{"label": "Earlier", "url": "/services/data/v66.0", "version": "66.0"},

@@ -1,7 +1,9 @@
 package sf
 
 import (
+	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -167,19 +169,34 @@ func resolveOrg(cmd *cobra.Command, name, flagName, configKey string) (*targetOr
 	return org, nil
 }
 
-// connectedStatus makes a request to the org and returns "Connected" or
-// the reason the request failed.
+// connectedStatus makes an authenticated request to the org and returns
+// "Connected" or the reason the request failed.  The list of API versions
+// at /services/data is answered without authentication, so the request is
+// for the resources of one version, as in sf.
 func connectedStatus(org *targetOrg) string {
-	_, err := org.Force.GetAbsolute("/services/data")
+	_, err := org.Force.GetREST("")
 	if err == nil {
 		return "Connected"
+	}
+	if errors.Is(err, lib.SessionExpiredError) {
+		// The org refused the access token and a new one could not be
+		// obtained.  Ask for one again to get the reason.
+		var refused *lib.RefreshTokenError
+		if refreshErr := org.Force.RefreshAccessToken(); errors.As(refreshErr, &refused) && refused.Description != "" {
+			return "Unable to refresh session due to: Error authenticating with the refresh token due to: " + refused.Description
+		}
 	}
 	message := err.Error()
 	switch {
 	case strings.Contains(message, "connection refused"):
 		return "ECONNREFUSED"
 	case strings.Contains(message, "no such host"):
-		return "ENOTFOUND"
+		// sf looks up the host of the org before it connects.
+		return "DomainNotFoundError"
+	case strings.Contains(message, "maintenance"):
+		return "Down (Maintenance)"
+	case strings.Contains(message, "<html>") || strings.Contains(message, "<!DOCTYPE HTML>"):
+		return "Bad Response"
 	}
 	return message
 }
@@ -208,7 +225,7 @@ func defaultUsernames() (org string, devHub string) {
 // the same distance sf suggests the later one, with usernames before
 // aliases.
 func similarOrgName(name string) string {
-	candidates := lib.ListSFDXUsernames()
+	candidates := authorizedUsernames()
 	if aliases, err := lib.ListSFDXAliasesOrdered(); err == nil {
 		for _, alias := range aliases {
 			candidates = append(candidates, alias.Alias)
@@ -243,4 +260,20 @@ func editDistance(a, b string) int {
 		previous = current
 	}
 	return previous[len(y)]
+}
+
+// An authorization file is named after a username, which has an @ and a
+// domain.  sf ignores other JSON files in the state directory.
+var authFileUsername = regexp.MustCompile(`^[^.][^@]*@[^.]+(\.[^.\s]+)+$`)
+
+// authorizedUsernames returns the usernames that have an authorization
+// file.
+func authorizedUsernames() []string {
+	var usernames []string
+	for _, username := range lib.ListSFDXUsernames() {
+		if authFileUsername.MatchString(username) {
+			usernames = append(usernames, username)
+		}
+	}
+	return usernames
 }

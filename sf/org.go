@@ -3,6 +3,8 @@ package sf
 import (
 	"bufio"
 	"fmt"
+	"golang.org/x/text/collate"
+	"golang.org/x/text/language"
 	"io"
 	"sort"
 	"strings"
@@ -53,17 +55,25 @@ type orgEntry struct {
 	isScratch  bool
 	isDefault  bool
 	isDefaultH bool
-	status     string
+	// expires is set for an authorization that has an expiration date.
+	// org list treats those as scratch orgs, as sf does, and the others
+	// as orgs to connect to.
+	expires bool
+	status  string
+	// scratchInfo is the ScratchOrgInfo record of a scratch org, and
+	// devHubOrgID the id of the Dev Hub it was read from.
+	scratchInfo *orderedMap
+	devHubOrgID string
 }
 
 func (e *orgEntry) orgType() string {
 	switch {
+	case e.expires:
+		return "Scratch"
 	case e.isDevHub:
 		return "DevHub"
 	case e.isSandbox:
 		return "Sandbox"
-	case e.isScratch:
-		return "Scratch"
 	}
 	return ""
 }
@@ -73,7 +83,7 @@ func (e *orgEntry) orgType() string {
 func loadOrgEntries() []*orgEntry {
 	defaultOrg, defaultDevHub := defaultUsernames()
 	var entries []*orgEntry
-	for _, username := range lib.ListSFDXUsernames() {
+	for _, username := range authorizedUsernames() {
 		org, err := loadOrg(username)
 		if err != nil || org.Fields.String("accessToken") == "" || org.Fields.String("instanceUrl") == "" {
 			// alias.json, key.json and config files are in the same
@@ -87,26 +97,111 @@ func loadOrgEntries() []*orgEntry {
 			isDevHub:   org.Fields.Bool("isDevHub"),
 			isSandbox:  org.Fields.Bool("isSandbox"),
 			isScratch:  org.Fields.Bool("isScratch") || org.Fields.String("devHubUsername") != "",
+			expires:    org.Fields.String("expirationDate") != "",
 			isDefault:  org.Username == defaultOrg,
 			isDefaultH: org.Username == defaultDevHub,
 		})
 	}
+	// sf orders the orgs by alias and then username with the comparison
+	// of the locale, in which punctuation comes before digits and letters,
+	// and puts the orgs without an alias last by comparing them as
+	// "zzzzzzzzzz".
+	collator := collate.New(language.English)
+	aliasKey := func(e *orgEntry) string {
+		if e.alias == "" {
+			return "zzzzzzzzzz"
+		}
+		return e.alias
+	}
 	sort.SliceStable(entries, func(i, j int) bool {
 		a, b := entries[i], entries[j]
-		if (a.alias == "") != (b.alias == "") {
-			return a.alias != ""
+		if order := collator.CompareString(aliasKey(a), aliasKey(b)); order != 0 {
+			return order < 0
 		}
-		if a.alias != b.alias {
-			return a.alias < b.alias
-		}
-		return a.username < b.username
+		return collator.CompareString(a.username, b.username) < 0
 	})
 	return entries
 }
 
+// describeScratchOrgs asks each Dev Hub for the ScratchOrgInfo records of
+// its scratch orgs and returns entries without the scratch orgs that have
+// no record, as sf leaves them out: an org whose Dev Hub is not authorized
+// or cannot be queried is not listed.  The status of a scratch org is the
+// status of its record.
+func describeScratchOrgs(entries []*orgEntry) []*orgEntry {
+	trim := func(id string) string {
+		if len(id) > 15 {
+			return id[:15]
+		}
+		return id
+	}
+	byHub := map[string][]*orgEntry{}
+	var hubs []string
+	for _, entry := range entries {
+		if !entry.expires {
+			continue
+		}
+		hub := entry.org.Fields.String("devHubUsername")
+		if _, seen := byHub[hub]; !seen {
+			hubs = append(hubs, hub)
+		}
+		byHub[hub] = append(byHub[hub], entry)
+	}
+	var wg sync.WaitGroup
+	for _, hubName := range hubs {
+		wg.Add(1)
+		go func(hubName string, orgs []*orgEntry) {
+			defer wg.Done()
+			hub, err := loadOrg(hubName)
+			if hubName == "" || err != nil {
+				return
+			}
+			ids := make([]string, 0, len(orgs))
+			for _, entry := range orgs {
+				ids = append(ids, trim(entry.org.Fields.String("orgId")))
+			}
+			result, err := runQuery(hub, "", "query", "SELECT CreatedDate, Edition, Status, ExpirationDate, Namespace, OrgName, CreatedBy.Username, SignupUsername, LoginUrl, ScratchOrg FROM ScratchOrgInfo WHERE ScratchOrg IN ("+quoteIds(ids)+")")
+			if err != nil {
+				return
+			}
+			records, _ := result.values["records"].([]interface{})
+			bySignup, byOrgID := map[string]*orderedMap{}, map[string]*orderedMap{}
+			for _, item := range records {
+				if record, ok := item.(*orderedMap); ok {
+					bySignup[text(record.values["SignupUsername"])] = record
+					byOrgID[text(record.values["ScratchOrg"])] = record
+				}
+			}
+			for _, entry := range orgs {
+				entry.scratchInfo = bySignup[entry.username]
+				if entry.scratchInfo == nil {
+					entry.scratchInfo = byOrgID[trim(entry.org.Fields.String("orgId"))]
+				}
+				if entry.scratchInfo != nil {
+					entry.devHubOrgID = hub.Fields.String("orgId")
+					entry.status = text(entry.scratchInfo.values["Status"])
+				}
+			}
+		}(hubName, byHub[hubName])
+	}
+	wg.Wait()
+	described := make([]*orgEntry, 0, len(entries))
+	for _, entry := range entries {
+		if !entry.expires || entry.scratchInfo != nil {
+			described = append(described, entry)
+		}
+	}
+	return described
+}
+
+// checkConnections sets the connected status of the orgs that are not
+// scratch orgs.
 func checkConnections(entries []*orgEntry) {
 	var wg sync.WaitGroup
 	for _, entry := range entries {
+		if entry.expires {
+			continue
+		}
 		wg.Add(1)
 		go func(entry *orgEntry) {
 			defer wg.Done()
@@ -140,6 +235,23 @@ func (e *orgEntry) listJSON(withStatus bool) *orderedMap {
 	if modified, err := lib.SFDXAuthModTime(e.username); err == nil {
 		result.Set("lastUsed", modified.UTC().Format("2006-01-02T15:04:05.000Z"))
 	}
+	if info := e.scratchInfo; info != nil {
+		result.Set("signupUsername", info.values["SignupUsername"])
+		if createdBy, ok := info.values["CreatedBy"].(*orderedMap); ok {
+			result.Set("createdBy", createdBy.values["Username"])
+		}
+		result.Set("createdDate", info.values["CreatedDate"])
+		result.Set("devHubOrgId", e.devHubOrgID)
+		result.Set("devHubId", e.devHubOrgID)
+		result.Set("attributes", info.values["attributes"])
+		result.Set("orgName", info.values["OrgName"])
+		result.Set("edition", info.values["Edition"])
+		result.Set("status", info.values["Status"])
+		result.Set("expirationDate", info.values["ExpirationDate"])
+		result.Set("isExpired", e.status == "Deleted")
+		result.Set("namespace", info.values["Namespace"])
+		return result
+	}
 	if withStatus {
 		result.Set("connectedStatus", e.status)
 	}
@@ -162,7 +274,7 @@ func newOrgListCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			skipStatus, _ := cmd.Flags().GetBool("skip-connection-status")
 			all, _ := cmd.Flags().GetBool("all")
-			entries := loadOrgEntries()
+			entries := describeScratchOrgs(loadOrgEntries())
 			if !skipStatus {
 				checkConnections(entries)
 			}
@@ -179,7 +291,12 @@ func newOrgListCmd() *cobra.Command {
 			for _, entry := range entries {
 				item := entry.listJSON(!skipStatus)
 				switch {
-				case entry.isScratch:
+				case entry.expires:
+					// Without --all only the active scratch orgs are
+					// listed.
+					if !all && entry.status != "Active" {
+						continue
+					}
 					result.ScratchOrgs = append(result.ScratchOrgs, item)
 					groups[3] = append(groups[3], entry)
 					continue
@@ -194,6 +311,15 @@ func newOrgListCmd() *cobra.Command {
 					groups[1] = append(groups[1], entry)
 				}
 				result.NonScratchOrgs = append(result.NonScratchOrgs, item)
+			}
+			inactive := 0
+			for _, entry := range entries {
+				if entry.expires && entry.status != "Active" {
+					inactive++
+				}
+			}
+			if clean, _ := cmd.Flags().GetBool("clean"); inactive > 0 && !clean {
+				warn(cmd, fmt.Sprintf("You have %d expired or deleted local scratch org authorizations. To remove authorizations for inactive orgs, run \"sf org list --clean\".\n", inactive))
 			}
 			warnJSON(cmd, secretsHiddenWarning("org list"))
 			return emit(cmd, result, func(w io.Writer) {
@@ -266,9 +392,11 @@ func printOrgList(w io.Writer, entries []*orgEntry, withStatus bool, all bool) {
 		})
 	}
 	fmt.Fprintln(w, paint(w, styleDim, ""))
-	legend := "Legend:  🌳=Default DevHub, 🍁=Default Org"
+	// sf leaves the space before the hint in place when --all leaves the
+	// hint out.
+	legend := "Legend:  🌳=Default DevHub, 🍁=Default Org "
 	if !all {
-		legend += "      Use --all to see expired and deleted scratch orgs"
+		legend += "     Use --all to see expired and deleted scratch orgs"
 	}
 	fmt.Fprintln(w, paint(w, styleDim, legend))
 }
@@ -346,6 +474,36 @@ func newOrgListAuthCmd() *cobra.Command {
 	return cmd
 }
 
+// scratchOrgInfo returns the ScratchOrgInfo record of a scratch org from its
+// Dev Hub, and the username of the Dev Hub.  As in sf, a Dev Hub that cannot
+// be queried is reported as having no record for the org.
+func scratchOrgInfo(org *targetOrg, devHub string) (*orderedMap, string, error) {
+	orgID := org.Fields.String("orgId")
+	if len(orgID) > 15 {
+		orgID = orgID[:15]
+	}
+	hubUsername := lib.ResolveSFDXUsername(devHub)
+	if hub, err := loadOrg(devHub); err == nil {
+		hubUsername = hub.Username
+		result, err := runQuery(hub, "", "query", "SELECT CreatedDate, Edition, Status, ExpirationDate, Namespace, OrgName, CreatedBy.Username, SignupUsername, LoginUrl, ScratchOrg FROM ScratchOrgInfo WHERE ScratchOrg IN ('"+orgID+"')")
+		if err == nil {
+			records, _ := result.values["records"].([]interface{})
+			for _, item := range records {
+				record, ok := item.(*orderedMap)
+				if ok && (text(record.values["SignupUsername"]) == org.Username || text(record.values["LoginUrl"]) == org.Fields.String("instanceUrl")) {
+					return record, hubUsername, nil
+				}
+			}
+		}
+	}
+	return nil, hubUsername, &Error{
+		Name:     "NoScratchInfo",
+		Message:  fmt.Sprintf("No information for scratch org with ID %s found in Dev Hub %s.", orgID, hubUsername),
+		ExitCode: 1,
+		Actions:  []string{"First check that you can access your Dev Hub. Then check that the ScratchOrgInfo standard object in your Dev Hub contains a record for your scratch org. In Setup, navigate to the Dev Hub page and click the Scratch Org Infos tab. If you find your scratch org, try again."},
+	}
+}
+
 func newOrgDisplayCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "display",
@@ -357,52 +515,63 @@ func newOrgDisplayCmd() *cobra.Command {
 				return err
 			}
 			fields := org.Fields
+			// sf makes a request to the org first, and warns when the
+			// access token is refused and cannot be renewed.
 			status := connectedStatus(org)
+			if status != "Connected" {
+				warn(cmd, "unable to refresh auth for org")
+			}
+			devHub := fields.String("devHubUsername")
 			result := newOrderedMap()
+			set := func(key, value string) {
+				if value != "" {
+					result.Set(key, value)
+				}
+			}
 			result.Set("id", fields.String("orgId"))
+			set("devHubId", devHub)
 			result.Set("apiVersion", fields.String("instanceApiVersion"))
 			result.Set("accessToken", redactedSecret)
 			result.Set("instanceUrl", fields.String("instanceUrl"))
 			result.Set("username", org.Username)
-			rows := [][]string{
-				{"Access Token", redactedSecret},
+			set("clientId", fields.String("clientId"))
+			if fields.String("password") != "" {
+				result.Set("password", "[REDACTED] Use 'sf org auth show-user-password' to view")
 			}
-			if org.Alias != "" {
-				rows = append(rows, []string{"Alias", org.Alias})
-			}
-			rows = append(rows, []string{"Api Version", fields.String("instanceApiVersion")})
-			if clientID := fields.String("clientId"); clientID != "" {
-				result.Set("clientId", clientID)
-				rows = append(rows, []string{"Client Id", clientID})
-			}
-			result.Set("connectedStatus", status)
-			rows = append(rows, []string{"Connected Status", status})
-			if devHub := fields.String("devHubUsername"); devHub != "" {
-				result.Set("devHubUsername", devHub)
-				rows = append(rows, []string{"Dev Hub Username", devHub})
-			}
-			if expiration := fields.String("expirationDate"); expiration != "" {
-				result.Set("expirationDate", expiration)
-				rows = append(rows, []string{"Expiration Date", expiration})
-			}
-			rows = append(rows,
-				[]string{"Id", fields.String("orgId")},
-				[]string{"Instance Url", fields.String("instanceUrl")},
-				[]string{"Username", org.Username},
-			)
-			if org.Alias != "" {
-				result.Set("alias", org.Alias)
+			if devHub != "" {
+				// A scratch org is described by its record in the Dev
+				// Hub, and has no connected status.
+				info, hubUsername, err := scratchOrgInfo(org, devHub)
+				if err != nil {
+					return err
+				}
+				set("status", text(info.values["Status"]))
+				result.Set("devHubId", hubUsername)
+				set("expirationDate", text(info.values["ExpirationDate"]))
+				if createdBy, ok := info.values["CreatedBy"].(*orderedMap); ok {
+					set("createdBy", text(createdBy.values["Username"]))
+				}
+				set("edition", text(info.values["Edition"]))
+				set("namespace", text(info.values["Namespace"]))
+				set("orgName", text(info.values["OrgName"]))
+				set("createdDate", text(info.values["CreatedDate"]))
+				set("signupUsername", text(info.values["SignupUsername"]))
+			} else {
+				result.Set("connectedStatus", status)
 			}
 			if verbose, _ := cmd.Flags().GetBool("verbose"); verbose && fields.String("refreshToken") != "" {
-				redacted := "[REDACTED] Use 'sf org auth show-sfdx-auth-url' to view"
-				result.Set("sfdxAuthUrl", redacted)
-				rows = append(rows[:len(rows)-1], []string{"Sfdx Auth Url", redacted}, rows[len(rows)-1])
+				result.Set("sfdxAuthUrl", "[REDACTED] Use 'sf org auth show-sfdx-auth-url' to view")
 			}
-			if status != "Connected" && jsonRequested(cmd) {
-				warnJSON(cmd, "unable to refresh auth for org")
-			}
+			set("alias", org.Alias)
 			warn(cmd, secretsHiddenWarning("org display"))
 			return emit(cmd, result, func(w io.Writer) {
+				// The table lists the values by key.
+				keys := append([]string{}, result.keys...)
+				sort.Strings(keys)
+				rows := make([][]string, 0, len(keys))
+				for _, key := range keys {
+					rows = append(rows, []string{titleFromCamelCase(key), text(result.values[key])})
+				}
 				fmt.Fprintln(w)
 				printTable(w, "Org Description", []string{"KEY", "VALUE"}, rows)
 			})

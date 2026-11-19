@@ -122,7 +122,12 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 
 - [x] `template generate apex class`: templates other than `DefaultApexClass`
 - [ ] `org create scratch`: definition file key `objectSettings`, and keys other than `orgName`, `edition`, `country`, `language`, `adminEmail`, `description`, `hasSampleData`, `username`, `release`, `namespace`, `duration`, `durationDays`, `features`, `settings`
-- [ ] `org display`: scratch org fields other than the Dev Hub username and expiration date
+- [x] `org display`: a scratch org is described from its ScratchOrgInfo record in the Dev Hub (status, edition, org name, created by, created date), without a connected status
+- [x] `org list`: scratch orgs take their status from the Dev Hub, a scratch org without a record is not listed, and inactive ones are listed only with `--all`
+- [x] Connected status from an authenticated request (the list of API versions is answered without a token, so an expired authorization was reported as Connected)
+- [ ] `org list`: `AuthDecryptError` for an authorization file that sf cannot decrypt (this mode tries every key it finds and may decrypt it)
+- [ ] `org list`, `org display`: sf's message for an HTML response, such as the one an expired scratch org gives (this mode reports "Scratch org has expired")
+- [ ] `org list`: the "Using insecure protocol" warning for an http instance URL
 - [x] `data query`: sf's layout for child records of a subquery, and columns from the column metadata of the query (`columns=true`)
 - [ ] `project convert source`: the order of elements in a composed custom object (sf writes the fields and other child components after the elements of the object file; this mode writes all elements in alphabetical order)
 - [ ] `project convert mdapi --metadata`, `--manifest`: a child component named on its own, such as `CustomField:Invoice__c.Amount__c` (only whole objects are selected)
