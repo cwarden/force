@@ -205,10 +205,10 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [ ] `org resume sandbox`
 - [ ] `org resume scratch`
 
-### project (7 open, 6 done)
+### project (6 open, 7 done)
 
 - [ ] `project convert source-behavior`
-- [ ] `project delete source`
+- [x] `project delete source` (compared with sf against a scratch org; deleting one file of a bundle is not supported; after a delete that the org refuses, sf updates the tracking files with `--track-source` and this mode does not)
 - [x] `project delete tracking`
 - [ ] `project deploy pipeline quick`
 - [ ] `project deploy pipeline report`

@@ -23,7 +23,7 @@ func newProjectCmd() *cobra.Command {
 			newProjectConvertSourceCmd(),
 			newProjectConvertMdapiCmd(),
 		),
-		newGroup("delete", "Delete source tracking information.", newProjectDeleteTrackingCmd()),
+		newGroup("delete", "Delete source or source tracking information.", newProjectDeleteSourceCmd(), newProjectDeleteTrackingCmd()),
 		newGroup("reset", "Reset source tracking.", newProjectResetTrackingCmd()),
 		newGroup("generate", "Generate a manifest.", newProjectGenerateManifestCmd()),
 		newGroup("list", "List ignored files.", newProjectListIgnoredCmd()),

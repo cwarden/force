@@ -177,15 +177,9 @@ func deployFileResults(state *deployState, source *sourceSet) []*orderedMap {
 	return results
 }
 
-// deployJSON returns the result sf reports for a deployment: the fields of
-// the Metadata API result and the local files.
-func deployJSON(org *targetOrg, state *deployState, source *sourceSet, zipSize, zipFileCount int) *orderedMap {
-	result := newOrderedMap()
-	for _, key := range state.raw.keys {
-		result.Set(key, state.raw.values[key])
-	}
-	// sf reports the lists of a test result that the org left out as
-	// empty lists.
+// fillTestResultLists adds the lists of a test result that the org left
+// out of a deploy result.  sf reports them as empty lists.
+func fillTestResultLists(result *orderedMap) {
 	if details, ok := result.values["details"].(*orderedMap); ok {
 		if tests, ok := details.values["runTestResult"].(*orderedMap); ok {
 			for _, key := range []string{"codeCoverage", "codeCoverageWarnings", "failures", "flowCoverage", "flowCoverageWarnings", "successes"} {
@@ -195,6 +189,16 @@ func deployJSON(org *targetOrg, state *deployState, source *sourceSet, zipSize, 
 			}
 		}
 	}
+}
+
+// deployJSON returns the result sf reports for a deployment: the fields of
+// the Metadata API result and the local files.
+func deployJSON(org *targetOrg, state *deployState, source *sourceSet, zipSize, zipFileCount int) *orderedMap {
+	result := newOrderedMap()
+	for _, key := range state.raw.keys {
+		result.Set(key, state.raw.values[key])
+	}
+	fillTestResultLists(result)
 	result.Set("files", deployFileResults(state, source))
 	if zipSize > 0 {
 		result.Set("zipSize", zipSize)
@@ -291,6 +295,10 @@ func deployProgress(w io.Writer, org *targetOrg, title, subtitle string, state *
 	} else {
 		if status.NumberComponentsTotal > 0 {
 			stages[2].details = []string{fmt.Sprintf("Components: %d/%d (%d%%)", status.NumberComponentsDeployed, status.NumberComponentsTotal, status.NumberComponentsDeployed*100/status.NumberComponentsTotal)}
+		} else if status.Status == "Failed" {
+			// sf marks the component count as failed when the org
+			// reported no count.
+			stages[2].details = []string{"Components: ✘"}
 		}
 		if status.NumberComponentErrors > 0 || (status.Status == "Failed" && status.NumberTestErrors == 0) {
 			stages[2].state = "failed"
@@ -305,6 +313,13 @@ func deployProgress(w io.Writer, org *targetOrg, title, subtitle string, state *
 		}
 		if status.Status != "Succeeded" {
 			stages[5].state = ""
+		}
+		if status.Status == "Failed" {
+			// The stages after the one that failed were not reached.
+			stages[4].state = ""
+			if stages[2].state == "failed" {
+				stages[3] = stage{label: "Running Tests"}
+			}
 		}
 	}
 	deployTime := elapsed - prepare

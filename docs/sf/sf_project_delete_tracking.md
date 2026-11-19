@@ -18,5 +18,5 @@ sf project delete tracking [flags]
 
 ### SEE ALSO
 
-* [sf project delete](sf_project_delete.md)	 - Delete source tracking information.
+* [sf project delete](sf_project_delete.md)	 - Delete source or source tracking information.
 

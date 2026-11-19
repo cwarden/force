@@ -143,6 +143,7 @@ The files written by the `template generate` commands come from the salesforcedx
 | `sf package version promote` | `force package version release` |  | Follows the sf plugin source |
 | `sf package version report` | `force package version get` | `--verbose` is accepted and adds nothing. | Follows the sf plugin source |
 | `sf package version update` | none |  | Follows the sf plugin source |
+| `sf project delete source` | `force import` of a directory that holds only a destructive changes manifest; this mode also deletes the local files | Deleting one file of a bundle, which `sf` turns into a deploy of the remaining files. The test results of a delete that runs tests are not printed. Without `--no-prompt` and without a terminal the command is canceled; `sf` fails with status 13. When the org refuses a delete given with `--track-source`, `sf` still updates the tracking files; this mode leaves them as they are. | Compared with sf |
 | `sf project delete tracking` | none; deletes the tracking files in `<project>/.sf/orgs/<orgId>/` | Without `--no-prompt` and without a terminal the command does nothing; `sf` fails with status 13. | Compared with sf |
 | `sf project reset tracking` | none; writes the tracking files in `<project>/.sf/orgs/<orgId>/` | Without `--no-prompt` and without a terminal the command does nothing; `sf` fails with status 13. | Compared with sf |
 | `sf project convert mdapi` | `force fetch` (source format writer) | A child component named on its own with `--metadata` or `--manifest`, such as a `CustomField`. | Compared with sf |
@@ -237,7 +238,7 @@ A flag listed as unsupported returns an error that names the flag.
 
 ## sf Commands Not Implemented
 
-119 of the 239 commands of `sf` 2.138.6 and its bundled and install-on-first-use plugins are not implemented. Third-party plugins and the retired Functions plugin are not counted. Running one of these commands prints the message `sf` prints for an unknown command and exits with status 127.
+118 of the 239 commands of `sf` 2.138.6 and its bundled and install-on-first-use plugins are not implemented. Third-party plugins and the retired Functions plugin are not counted. Running one of these commands prints the message `sf` prints for an unknown command and exits with status 127.
 
 ### org
 
@@ -265,7 +266,6 @@ A flag listed as unsupported returns an error that names the flag.
 | sf command | Summary | What is required |
 |---|---|---|
 | `sf project convert source-behavior` | Enable a behavior of your project source files, and then update your Salesforce DX project to implement the behavior. | Rewrite source files between source behaviors; no force code exists. |
-| `sf project delete source` | Delete source from your project and from a non-source-tracked org. | Deploy destructive changes for the components and delete the local files. |
 | `sf project deploy pipeline quick` | Quickly deploy a validated deployment to an org. | DevOps Center API; no force code exists. |
 | `sf project deploy pipeline report` | Check the status of a pipeline deploy operation. | DevOps Center API; no force code exists. |
 | `sf project deploy pipeline resume` | Resume watching a pipeline deploy operation. | DevOps Center API; no force code exists. |
@@ -449,4 +449,4 @@ A flag listed as unsupported returns an error that names the flag.
 |---|---|
 | Source tracking | Implemented for an org that tracks source: `project deploy start` and `project retrieve start` without named components deploy the local changes and retrieve the changes in the org, stop on conflicts unless `--ignore-conflicts` is given, and update the tracking files in `<project>/.sf/orgs/<orgId>/`, which are in the formats of `sf`. SOAP requests carry the client name `sf` sends (`sfdx toolbelt:`), because the org records the source members of a deploy only for that client. Not implemented: detection of moved files. |
 | `--coverage-formatters`, `--junit`, `--results-dir` on the deploy commands | Write coverage and JUnit files from the deploy result; `lib/junit` has a JUnit writer. |
-| Interactive prompts | `sf` prompts for a similar config name, for a command when a topic is given without one, and before some destructive actions. This mode prompts only before `org logout` and `package version promote`. |
+| Interactive prompts | `sf` prompts for a similar config name, for a command when a topic is given without one, and before some destructive actions. This mode prompts before `org logout`, `org delete scratch`, `package version promote`, `project delete source`, `project delete tracking` and `project reset tracking`. |
