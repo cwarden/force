@@ -109,6 +109,7 @@ func TestVersion(t *testing.T) {
 }
 
 func TestWriteErrorFormats(t *testing.T) {
+	t.Setenv("FORCE_COLOR", "1")
 	err := &Error{Name: "NamedOrgNotFoundError", Message: "No authorization information found for x.", ExitCode: 2, Actions: []string{"Check the alias."}}
 	var out, errOut bytes.Buffer
 	if status := writeError(&out, &errOut, nil, err, false); status != 2 {
@@ -121,6 +122,14 @@ func TestWriteErrorFormats(t *testing.T) {
 	}
 	if out.Len() != 0 {
 		t.Errorf("stdout = %q, want empty", out.String())
+	}
+
+	t.Setenv("FORCE_COLOR", "0")
+	errOut.Reset()
+	writeError(&out, &errOut, nil, err, false)
+	want = "Error (NamedOrgNotFoundError): No authorization information found for x.\n\n\nTry this:\n\nCheck the alias.\n\n"
+	if errOut.String() != want {
+		t.Errorf("stderr without color = %q, want %q", errOut.String(), want)
 	}
 
 	out.Reset()

@@ -36,7 +36,7 @@ func emit(cmd *cobra.Command, result interface{}, human func(w io.Writer)) error
 
 func emitStatus(cmd *cobra.Command, status int, result interface{}, human func(w io.Writer)) error {
 	if jsonRequested(cmd) {
-		return writeJSON(cmd.OutOrStdout(), envelope{Status: status, Result: result, Warnings: []string{}})
+		return writeJSON(cmd.OutOrStdout(), envelope{Status: status, Result: result, Warnings: warningsOf(cmd)})
 	}
 	if human != nil {
 		human(cmd.OutOrStdout())
@@ -44,9 +44,55 @@ func emitStatus(cmd *cobra.Command, status int, result interface{}, human func(w
 	return nil
 }
 
-// printTable prints a table in the format sf uses when stdout is not a
-// terminal: an optional title line, a box-drawing border, and a blank line.
+type runState struct {
+	warnings []string
+}
+
+type runStateKey struct{}
+
+func stateOf(cmd *cobra.Command) *runState {
+	if cmd == nil || cmd.Context() == nil {
+		return nil
+	}
+	state, _ := cmd.Context().Value(runStateKey{}).(*runState)
+	return state
+}
+
+func warningsOf(cmd *cobra.Command) []string {
+	if state := stateOf(cmd); state != nil && len(state.warnings) > 0 {
+		return state.warnings
+	}
+	return []string{}
+}
+
+// warn reports a warning.  With --json it is added to the "warnings" array
+// of the envelope; otherwise it is printed on stderr.
+func warn(cmd *cobra.Command, message string) {
+	if jsonRequested(cmd) {
+		warnJSON(cmd, message)
+		return
+	}
+	errOut := cmd.ErrOrStderr()
+	fmt.Fprintf(errOut, "%s %s\n", paint(errOut, styleBoldYellow, "Warning:"), message)
+}
+
+// warnJSON adds a warning to the envelope and prints nothing in human
+// output.
+func warnJSON(cmd *cobra.Command, message string) {
+	if state := stateOf(cmd); state != nil && jsonRequested(cmd) {
+		state.warnings = append(state.warnings, message)
+	}
+}
+
+// printTable prints a table in the format sf uses: an optional title line,
+// a box-drawing border, and a blank line.
 func printTable(w io.Writer, title string, headers []string, rows [][]string) {
+	printStyledTable(w, title, headers, rows, nil)
+}
+
+// printStyledTable is printTable with a style for each row.  The style
+// applies to the text of each cell and not to its padding.
+func printStyledTable(w io.Writer, title string, headers []string, rows [][]string, rowStyle func(row int) *style) {
 	widths := make([]int, len(headers))
 	for i, h := range headers {
 		widths[i] = runewidth.StringWidth(h)
@@ -65,14 +111,18 @@ func printTable(w io.Writer, title string, headers []string, rows [][]string) {
 		}
 		return left + strings.Join(parts, middle) + right
 	}
-	line := func(cells []string) string {
+	line := func(cells []string, cellStyle *style) string {
 		parts := make([]string, len(widths))
 		for i, width := range widths {
 			cell := ""
 			if i < len(cells) {
 				cell = cells[i]
 			}
-			parts[i] = " " + cell + strings.Repeat(" ", width-runewidth.StringWidth(cell)) + " "
+			text := cell
+			if cellStyle != nil && cell != "" {
+				text = paint(w, *cellStyle, cell)
+			}
+			parts[i] = " " + text + strings.Repeat(" ", width-runewidth.StringWidth(cell)) + " "
 		}
 		return "│" + strings.Join(parts, "│") + "│"
 	}
@@ -80,10 +130,14 @@ func printTable(w io.Writer, title string, headers []string, rows [][]string) {
 		fmt.Fprintln(w, title)
 	}
 	fmt.Fprintln(w, border("┌", "┬", "┐"))
-	fmt.Fprintln(w, line(headers))
+	fmt.Fprintln(w, line(headers, nil))
 	fmt.Fprintln(w, border("├", "┼", "┤"))
-	for _, row := range rows {
-		fmt.Fprintln(w, line(row))
+	for i, row := range rows {
+		var cellStyle *style
+		if rowStyle != nil {
+			cellStyle = rowStyle(i)
+		}
+		fmt.Fprintln(w, line(row, cellStyle))
 	}
 	fmt.Fprintln(w, border("└", "┴", "┘"))
 	fmt.Fprintln(w)

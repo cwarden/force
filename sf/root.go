@@ -4,6 +4,7 @@
 package sf
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -40,6 +41,7 @@ func Run(args []string, out, errOut io.Writer) int {
 	jsonOutput := hasJSONFlag(args)
 	root := NewRootCmd()
 	root.SetArgs(args)
+	root.SetContext(context.WithValue(context.Background(), runStateKey{}, &runState{}))
 	root.SetOut(out)
 	root.SetErr(errOut)
 
@@ -78,7 +80,12 @@ func NewRootCmd() *cobra.Command {
 	root.SetVersionTemplate("{{.Version}}\n")
 	root.Flags().BoolP("version", "v", false, "Show the version")
 	root.SetGlobalNormalizationFunc(normalizeFlagName)
-	root.AddCommand(newVersionCmd())
+	root.AddCommand(
+		newAliasCmd(),
+		newConfigCmd(),
+		newOrgCmd(),
+		newVersionCmd(),
+	)
 	return root
 }
 
@@ -98,6 +105,13 @@ func newGroup(use, short string, children ...*cobra.Command) *cobra.Command {
 	}
 	group.AddCommand(children...)
 	return group
+}
+
+// withSubcommands adds children to a command that also runs on its own,
+// such as "org list", which has the subcommand "org list auth".
+func withSubcommands(cmd *cobra.Command, children ...*cobra.Command) *cobra.Command {
+	cmd.AddCommand(children...)
+	return cmd
 }
 
 // legacyFlagNames maps flag names from sfdx to the sf names.

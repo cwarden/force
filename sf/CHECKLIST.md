@@ -11,21 +11,21 @@ Reference: `sf` 2.138.6. Update this file as each item is finished.
 - [x] `version`
 
 ## Step 2: sf State
-- [ ] Config read/write (`~/.sf/config.json`, `<project>/.sf/config.json`, env)
-- [ ] Alias read/write (`~/.sfdx/alias.json`)
-- [ ] Auth file write and delete, field encryption
-- [ ] Org resolution (flag, env, local config, global config)
-- [ ] Save refreshed tokens to the sf auth file
-- [ ] `alias list`, `alias set`, `alias unset`
-- [ ] `config get`, `config list`, `config set`, `config unset`
-- [ ] `org list`, `org list auth`, `org display`, `org logout`
+- [x] Config read/write (`~/.sf/config.json`, `<project>/.sf/config.json`, env)
+- [x] Alias read/write (`~/.sfdx/alias.json`)
+- [x] Auth file write and delete, field encryption
+- [x] Org resolution (flag, env, local config, global config)
+- [x] Save refreshed tokens to the sf auth file
+- [x] `alias list`, `alias set`, `alias unset`
+- [x] `config get`, `config list`, `config set`, `config unset`
+- [x] `org list`, `org list auth`, `org display`, `org logout`
 
 ## Step 3: org
-- [ ] `org login web`
-- [ ] `org login jwt`
-- [ ] `org login access-token`
+- [x] `org login web` (not exercised against a live org yet)
+- [x] `org login jwt` (not exercised against a live org yet)
+- [x] `org login access-token`
 - [ ] `org open`
-- [ ] `org display user`
+- [x] `org display user`
 - [ ] `org create scratch` (including definition file)
 - [ ] `org list limits`
 - [ ] `org list metadata`

@@ -14,6 +14,26 @@ var SessionRefreshError = errors.New("Failed to refresh session.  Please run `fo
 var SessionRefreshUnavailable = errors.New("Unable to refresh.  Please run `force login`.")
 
 func (f *Force) refreshOauth() (err error) {
+	result, err := f.requestOauthRefresh()
+	if err != nil {
+		return
+	}
+	f.UpdateCredentials(result)
+	return
+}
+
+// RefreshAccessToken exchanges the refresh token for a new access token and
+// updates the credentials in memory.  It does not save them.
+func (f *Force) RefreshAccessToken() error {
+	result, err := f.requestOauthRefresh()
+	if err != nil {
+		return err
+	}
+	f.CopyCredentialAuthFields(&result)
+	return nil
+}
+
+func (f *Force) requestOauthRefresh() (result ForceSession, err error) {
 	// A refresh token issued with a DPoP-bound token is bound to the same
 	// key, so the refresh request needs a proof signed with it.
 	key, err := f.Credentials.dpopPrivateKey()
@@ -45,13 +65,11 @@ func (f *Force) refreshOauth() (err error) {
 		return
 	}
 
-	var result ForceSession
 	json.Unmarshal(body, &result)
 	if key != nil {
 		result.DPoPNonce = nonce
 		f.Credentials.rememberDPoPNonce(nonce)
 	}
-	f.UpdateCredentials(result)
 	return
 }
 

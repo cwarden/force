@@ -34,6 +34,14 @@ func (e *unknownCommandError) Error() string {
 	return fmt.Sprintf("%s is not a sf command.", e.id)
 }
 
+// exitStatus is returned by a command that has already printed its result
+// and only needs the process to exit with a non-zero status.
+type exitStatus int
+
+func (e exitStatus) Error() string {
+	return fmt.Sprintf("exit status %d", int(e))
+}
+
 func asError(err error) *Error {
 	if e, ok := err.(*Error); ok {
 		if e.ExitCode == 0 {
@@ -63,16 +71,12 @@ type errorEnvelope struct {
 	CommandName string   `json:"commandName"`
 }
 
-const (
-	boldRed   = "\x1b[1m\x1b[31m"
-	resetBold = "\x1b[39m\x1b[22m"
-	dim       = "\x1b[2m"
-	resetDim  = "\x1b[22m"
-)
-
 // writeError prints err the way sf does and returns the exit status.  With
 // --json the envelope goes to stdout; otherwise the message goes to stderr.
 func writeError(out, errOut io.Writer, cmd *cobra.Command, err error, jsonOutput bool) int {
+	if status, ok := err.(exitStatus); ok {
+		return int(status)
+	}
 	if unknown, ok := err.(*unknownCommandError); ok {
 		fmt.Fprintf(errOut, " ›   Warning: %s is not a sf command.\n", unknown.id)
 		fmt.Fprintf(errOut, " ›   Error: Run sf help for a list of available commands.\n")
@@ -91,7 +95,7 @@ func writeError(out, errOut io.Writer, cmd *cobra.Command, err error, jsonOutput
 			ExitCode:    e.ExitCode,
 			Actions:     e.Actions,
 			Context:     commandName,
-			Warnings:    []string{},
+			Warnings:    warningsOf(cmd),
 			Code:        name,
 			Status:      e.ExitCode,
 			CommandName: commandName,
@@ -102,11 +106,11 @@ func writeError(out, errOut io.Writer, cmd *cobra.Command, err error, jsonOutput
 	if label == "" {
 		label = fmt.Sprintf("%d", e.ExitCode)
 	}
-	fmt.Fprintf(errOut, "%sError (%s):%s %s\n\n\n", boldRed, label, resetBold, e.Message)
+	fmt.Fprintf(errOut, "%s %s\n\n\n", paint(errOut, styleBoldRed, fmt.Sprintf("Error (%s):", label)), e.Message)
 	if len(e.Actions) > 0 {
-		fmt.Fprintf(errOut, "%sTry this:%s\n\n", dim, resetDim)
+		fmt.Fprintf(errOut, "%s\n\n", paint(errOut, styleDim, "Try this:"))
 		for _, action := range e.Actions {
-			fmt.Fprintf(errOut, "%s%s%s\n", dim, action, resetDim)
+			fmt.Fprintf(errOut, "%s\n", paint(errOut, styleDim, action))
 		}
 		fmt.Fprintln(errOut)
 	}
