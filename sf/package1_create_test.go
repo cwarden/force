@@ -43,7 +43,7 @@ func TestPackage1VersionCreate(t *testing.T) {
 	}
 
 	statuses = []string{"QUEUED", "IN_PROGRESS", "SUCCESS"}
-	expectRun(t, 0, "Package upload is enqueued. Waiting 55 more seconds\nPackage upload is in progress. Waiting 55 more seconds\nSuccessfully uploaded package [04t000000000001AAA]\n",
+	expectRun(t, 0, "Package upload is enqueued. Waiting 55 more seconds\nPackage upload is in progress. Waiting 50 more seconds\nSuccessfully uploaded package [04t000000000001AAA]\n",
 		"package1", "version", "create", "-i", "033000000000001AAA", "-n", "Spring", "-w", "1")
 	if request != `{"MetadataPackageId":"033000000000001AAA","VersionName":"Spring"}` {
 		t.Errorf("request without options = %s", request)
