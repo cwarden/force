@@ -17,6 +17,17 @@ type envelope struct {
 }
 
 func writeJSON(w io.Writer, v interface{}) error {
+	if jsonColorEnabled(w) {
+		var buffer strings.Builder
+		enc := json.NewEncoder(&buffer)
+		enc.SetEscapeHTML(false)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(v); err != nil {
+			return err
+		}
+		_, err := io.WriteString(w, colorizeJSON(buffer.String()))
+		return err
+	}
 	enc := json.NewEncoder(w)
 	enc.SetEscapeHTML(false)
 	enc.SetIndent("", "  ")

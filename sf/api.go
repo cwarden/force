@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -65,6 +66,8 @@ func parseOrderedJSON(data []byte) (interface{}, error) {
 	return value, nil
 }
 
+var wholeDecimal = regexp.MustCompile(`^-?\d+\.0+$`)
+
 func decodeOrdered(dec *json.Decoder) (interface{}, error) {
 	token, err := dec.Token()
 	if err != nil {
@@ -72,6 +75,10 @@ func decodeOrdered(dec *json.Decoder) (interface{}, error) {
 	}
 	delim, ok := token.(json.Delim)
 	if !ok {
+		// sf prints a number such as 68.0 as 68, as JavaScript does.
+		if number, ok := token.(json.Number); ok && wholeDecimal.MatchString(string(number)) {
+			return json.Number(number[:strings.Index(string(number), ".")]), nil
+		}
 		return token, nil
 	}
 	switch delim {
