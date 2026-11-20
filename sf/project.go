@@ -228,6 +228,10 @@ func writeSourceFormat(root string, files lib.ForceMetadataFiles, query lib.Forc
 	}
 	sort.Strings(names)
 	for _, name := range names {
+		// sf does not write a custom labels file that has no labels.
+		if strings.HasSuffix(name, ".labels") && !bytes.Contains(files[name], []byte("<labels>")) {
+			continue
+		}
 		if err := write(name, strings.NewReader(string(files[name]))); err != nil {
 			return nil, err
 		}

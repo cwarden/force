@@ -1989,6 +1989,16 @@ func newProjectRetrieveStartCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			// sf lists the directory of an object when it converts
+			// metadata, and not when it retrieves.
+			kept := written[:0]
+			for _, file := range written {
+				if info, err := os.Stat(file.FilePath); err == nil && info.IsDir() {
+					continue
+				}
+				kept = append(kept, file)
+			}
+			written = kept
 			// sf lists the files by type and path, and reports every file
 			// of a component that existed as changed.
 			sort.SliceStable(written, func(i, j int) bool {

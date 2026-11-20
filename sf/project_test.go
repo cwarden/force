@@ -1058,4 +1058,11 @@ func TestProjectConvertMdapiChildComponentsAndOrder(t *testing.T) {
 	if status != 0 || strings.Join(order, "|") != want {
 		t.Errorf("order: status %d\n got %s\nwant %s\n%s", status, strings.Join(order, "|"), want, out)
 	}
+
+	// Compared with sf: a custom labels file without labels is not written.
+	os.WriteFile(filepath.Join("src", "labels", "CustomLabels.labels"), []byte("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<CustomLabels xmlns=\"http://soap.sforce.com/2006/04/metadata\"/>\n"), 0o644)
+	out, _, status = run("project", "convert", "mdapi", "-r", "src", "-d", "nolabels")
+	if _, err := os.Stat(filepath.Join("nolabels", "main", "default", "labels")); status != 0 || err == nil || strings.Contains(out, "CustomLabels") {
+		t.Errorf("empty labels file: status %d, stat error %v\n%s", status, err, out)
+	}
 }
