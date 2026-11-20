@@ -154,7 +154,7 @@ The files written by the `template generate` commands come from the salesforcedx
 | `sf package convert` | none | `--seed-metadata`, and the `seedMetadata` and `unpackagedMetadata` of the package directory. sf 2.138.6 fails with "Cannot read properties of undefined" after it sent the request when `--wait` is not given; this mode reports the request. Follows the source of the sf packaging library. Run against a Dev Hub up to the creation of the second-generation package, which the Dev Hub refused for sf and for this mode because a package with that name existed in the namespace; the conversion request was not sent. | Follows the sf plugin source |
 | `sf package create` | `force package create` |  | Follows the sf plugin source |
 | `sf package delete` | none |  | Follows the sf plugin source |
-| `sf package install` | `force package install` | `--publish-wait`. Does not prompt about remote site settings; they are enabled. | Follows the sf plugin source |
+| `sf package install` | `force package install` | Does not prompt about remote site settings; they are enabled. | Follows the sf plugin source |
 | `sf package install report` | none |  | Follows the sf plugin source |
 | `sf package installed list` | `force package installed` |  | Follows the sf plugin source |
 | `sf package list` | `force package list` |  | Compared with sf |

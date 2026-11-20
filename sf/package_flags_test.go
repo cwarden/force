@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestPackageCreateOptions(t *testing.T) {
@@ -139,5 +140,50 @@ func TestPackageVersionListsShowConversions(t *testing.T) {
 	out, _, status = run("package", "version", "list", "--show-conversions-only")
 	if status != 0 || !strings.Contains(queries[0], "ConvertedFromVersionId != null") || !strings.Contains(out, "│ Branch │ Converted From Version Id │") || !strings.Contains(out, "│ 04t000000000008AAA        │") {
 		t.Errorf("version list: status %d, queries %q\n%s", status, queries, out)
+	}
+}
+
+func TestPackageInstallWaitsForTheVersionToBePublished(t *testing.T) {
+	org := devHubSetup(t)
+	sleep := packagePublishSleep
+	packagePublishSleep = func(time.Duration) {}
+	t.Cleanup(func() { packagePublishSleep = sleep })
+	statuses := []string{"PACKAGE_UNAVAILABLE", "PACKAGE_UNAVAILABLE", "NO_ERRORS_DETECTED"}
+	var queries []string
+	org.handlers["/services/data/v67.0/tooling/query"] = func(w http.ResponseWriter, r *http.Request) {
+		queries = append(queries, r.URL.Query().Get("q"))
+		status := statuses[0]
+		if len(statuses) > 1 {
+			statuses = statuses[1:]
+		}
+		io.WriteString(w, `{"done":true,"totalSize":1,"records":[{"Id":"04t000000000001AAA","SubscriberPackageId":"033000000000001AAA","InstallValidationStatus":"`+status+`"}]}`)
+	}
+	installs := 0
+	org.handlers["/services/data/v67.0/tooling/sobjects/PackageInstallRequest"] = func(w http.ResponseWriter, r *http.Request) {
+		installs++
+		w.WriteHeader(http.StatusCreated)
+		io.WriteString(w, `{"id":"0Hf000000000001AAA","success":true,"errors":[]}`)
+	}
+	org.handlers["/services/data/v67.0/tooling/sobjects/PackageInstallRequest/0Hf000000000001AAA"] = func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"Id":"0Hf000000000001AAA","Status":"IN_PROGRESS","SubscriberPackageVersionKey":"04t000000000001AAA"}`)
+	}
+	_, errOut, status := run("package", "install", "-p", "04t000000000001AAA", "-b", "5", "-k", "it's", "-o", "hub")
+	if status != 0 || installs != 1 || len(queries) != 3 || !strings.HasPrefix(errOut, "5 minutes remaining until timeout. Publish status: Querying Status... done\n") {
+		t.Errorf("publish wait: status %d, installs %d, queries %d, stderr %q", status, installs, len(queries), errOut)
+	}
+	if queries[0] != `SELECT Id, SubscriberPackageId, InstallValidationStatus FROM SubscriberPackageVersion WHERE Id ='04t000000000001AAA' AND InstallationKey ='it\'s'` {
+		t.Errorf("query = %s", queries[0])
+	}
+
+	// The version does not become available: nothing is installed.
+	statuses = []string{"PACKAGE_UNAVAILABLE"}
+	queries = nil
+	_, errOut, status = run("package", "install", "-p", "04t000000000001AAA", "-b", "1", "-o", "hub")
+	// One check every ten seconds of the one minute.
+	if len(queries) != 7 {
+		t.Errorf("%d checks in one minute, want 7", len(queries))
+	}
+	if status != 1 || installs != 1 || !strings.Contains(errOut, "Error (SubscriberPackageVersionNotPublishedError): The subscriber package version is not fully available.") {
+		t.Errorf("not published: status %d, installs %d, stderr %q", status, installs, errOut)
 	}
 }

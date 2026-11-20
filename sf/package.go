@@ -443,6 +443,53 @@ func waitForRequest(org *targetOrg, sobject, id string, timeout time.Duration, f
 	}
 }
 
+// packagePublishInterval is the time between checks of whether a package
+// version is available in the target org.  Tests shorten it.
+var packagePublishInterval = 10 * time.Second
+
+// packagePublishSleep waits between two of those checks.  Tests replace it.
+var packagePublishSleep = time.Sleep
+
+// waitForPackagePublish waits until a package version can be installed in
+// the org: a new version takes some time to reach the instance of the org.
+func waitForPackagePublish(cmd *cobra.Command, org *targetOrg, versionID, installationKey string, timeout time.Duration) error {
+	stop := startSpinner(cmd, fmt.Sprintf("%d minutes remaining until timeout. Publish status: Querying Status", int(timeout.Minutes())))
+	soql := fmt.Sprintf("SELECT Id, SubscriberPackageId, InstallValidationStatus FROM SubscriberPackageVersion WHERE Id ='%s'", versionID)
+	if installationKey != "" {
+		soql += fmt.Sprintf(" AND InstallationKey ='%s'", strings.ReplaceAll(strings.ReplaceAll(installationKey, `\`, `\\`), "'", `\'`))
+	}
+	waiting := map[string]bool{"PACKAGE_UNAVAILABLE": true, "PACKAGE_UNAVAILABLE_CRC": true, "PACKAGE_UNAVAILABLE_ZIP": true, "UNINSTALL_IN_PROGRESS": true}
+	var last *orderedMap
+	for elapsed := time.Duration(0); ; elapsed += packagePublishInterval {
+		status := "PACKAGE_UNAVAILABLE"
+		records, err := toolingRecords(org, soql)
+		if err != nil {
+			// A wrong installation key is an error; a version the org
+			// cannot see yet is not.
+			if failure, ok := err.(*Error); ok && strings.Contains(failure.Name, "INSTALL_KEY") {
+				stop("")
+				return err
+			}
+		} else if len(records) > 0 {
+			last = records[0]
+			status = text(last.values["InstallValidationStatus"])
+		}
+		if !waiting[status] {
+			stop("done")
+			return nil
+		}
+		if elapsed+packagePublishInterval > timeout {
+			stop("")
+			notPublished := &Error{Name: "SubscriberPackageVersionNotPublishedError", Message: "The subscriber package version is not fully available.", ExitCode: 1}
+			if last != nil {
+				notPublished.Data = last
+			}
+			return notPublished
+		}
+		packagePublishSleep(packagePublishInterval)
+	}
+}
+
 func newPackageInstallCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:         "install",
@@ -450,9 +497,6 @@ func newPackageInstallCmd() *cobra.Command {
 		Args:        cobra.NoArgs,
 		Annotations: map[string]string{commandNameAnnotation: "Install"},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := unsupportedFlags(cmd, "publish-wait"); err != nil {
-				return err
-			}
 			packageFlag, _ := cmd.Flags().GetString("package")
 			if packageFlag == "" {
 				return missingFlagError("package")
@@ -476,6 +520,11 @@ func newPackageInstallCmd() *cobra.Command {
 				return err
 			}
 			installationKey, _ := cmd.Flags().GetString("installation-key")
+			if minutes, _ := cmd.Flags().GetInt("publish-wait"); minutes > 0 {
+				if err := waitForPackagePublish(cmd, org, packageID(packageFlag), installationKey, time.Duration(minutes)*time.Minute); err != nil {
+					return err
+				}
+			}
 			request := newOrderedMap()
 			request.Set("SubscriberPackageVersionKey", packageID(packageFlag))
 			request.Set("Password", installationKey)

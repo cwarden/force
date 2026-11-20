@@ -91,7 +91,7 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [ ] `org open`: `--private`
 - [x] `package create`: `--no-namespace`, `--org-dependent`, `--error-notification-username`
 - [x] `package install`: `--skip-handlers`
-- [ ] `package install`: `--publish-wait`
+- [x] `package install`: `--publish-wait` (follows the sf plugin source)
 - [ ] `package version create`: `--installation-key`, `--definition-file`, `--branch`, `--post-install-script`, `--post-install-url`, `--releasenotes-url`, `--uninstall-script`, `--language`, `--generate-pkg-zip`, `--skip-ancestor-check`, `--verbose`
 - [x] `package update`: `--skip-ancestor-check`, and the ancestor check of a new recommended version
 - [x] `package version create list`: `--show-conversions-only`, `--verbose`
