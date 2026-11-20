@@ -13,8 +13,8 @@ import (
 
 // The package1 version create commands follow the sf plugin source.  The
 // messages for a queued request, a request in progress, a failed upload and
-// a finished upload were compared with sf against a packaging org.  Waiting
-// for an upload with --wait was run against that org with this mode.
+// a finished upload, with and without --wait, were compared with sf against
+// a packaging org.
 
 // package1UploadInterval is the time between checks of a package upload
 // request.
@@ -134,12 +134,10 @@ func newPackage1VersionCreateCmd() *cobra.Command {
 			if json.Unmarshal([]byte(response), &created) != nil || !created.Success {
 				return newError("CreateFailedError", "The attempt to create a package version failed. See the following for more information: %s", response)
 			}
-			out := cmd.OutOrStdout()
 			minutes, _ := cmd.Flags().GetInt("wait")
 			timeout := time.Duration(minutes) * time.Minute
 			var result *orderedMap
 			deadline := time.Now().Add(timeout)
-			checks := 0
 			for {
 				if result, err = packageUploadRequest(org, created.ID); err != nil {
 					return err
@@ -157,22 +155,9 @@ func newPackage1VersionCreateCmd() *cobra.Command {
 					}
 					return newError("Package1VersionCreateCommandUploadFailureDefaultError", "Package version creation failed with unknown error")
 				}
-				if !jsonRequested(cmd) {
-					state := "in progress"
-					if status == "QUEUED" {
-						state = "enqueued"
-					}
-					// The time left, counted in checks of five seconds.
-					// sf 2.138.6 subtracts five seconds from the whole
-					// wait on every check, so it prints the same number
-					// each time.
-					checks++
-					remaining := int(timeout.Seconds()) - 5*checks
-					if remaining < 0 {
-						remaining = 0
-					}
-					fmt.Fprintf(out, "Package upload is %s. Waiting %d more seconds\n", state, remaining)
-				}
+				// sf prints nothing while it waits: it listens for the
+				// progress of another kind of package version, so its
+				// "Package upload is in progress" line is never printed.
 				if !time.Now().Add(package1UploadInterval).Before(deadline) {
 					return &Error{Name: "ClientTimeoutError", Message: "The client has timed out.", ExitCode: 1}
 				}

@@ -176,7 +176,7 @@ The files written by the `template generate` commands come from the salesforcedx
 | `sf package version report` | `force package version get` | `--verbose` is accepted and adds nothing. Only the error for a version that does not exist was compared with sf. | Follows the sf plugin source |
 | `sf package version retrieve` | none | Not compared with sf: it needs a package version whose developer package zip can be downloaded. The rows are listed in the order this mode writes the files. | Follows the sf plugin source |
 | `sf package version update` | none |  | Follows the sf plugin source |
-| `sf package1 version create` | none | The messages for a queued request, a request in progress, a failed upload and a finished upload were compared with sf against a packaging org. With `--wait`, the seconds in "Waiting N more seconds" count down; sf 2.138.6 prints the same number at every check. | Follows the sf plugin source |
+| `sf package1 version create` | none | The messages for a queued request, a request in progress, a failed upload and a finished upload were compared with sf against a packaging org. `--wait` was compared too: sf prints nothing while it waits. | Follows the sf plugin source |
 | `sf package1 version create get` | none | The messages for a queued request, a request in progress, a failed upload and a finished upload were compared with sf against a packaging org. | Follows the sf plugin source |
 | `sf package1 version display` | none; queries MetadataPackageVersion with the Tooling API |  | Compared with sf |
 | `sf package1 version list` | none; queries MetadataPackageVersion with the Tooling API |  | Compared with sf |
