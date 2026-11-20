@@ -148,7 +148,7 @@ The files written by the `template generate` commands come from the salesforcedx
 | `sf org login sfdx-url` | none |  | Follows the sf plugin source |
 | `sf org disable tracking` | none; writes `tracksSource` to the authorization file |  | Compared with sf |
 | `sf org enable tracking` | none; writes `tracksSource` to the authorization file |  | Compared with sf |
-| `sf org login web` | `force login` | `--browser`, `--client-app`, `--username`, `--scopes`. Uses the force connected app and callback port unless `--client-id` is given. | Not compared; needs a browser login |
+| `sf org login web` | `force login` | `--browser`, `--client-app`, `--username`, `--scopes`. Uses the force connected app and callback port unless `--client-id` is given. | Run against an org; the output was not compared with sf |
 | `sf org logout` | `force logout` | `--client-app` is accepted and has no effect. | Compared with sf |
 | `sf org open` | `force open` | `--private` `--browser` starts the browser by its program name on Linux and by its application name on macOS and Windows. `--source-file` follows the sf core source and recognizes the metadata type by the file name. | Compared with sf |
 | `sf package create` | `force package create` |  | Follows the sf plugin source |

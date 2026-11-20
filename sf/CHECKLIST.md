@@ -173,7 +173,7 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 
 ## Not Yet Verified
 
-- [ ] Run `org login web` against an org
+- [x] Run `org login web` against an org (logged in to a packaging org; the output was not compared with sf)
 - [ ] Run `org login jwt` against an org
 - [ ] Compare the commands marked "follows the sf plugin source" with sf output against an org or Dev Hub
   - [x] The deploy job commands, the Apex log and trace commands, `org list limits`, `org list sobject record-counts`, `org assign permset` (success, duplicate, partial success and failure), `org assign permsetlicense` (failure cases) and `data search`
@@ -303,7 +303,7 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [x] `package1 version create` (follows the sf plugin source; not compared with sf)
 - [x] `package1 version create get` (follows the sf plugin source; not compared with sf)
 - [x] `package1 version display` (compared with sf against a scratch org without first-generation packages; the table follows the plugin source)
-- [x] `package1 version list` (compared with sf against an org with package versions, and against a scratch org without them)
+- [x] `package1 version list` (compared with sf against a packaging org with a first-generation package, a Dev Hub, and a scratch org without packages)
 
 ### cmdt (0 open, 5 done)
 
