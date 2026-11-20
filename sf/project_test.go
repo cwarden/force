@@ -992,3 +992,70 @@ func TestProjectRetrieveStartToMetadataDirectory(t *testing.T) {
 		t.Errorf("zip entries = %v", names)
 	}
 }
+
+// Compared with sf: a child component named on its own selects nothing, and
+// the files of the child components of an object are listed with the object,
+// before its own files.  The custom labels file is listed last.
+func TestProjectConvertMdapiChildComponentsAndOrder(t *testing.T) {
+	convertProject(t)
+	os.MkdirAll(filepath.Join("src", "objects"), 0o755)
+	os.MkdirAll(filepath.Join("src", "classes"), 0o755)
+	os.MkdirAll(filepath.Join("src", "labels"), 0o755)
+	os.WriteFile(filepath.Join("src", "package.xml"), []byte("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Package xmlns=\"http://soap.sforce.com/2006/04/metadata\"><types><members>Bill__c</members><name>CustomObject</name></types><types><members>Hello</members><name>ApexClass</name></types><types><members>CustomLabels</members><name>CustomLabels</name></types><version>62.0</version></Package>\n"), 0o644)
+	os.WriteFile(filepath.Join("src", "objects", "Bill__c.object"), []byte(`<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <deploymentStatus>Deployed</deploymentStatus>
+    <fields>
+        <fullName>Amount__c</fullName>
+        <label>Amount</label>
+        <precision>10</precision>
+        <scale>2</scale>
+        <type>Number</type>
+    </fields>
+    <label>Bill</label>
+    <listViews>
+        <fullName>All</fullName>
+        <filterScope>Everything</filterScope>
+        <label>All</label>
+    </listViews>
+    <nameField><label>Name</label><type>Text</type></nameField>
+    <pluralLabel>Bills</pluralLabel>
+    <sharingModel>ReadWrite</sharingModel>
+    <validationRules>
+        <fullName>Positive</fullName>
+        <active>true</active>
+        <errorConditionFormula>Amount__c &lt; 0</errorConditionFormula>
+        <errorMessage>Must be positive</errorMessage>
+    </validationRules>
+</CustomObject>
+`), 0o644)
+	os.WriteFile(filepath.Join("src", "classes", "Hello.cls"), []byte("public class Hello {}\n"), 0o644)
+	os.WriteFile(filepath.Join("src", "classes", "Hello.cls-meta.xml"), []byte("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<ApexClass xmlns=\"http://soap.sforce.com/2006/04/metadata\">\n    <apiVersion>62.0</apiVersion>\n    <status>Active</status>\n</ApexClass>\n"), 0o644)
+	os.WriteFile(filepath.Join("src", "labels", "CustomLabels.labels"), []byte("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<CustomLabels xmlns=\"http://soap.sforce.com/2006/04/metadata\">\n    <labels><fullName>Welcome</fullName><language>en_US</language><protected>false</protected><shortDescription>Welcome</shortDescription><value>Welcome</value></labels>\n</CustomLabels>\n"), 0o644)
+
+	for _, selection := range [][]string{{"-m", "CustomField:Bill__c.Amount__c"}, {"-m", "CustomField"}, {"-m", "ValidationRule:Bill__c.Positive"}} {
+		_, errOut, status := run(append([]string{"project", "convert", "mdapi", "-r", "src", "-d", "none"}, selection...)...)
+		if status != 1 || errOut != "Error (SfError): No results to format\n\n\n" {
+			t.Errorf("%v: status %d, stderr %q", selection, status, errOut)
+		}
+	}
+	// A child component named with other components does not change what
+	// the others select.
+	out, _, status := run("project", "convert", "mdapi", "-r", "src", "-d", "some", "-m", "CustomField:Bill__c.Amount__c", "-m", "ApexClass")
+	if status != 0 || !strings.Contains(out, "│ Hello     │ ApexClass │") || strings.Contains(out, "Bill__c") {
+		t.Errorf("child with a class: status %d\n%s", status, out)
+	}
+
+	out, _, status = run("project", "convert", "mdapi", "-r", "src", "-d", "all")
+	var order []string
+	for _, line := range strings.Split(out, "\n") {
+		cells := strings.Split(line, "│")
+		if len(cells) > 4 && strings.TrimSpace(cells[1]) == "Add" {
+			order = append(order, strings.TrimSpace(cells[3])+" "+strings.TrimSpace(cells[2]))
+		}
+	}
+	want := "ApexClass Hello|ApexClass Hello|CustomField Bill__c.Amount__c|ListView Bill__c.All|ValidationRule Bill__c.Positive|CustomObject Bill__c|CustomObject Bill__c|CustomLabels CustomLabels"
+	if status != 0 || strings.Join(order, "|") != want {
+		t.Errorf("order: status %d\n got %s\nwant %s\n%s", status, strings.Join(order, "|"), want, out)
+	}
+}

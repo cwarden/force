@@ -172,6 +172,11 @@ type fileResult struct {
 	Type     string `json:"type"`
 	FilePath string `json:"filePath"`
 	State    string `json:"state"`
+	// parent and childDir are set for a file of a decomposed object: the
+	// name of the object and the directory of the child type.  sf lists
+	// such files with their object, before the files of the object itself.
+	parent   string
+	childDir string
 }
 
 // componentLocator returns a function that gives the path at which a
@@ -271,7 +276,7 @@ func writeSourceFormat(root string, files lib.ForceMetadataFiles, query lib.Forc
 			// of its own type, named after the object.
 			if childType, ok := objectChildTypes[parts[2]]; ok {
 				name := strings.TrimSuffix(parts[3], "-meta.xml")
-				results = append(results, fileResult{FullName: fullName + "." + strings.TrimSuffix(name, filepath.Ext(name)), Type: childType, FilePath: relativePath(target), State: state})
+				results = append(results, fileResult{FullName: fullName + "." + strings.TrimSuffix(name, filepath.Ext(name)), Type: childType, FilePath: relativePath(target), State: state, parent: fullName, childDir: parts[2]})
 				return nil
 			}
 		}
@@ -287,8 +292,33 @@ func writeSourceFormat(root string, files lib.ForceMetadataFiles, query lib.Forc
 	}
 	sort.Slice(results, func(i, j int) bool {
 		a, b := results[i], results[j]
-		if a.Type != b.Type {
-			return a.Type < b.Type
+		// The files of the child components of an object are listed at
+		// the place of the object, in the order of their directories,
+		// before the files of the object.
+		group := func(r fileResult) (string, string) {
+			if r.parent != "" {
+				return "CustomObject", r.parent
+			}
+			return r.Type, r.FullName
+		}
+		aType, aName := group(a)
+		bType, bName := group(b)
+		if aType != bType {
+			// sf writes the custom labels file after the other
+			// components.
+			if (aType == "CustomLabels") != (bType == "CustomLabels") {
+				return bType == "CustomLabels"
+			}
+			return aType < bType
+		}
+		if aName != bName {
+			return aName < bName
+		}
+		if (a.parent != "") != (b.parent != "") {
+			return a.parent != ""
+		}
+		if a.childDir != b.childDir {
+			return a.childDir < b.childDir
 		}
 		if a.FullName != b.FullName {
 			return a.FullName < b.FullName
@@ -344,7 +374,7 @@ func mdapiSelection(rootDir string, files lib.ForceMetadataFiles, manifestPath s
 	case len(metadata) > 0:
 		for _, name := range metadata {
 			metadataType, member, hasMember := strings.Cut(name, ":")
-			if !lib.IsMetadataTypeName(metadataType) {
+			if !lib.IsMetadataTypeName(metadataType) && !registryKnowsType(metadataType) {
 				return nil, &Error{
 					Name:     "RegistryError",
 					Message:  fmt.Sprintf("Missing metadata type definition in registry for id '%s'.", metadataType),

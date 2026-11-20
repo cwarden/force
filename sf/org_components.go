@@ -284,3 +284,23 @@ func typeNameSuggestions(name string) []string {
 	}
 	return []string{fmt.Sprintf("Did you mean one of the following types? [%s]", strings.Join(closest, ",")), ""}
 }
+
+// registryKnowsType reports whether sf knows a metadata type name, as a
+// type or as a child type such as CustomField.  sf compares the names
+// without regard to case.
+func registryKnowsType(name string) bool {
+	lower := strings.ToLower(strings.TrimSpace(name))
+	for _, known := range registryTypeNames {
+		if strings.ToLower(known) == lower {
+			return true
+		}
+	}
+	for _, children := range registryChildTypes {
+		for _, child := range children {
+			if strings.ToLower(child) == lower {
+				return true
+			}
+		}
+	}
+	return false
+}
