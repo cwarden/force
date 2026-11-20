@@ -505,3 +505,35 @@ func TestOrgCreateScratchWithAClientId(t *testing.T) {
 		t.Errorf("custom client = %+v", client)
 	}
 }
+
+func TestOrgCreateScratchTriesTheCallbackURLOfForce(t *testing.T) {
+	org := devHubSetup(t)
+	var callbacks []string
+	accept := false
+	org.handlers["/services/data/v67.0/sobjects/ScratchOrgInfo"] = func(w http.ResponseWriter, r *http.Request) {
+		var request map[string]interface{}
+		json.NewDecoder(r.Body).Decode(&request)
+		callbacks = append(callbacks, request["ConnectedAppCallbackUrl"].(string))
+		if accept && request["ConnectedAppCallbackUrl"] == lib.RedirectUri {
+			w.WriteHeader(http.StatusCreated)
+			io.WriteString(w, `{"id":"2SR000000000001AAA","success":true,"errors":[]}`)
+			return
+		}
+		w.WriteHeader(http.StatusBadRequest)
+		io.WriteString(w, `[{"message":"The callback URL provided is not valid","errorCode":"FIELD_INTEGRITY_EXCEPTION","fields":[]}]`)
+	}
+	_, errOut, status := run("org", "create", "scratch", "-e", "developer", "-i", "3MVGcustom")
+	if status != 1 || len(callbacks) != 2 || callbacks[0] != "http://localhost:1717/OauthRedirect" || callbacks[1] != lib.RedirectUri ||
+		!strings.Contains(errOut, "The callback URL provided is not valid") || !strings.Contains(errOut, "to the callback URLs of the connected app 3MVGcustom") {
+		t.Errorf("status %d, callbacks %v, stderr %q", status, callbacks, errOut)
+	}
+	// An app with the callback URL of force is accepted on the second
+	// request.
+	accept, callbacks = true, nil
+	org.handlers["/services/data/v67.0/sobjects/ScratchOrgInfo/2SR000000000001AAA"] = func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"Id":"2SR000000000001AAA","Status":"New","SignupUsername":"test-scratch@example.com"}`)
+	}
+	if _, errOut, status := run("org", "create", "scratch", "-e", "developer", "-i", "3MVGcustom", "--async"); status != 0 || len(callbacks) != 2 {
+		t.Errorf("second callback: status %d, callbacks %v, stderr %q", status, callbacks, errOut)
+	}
+}

@@ -259,6 +259,24 @@ func newOrgCreateScratchCmd() *cobra.Command {
 				return err
 			}
 			body, err := hub.Force.PostREST("/sobjects/ScratchOrgInfo", content)
+			if err != nil && strings.Contains(err.Error(), "The callback URL provided is not valid") && client.RedirectURI != lib.RedirectUri {
+				// The Dev Hub checks the callback URL against the connected
+				// app.  An app that was set up for force has the callback
+				// URL of force and not the one sf names, so try that one.
+				first := client.RedirectURI
+				client.RedirectURI = lib.RedirectUri
+				request.Set("ConnectedAppCallbackUrl", client.RedirectURI)
+				if content, err = encodeJSON(request); err != nil {
+					return err
+				}
+				if body, err = hub.Force.PostREST("/sobjects/ScratchOrgInfo", content); err != nil {
+					converted := apiError(err)
+					if failure, ok := converted.(*Error); ok && strings.Contains(failure.Message, "The callback URL provided is not valid") {
+						failure.Actions = []string{fmt.Sprintf("Add %s or %s to the callback URLs of the connected app %s. The Dev Hub accepts a scratch org request only with a callback URL of the connected app, and these are the two this command sends.", first, lib.RedirectUri, client.ClientId)}
+					}
+					return converted
+				}
+			}
 			if err != nil {
 				return apiError(err)
 			}
