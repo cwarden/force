@@ -116,7 +116,7 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [ ] `org login access-token`: `--no-prompt`
 - [ ] `org logout`: `--client-app`
 - [ ] `package install`: `--no-prompt` (remote site settings are enabled without asking)
-- [x] `package version create`: `--wait`, status line while waiting, request Id in the result, version alias in sfdx-project.json (compared with sf against the Dev Hub)
+- [x] `package version create`: `--wait`, status line while waiting, request Id in the result, version alias in sfdx-project.json (both programs run against the Dev Hub: same output, build numbers 1 to 4 and aliases)
 - [x] `package version report`: `--verbose`, and the rows and JSON fields of the report (compared with sf against the Dev Hub for a managed version without code coverage or dependencies)
 - [x] `project deploy start`, `project deploy validate`: `--verbose` (deploy URL, size, file count, passed tests and the coverage table; compared with sf against a scratch org), `--ignore-conflicts`
 - [ ] `project deploy start`, `project deploy validate`: `--single-package` (accepted without effect)
