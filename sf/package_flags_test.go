@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -185,5 +187,93 @@ func TestPackageInstallWaitsForTheVersionToBePublished(t *testing.T) {
 	}
 	if status != 1 || installs != 1 || !strings.Contains(errOut, "Error (SubscriberPackageVersionNotPublishedError): The subscriber package version is not fully available.") {
 		t.Errorf("not published: status %d, installs %d, stderr %q", status, installs, errOut)
+	}
+}
+
+func TestPackageVersionCreateWaitsAndRecordsTheVersionAlias(t *testing.T) {
+	org := devHubSetup(t)
+	sleep := packageVersionSleep
+	var sleeps []time.Duration
+	packageVersionSleep = func(d time.Duration) { sleeps = append(sleeps, d) }
+	t.Cleanup(func() { packageVersionSleep = sleep })
+	home, _ := os.Getwd()
+	os.MkdirAll(filepath.Join(home, "force-app", "main", "default", "classes"), 0o755)
+	os.WriteFile(filepath.Join(home, "force-app", "main", "default", "classes", "A.cls"), []byte("public class A {}"), 0o644)
+	os.WriteFile(filepath.Join(home, "force-app", "main", "default", "classes", "A.cls-meta.xml"), []byte(`<?xml version="1.0" encoding="UTF-8"?><ApexClass xmlns="http://soap.sforce.com/2006/04/metadata"><apiVersion>66.0</apiVersion><status>Active</status></ApexClass>`), 0o644)
+	os.WriteFile(filepath.Join(home, "sfdx-project.json"), []byte(`{
+  "packageDirectories": [
+    {
+      "path": "force-app",
+      "default": true,
+      "package": "billing"
+    }
+  ],
+  "namespace": "acme",
+  "packageAliases": {
+    "billing": "0Ho000000000001AAA"
+  }
+}`), 0o644)
+	var posted string
+	org.handlers["/services/data/v67.0/tooling/sobjects/Package2VersionCreateRequest"] = func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		posted = string(body)
+		w.WriteHeader(http.StatusCreated)
+		io.WriteString(w, `{"id":"08c000000000001AAA","success":true,"errors":[]}`)
+	}
+	statuses := []string{"Initializing", "VerifyingMetadata", "Success"}
+	org.handlers["/services/data/v67.0/tooling/query"] = func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query().Get("q")
+		switch {
+		case strings.Contains(q, "FROM Package2VersionCreateRequest "):
+			status := statuses[0]
+			if len(statuses) > 1 {
+				statuses = statuses[1:]
+			}
+			version := "null"
+			if status == "Success" {
+				version = `{"SubscriberPackageVersionId":"04t000000000009AAA","HasMetadataRemoved":false,"MajorVersion":1,"MinorVersion":2,"PatchVersion":0,"BuildNumber":3}`
+			}
+			io.WriteString(w, `{"done":true,"totalSize":1,"records":[{"Id":"08c000000000001AAA","Status":"`+status+`","Package2Id":"0Ho000000000001AAA","Package2":{"Name":"Billing"},"Package2VersionId":"05i000000000001AAA","Package2Version":`+version+`,"Tag":null,"Branch":"compare","CreatedDate":"2026-11-20T08:00:00.000+0000","CreatedById":"005000000000001AAA"}]}`)
+		case strings.Contains(q, "FROM Package2Version "):
+			io.WriteString(w, `{"done":true,"totalSize":1,"records":[{"Branch":"compare","MajorVersion":1,"MinorVersion":2,"PatchVersion":0,"BuildNumber":3}]}`)
+		default:
+			io.WriteString(w, `{"done":true,"totalSize":0,"records":[]}`)
+		}
+	}
+	out, errOut, status := run("package", "version", "create", "-p", "billing", "-n", "1.2.0.NEXT", "-x", "--branch", "compare", "-w", "10")
+	wantOut := "Successfully created the package version [08c000000000001AAA]. Subscriber Package Version Id: 04t000000000009AAA\n" +
+		"Package Installation URL: https://login.salesforce.com/packaging/installPackage.apexp?p0=04t000000000009AAA\n" +
+		"As an alternative, you can use the \"sf package install\" command.\n"
+	if status != 0 || out != wantOut {
+		t.Errorf("status %d, stdout %q, stderr %q", status, out, errOut)
+	}
+	if !strings.HasPrefix(errOut, "Version create.... Create version status: Success\n") || !strings.Contains(errOut, "Warning: Record types defined in the scratch org definition file") {
+		t.Errorf("stderr %q", errOut)
+	}
+	if len(sleeps) != 2 || sleeps[0] != 30*time.Second {
+		t.Errorf("sleeps = %v, want two of 30s", sleeps)
+	}
+	if !strings.Contains(posted, `"Branch":"compare"`) {
+		t.Errorf("request lacks the branch: %.300s", posted)
+	}
+	project, _ := os.ReadFile(filepath.Join(home, "sfdx-project.json"))
+	if !strings.Contains(string(project), `"billing@1.2.0-3-compare": "04t000000000009AAA"`) {
+		t.Errorf("sfdx-project.json lacks the version alias:\n%s", project)
+	}
+
+	// Without --wait the command reports the request and returns.
+	statuses = []string{"Queued"}
+	sleeps = nil
+	out, errOut, status = run("package", "version", "create", "-p", "billing", "-n", "1.2.0.NEXT", "-x")
+	if status != 0 || len(sleeps) != 0 || out != "Package version creation request status is 'Queued'. Run \"sf package version create report -i 08c000000000001AAA\" to query for status.\n" ||
+		!strings.HasPrefix(errOut, "Version create.... Create version status: Queued\n") {
+		t.Errorf("no wait: status %d, sleeps %v, stdout %q, stderr %q", status, sleeps, out, errOut)
+	}
+
+	// A wait that ends before the request finishes.
+	statuses = []string{"InProgress"}
+	_, errOut, status = run("package", "version", "create", "-p", "billing", "-n", "1.2.0.NEXT", "-x", "-w", "1")
+	if status != 1 || !strings.Contains(errOut, "Error (PollingClientTimeout): The client has timed out. Run 'sf package version create report -i 08c000000000001AAA' to check the status.") {
+		t.Errorf("timeout: status %d, stderr %q", status, errOut)
 	}
 }

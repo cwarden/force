@@ -1108,13 +1108,16 @@ func newPackageVersionCreateCmd() *cobra.Command {
 			skipValidation, _ := cmd.Flags().GetBool("skip-validation")
 			asyncValidation, _ := cmd.Flags().GetBool("async-validation")
 			codeCoverage, _ := cmd.Flags().GetBool("code-coverage")
+			if flagText(cmd, "path") != "" && flagText(cmd, "package") != "" {
+				warn(cmd, "Starting in v59.0 or later, specifying both the --package and --path flag will no longer be supported. Only one is required.")
+			}
 			if skipValidation {
 				warn(cmd, "Skipping validation suppresses errors that usually surface during package version creation. Instead, these errors surface at a later stage, such as installation or post-installation. If you encounter errors that are difficult to debug, retry package version creation without the --skip-validation flag.")
 			}
-			version, err := org.Force.CreatePackageVersion(lib.PackageVersionRequest{
+			request := lib.PackageVersionRequest{
 				Path:               roots[0],
 				PackageId:          packageID(packageFlag),
-				VersionNumber:      strings.Replace(versionNumber, ".NEXT", ".0", 1),
+				VersionNumber:      versionNumber,
 				VersionName:        versionName,
 				VersionDescription: description,
 				Tag:                tag,
@@ -1128,22 +1131,28 @@ func newPackageVersionCreateCmd() *cobra.Command {
 				ReleaseNotesURL:    flagText(cmd, "releasenotes-url"),
 				PostInstallURL:     postInstallURL,
 				PostInstallScript:  flagText(cmd, "post-install-script"),
-			}, nil)
-			if err != nil {
-				return apiError(err)
 			}
-			result := newOrderedMap()
-			result.Set("Status", "Success")
-			result.Set("Package2Id", packageID(packageFlag))
-			result.Set("Package2VersionId", version.Id)
-			result.Set("SubscriberPackageVersionId", version.SubscriberPackageVersionId)
-			result.Set("Tag", tag)
-			result.Set("HasMetadataRemoved", false)
-			return emit(cmd, result, func(w io.Writer) {
-				fmt.Fprintf(w, "Successfully created the package version [%s]. Subscriber Package Version Id: %s\n", version.Id, version.SubscriberPackageVersionId)
-				fmt.Fprintf(w, "Package Installation URL: https://login.salesforce.com/packaging/installPackage.apexp?p0=%s\n", version.SubscriberPackageVersionId)
-				fmt.Fprintln(w, "As an alternative, you can use the \""+binName+" package install\" command.")
-			})
+			if request.VersionName == "" {
+				// As in sf, the name defaults to the number without .NEXT.
+				request.VersionName = strings.TrimSuffix(versionNumber, ".NEXT")
+			}
+			minutes, _ := cmd.Flags().GetInt("wait")
+			frequency := 30 * time.Second
+			if minutes > 0 && skipValidation {
+				frequency = 5 * time.Second
+			}
+			// sf prints this warning after the result.
+			recordTypes := func() {}
+			if _, found, _ := lib.GetSFConfig("org-capitalize-record-types"); !found {
+				message := "Record types defined in the scratch org definition file will stop being capitalized by default in a future release.\nSet the `org-capitalize-record-types` config var to `true` to enforce capitalization."
+				if jsonRequested(cmd) {
+					warnJSON(cmd, message)
+				} else {
+					recordTypes = func() { warn(cmd, message) }
+				}
+			}
+			defer recordTypes()
+			return waitForPackageVersion(cmd, org, project.Root, request, time.Duration(minutes)*time.Minute, frequency)
 		},
 	}
 	addJSONFlag(cmd)

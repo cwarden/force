@@ -165,7 +165,7 @@ The files written by the `template generate` commands come from the salesforcedx
 | `sf package uninstall` | `force package uninstall` |  | Follows the sf plugin source |
 | `sf package uninstall report` | none |  | Follows the sf plugin source |
 | `sf package update` | none |  | Follows the sf plugin source |
-| `sf package version create` | `force package version create` | `--definition-file`, `--skip-ancestor-check`, `--verbose`. `--uninstall-script` is accepted and not sent, as in sf 2.138.6, which sends an uninstall script only from the package directory. `--wait` is accepted; the command always waits. | Follows the sf plugin source |
+| `sf package version create` | `force package version create` | `--definition-file`, `--skip-ancestor-check`, `--verbose`. `--uninstall-script` is accepted and not sent, as in sf 2.138.6, which sends an uninstall script only from the package directory. | Compared with sf |
 | `sf package version create list` | none | `--show-conversions-only` and `--verbose` follow the plugin source and were not compared with sf. | Compared with sf |
 | `sf package version create report` | none | Only the error for a request that does not exist was compared with sf. | Follows the sf plugin source |
 | `sf package version delete` | none |  | Follows the sf plugin source |
