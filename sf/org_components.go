@@ -139,10 +139,6 @@ func orgComponents(org *targetOrg, typeNames []string) ([]*orderedMap, error) {
 	return valid, nil
 }
 
-// registryTypeAliases are the type names that sf takes for another type:
-// the org lists the folders of email templates under both names.
-var registryTypeAliases = map[string]string{"EmailTemplateFolder": "EmailFolder"}
-
 // registryType returns the type that sf uses for a type name.
 func registryType(name string) string {
 	if alias, ok := registryTypeAliases[name]; ok {
@@ -269,11 +265,11 @@ func orgManifestTypes(org *targetOrg, metadata, excluded, includePackages []stri
 // type name it does not know: the known names that differ from it the
 // least, and an empty line.
 func typeNameSuggestions(name string) []string {
-	names := append([]string{}, registryTypeNames...)
-	sort.SliceStable(names, func(i, j int) bool { return strings.ToLower(names[i]) < strings.ToLower(names[j]) })
+	// The names are in the order of the registry, which is the order sf
+	// lists names that are equally close in.
 	lowest := -1
 	var closest []string
-	for _, candidate := range names {
+	for _, candidate := range registryTypeNames {
 		// sf compares the letters without regard to case.
 		distance := editDistance(strings.ToLower(name), strings.ToLower(candidate))
 		switch {

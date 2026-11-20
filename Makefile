@@ -20,6 +20,9 @@ LICENSES := LICENSE third-party-licenses.txt
 # Source of the file templates in sf/templates.
 SF_TEMPLATES_REPO=https://github.com/forcedotcom/salesforcedx-templates
 SF_TEMPLATES_VERSION=66.9.1
+# Checkout of https://github.com/forcedotcom/source-deploy-retrieve that
+# sf/registry_data.go is generated from.
+SF_REGISTRY_DIR=../source-deploy-retrieve
 
 default:
 	go build ${LDFLAGS}
@@ -92,6 +95,15 @@ update-sf-templates:
 	$(MAKE) third-party-licenses.txt
 	go test ./sf/...
 
+# Regenerate sf/registry_data.go and its attribution in licenses/ from the
+# metadata registry in a checkout of source-deploy-retrieve, then the license
+# report:
+#   make update-sf-registry SF_REGISTRY_DIR=~/git/source-deploy-retrieve
+update-sf-registry:
+	go run sf/registry/update.go $(SF_REGISTRY_DIR) .
+	$(MAKE) third-party-licenses.txt
+	go test ./sf/...
+
 # Attributions for the Go modules compiled into the binary, followed by the
 # attributions in licenses/ for third-party material that is not a Go module
 # dependency, so go-licenses cannot find it by walking the module graph.
@@ -133,7 +145,7 @@ test:
 clean:
 	-rm -f $(EXECUTABLE) $(EXECUTABLE)_* *.zip SHA256SUMS-*
 
-.PHONY: default dist clean docs checksum release tag install-sf update-sf-templates $(ALL)
+.PHONY: default dist clean docs checksum release tag install-sf update-sf-templates update-sf-registry $(ALL)
 
 tag:
 	@echo "Creating next tag..."

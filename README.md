@@ -51,6 +51,13 @@ The file templates of the `sf template generate` commands come from
 `make update-sf-templates SF_TEMPLATES_VERSION=<tag>`
 rebuilds them from a tag of that repository.
 
+The names of the metadata types, their folder and child types, and the
+standard value sets in `sf/registry_data.go` come from the metadata registry of
+[source-deploy-retrieve](https://github.com/forcedotcom/source-deploy-retrieve)
+(Apache-2.0).
+`make update-sf-registry SF_REGISTRY_DIR=<checkout>`
+regenerates the file from a checkout of that repository.
+
 Tab completion simplifies use of the force CLI.
 Enable bash completion or see `force completion --help` for other options.
 
