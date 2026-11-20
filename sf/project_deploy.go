@@ -1723,15 +1723,22 @@ func newProjectRetrieveStartCmd() *cobra.Command {
 		Args:        cobra.NoArgs,
 		Annotations: map[string]string{commandNameAnnotation: "RetrieveMetadata"},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := unsupportedFlags(cmd, "single-package"); err != nil {
-				return err
-			}
 			metadata := splitList(cmd, "metadata")
 			sourceDirs := splitList(cmd, "source-dir")
 			packageNames := splitList(cmd, "package-name")
 			manifest, _ := cmd.Flags().GetString("manifest")
 			targetMetadataDir, _ := cmd.Flags().GetString("target-metadata-dir")
 			outputDir, _ := cmd.Flags().GetString("output-dir")
+			// With --single-package the zip file has the files of the one
+			// package at its top; without it they are in a directory named
+			// unpackaged.
+			zipPrefix := "unpackaged/"
+			if flagSet(cmd, "single-package") {
+				if targetMetadataDir == "" {
+					return &Error{Message: "The following error occurred:\n  All of the following must be provided when using --single-package: --target-metadata-dir\nSee more help with --help", ExitCode: 2}
+				}
+				zipPrefix = ""
+			}
 			if len(packageNames) > 1 {
 				return newError("UnsupportedFlagError", "Only one --package-name value is supported by the sf-compatible mode of force.")
 			}
@@ -1927,7 +1934,7 @@ func newProjectRetrieveStartCmd() *cobra.Command {
 				if !strings.HasSuffix(zipName, ".zip") {
 					zipName += ".zip"
 				}
-				archive, err := zipFiles(files, "unpackaged/")
+				archive, err := zipFiles(files, zipPrefix)
 				if err != nil {
 					return err
 				}
@@ -1945,7 +1952,7 @@ func newProjectRetrieveStartCmd() *cobra.Command {
 				unzip, _ := cmd.Flags().GetBool("unzip")
 				extracted := filepath.Join(targetMetadataDir, strings.TrimSuffix(zipName, ".zip"))
 				if unzip {
-					write := lib.EntryDiskWriter(filepath.Join(extracted, "unpackaged"))
+					write := lib.EntryDiskWriter(filepath.Join(extracted, strings.TrimSuffix(zipPrefix, "/")))
 					for name, data := range files {
 						if err := write(name, strings.NewReader(string(data))); err != nil {
 							return err

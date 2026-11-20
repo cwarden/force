@@ -972,6 +972,17 @@ func TestProjectRetrieveStartToMetadataDirectory(t *testing.T) {
 	if exists(filepath.Join(target, "unpackaged.zip")) {
 		t.Error("the zip file is still there after --unzip")
 	}
+	// With --single-package the files are at the top of the zip file.
+	single := filepath.Join(os.Getenv("HOME"), "single")
+	if _, _, status := run("project", "retrieve", "start", "-x", manifest, "-t", single, "--unzip", "--single-package"); status != 0 {
+		t.Errorf("single package: status %d", status)
+	}
+	if content, _ := os.ReadFile(filepath.Join(single, "unpackaged", "classes", "Remote.cls")); string(content) != "public class Remote {}" {
+		t.Errorf("single package class = %q", content)
+	}
+	if _, errOut, status := run("project", "retrieve", "start", "-x", manifest, "--single-package"); status != 2 || !strings.Contains(errOut, "All of the following must be provided when using --single-package: --target-metadata-dir") {
+		t.Errorf("single package without a directory: status %d, stderr %q", status, errOut)
+	}
 	// A relative directory is reported as an absolute path, and the
 	// version is the one of the project.
 	wd, _ := os.Getwd()

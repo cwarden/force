@@ -105,7 +105,8 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [x] `project deploy report`, `project deploy resume`: `--coverage-formatters`, `--junit`, `--results-dir` (compared with sf against a scratch org)
 - [x] `project deploy quick`, `report`, `resume`, `cancel`: `--use-most-recent`
 - [x] `project generate manifest`: `--from-org`, `--include-packages` (compared with sf against a scratch org)
-- [ ] `project retrieve start`: `--single-package`; more than one `--package-name`
+- [x] `project retrieve start`: `--single-package` (follows the sf library source)
+- [ ] `project retrieve start`: more than one `--package-name`
 
 ## Flags Accepted Without Effect
 
