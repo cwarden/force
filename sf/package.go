@@ -1081,6 +1081,11 @@ func newPackageVersionCreateCmd() *cobra.Command {
 				return newError("ErrorPathNotFound", "The directory [%s] doesn’t exist in the current directory.", path)
 			}
 			description, _ := cmd.Flags().GetString("version-description")
+			if description == "" {
+				if entry, _ := packageDirectoryEntry(project.Root, packageFlag, path); entry != nil {
+					description = text(entry.values["versionDescription"])
+				}
+			}
 			tag, _ := cmd.Flags().GetString("tag")
 			skipValidation, _ := cmd.Flags().GetBool("skip-validation")
 			asyncValidation, _ := cmd.Flags().GetBool("async-validation")
@@ -1133,6 +1138,8 @@ func newPackageVersionCreateCmd() *cobra.Command {
 				return err
 			}
 			request := lib.PackageVersionRequest{
+				KeepEmptyDescription:   true,
+				SourceApiVersion:       project.SourceApiVersion,
 				ExtraDescriptor:        extraDescriptor,
 				ExtraFiles:             extraFiles,
 				AncestorId:             ancestor,

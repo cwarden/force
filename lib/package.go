@@ -11,6 +11,7 @@ import (
 	"net/textproto"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -44,6 +45,12 @@ type PackageVersionRequest struct {
 	// TransitiveDependencies asks the org to add the dependencies of the
 	// dependencies.
 	TransitiveDependencies bool
+	// KeepEmptyDescription sends an empty VersionDescription as it is.
+	KeepEmptyDescription bool
+	// SourceApiVersion is the API version of the manifest of the package
+	// contents, such as "66.0".  It defaults to the API version of the
+	// session.
+	SourceApiVersion string
 	// ExtraDescriptor holds more properties of the descriptor of the
 	// version, such as features and orgPreferences.
 	ExtraDescriptor map[string]interface{}
@@ -145,7 +152,7 @@ func (f *Force) SubmitPackageVersion(req PackageVersionRequest, progress io.Writ
 	if req.VersionName == "" {
 		req.VersionName = req.VersionNumber
 	}
-	if req.VersionDescription == "" {
+	if req.VersionDescription == "" && !req.KeepEmptyDescription {
 		req.VersionDescription = req.VersionNumber
 	}
 	for _, dependency := range req.Dependencies {
@@ -183,7 +190,7 @@ func (f *Force) SubmitPackageVersion(req PackageVersionRequest, progress io.Writ
 	if err != nil {
 		return "", fmt.Errorf("Failed to create descriptor JSON: %w", err)
 	}
-	packageZip, err := buildPackageZip(req.Path, progress)
+	packageZip, err := buildPackageZip(req.Path, req.SourceApiVersion, progress)
 	if err != nil {
 		return "", err
 	}
@@ -360,7 +367,9 @@ func (f *Force) queryToolingField(query string, field string) (string, error) {
 
 // buildPackageZip builds the package.zip of a package version from the
 // contents of path.
-func buildPackageZip(path string, progress io.Writer) ([]byte, error) {
+var manifestVersion = regexp.MustCompile(`<version>[^<]*</version>`)
+
+func buildPackageZip(path string, apiVersion string, progress io.Writer) ([]byte, error) {
 	absPath, err := filepath.Abs(path)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to get absolute path: %w", err)
@@ -395,6 +404,13 @@ func buildPackageZip(path string, progress io.Writer) ([]byte, error) {
 		updated, err := addProfileTypeToManifest(manifest)
 		if err != nil {
 			return nil, err
+		}
+		if apiVersion != "" {
+			updated = manifestVersion.ReplaceAll(updated, []byte("<version>"+apiVersion+"</version>"))
+		}
+		// The Salesforce CLI ends the manifest with a line break.
+		if !bytes.HasSuffix(updated, []byte("\n")) {
+			updated = append(updated, '\n')
 		}
 		packageFiles["package.xml"] = updated
 	}

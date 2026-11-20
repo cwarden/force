@@ -402,3 +402,30 @@ func TestPackageVersionCreateBodySendsTheOptionsOfTheRequest(t *testing.T) {
 		}
 	}
 }
+
+func TestBuildPackageZipWritesTheSourceApiVersionAndAFinalLineBreak(t *testing.T) {
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, "classes"), 0o755)
+	os.WriteFile(filepath.Join(dir, "classes", "A.cls"), []byte("public class A {}"), 0o644)
+	os.WriteFile(filepath.Join(dir, "classes", "A.cls-meta.xml"), []byte(`<?xml version="1.0" encoding="UTF-8"?><ApexClass xmlns="http://soap.sforce.com/2006/04/metadata"><apiVersion>66.0</apiVersion><status>Active</status></ApexClass>`), 0o644)
+	data, err := buildPackageZip(dir, "66.0", io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reader, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, file := range reader.File {
+		if file.Name != "package.xml" {
+			continue
+		}
+		content, _ := file.Open()
+		manifest, _ := io.ReadAll(content)
+		if !strings.HasSuffix(string(manifest), "    <version>66.0</version>\n</Package>\n") {
+			t.Errorf("manifest = %q", manifest)
+		}
+		return
+	}
+	t.Error("no package.xml in the zip")
+}
