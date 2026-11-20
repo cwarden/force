@@ -29,9 +29,11 @@ type apexTest struct {
 	NamespacePrefix interface{}
 	RunTime         int
 	FullName        string
+	// Category is Apex or Flow.  The logic commands report it.
+	Category string
 }
 
-func (t apexTest) json() *orderedMap {
+func (t apexTest) json(withCategory bool) *orderedMap {
 	class := newOrderedMap()
 	class.Set("Id", t.ClassId)
 	class.Set("Name", t.ClassName)
@@ -47,6 +49,9 @@ func (t apexTest) json() *orderedMap {
 	result.Set("ApexClass", class)
 	result.Set("RunTime", t.RunTime)
 	result.Set("FullName", t.FullName)
+	if withCategory {
+		result.Set("Category", t.Category)
+	}
 	return result
 }
 
@@ -64,6 +69,9 @@ type apexTestRun struct {
 	SetupTimeMs     int
 	Tests           []apexTest
 	Coverage        *apexCoverage
+	// Logic is set for the logic commands, which run Apex and Flow tests
+	// and report the category of each test.
+	Logic bool
 }
 
 type apexClassCoverage struct {
@@ -130,10 +138,51 @@ func (r *apexTestRun) outcome() string {
 	return "Passed"
 }
 
+// flowTestPrefix starts the name of a Flow test: FlowTesting.<flow>.<test>.
+const flowTestPrefix = "FlowTesting."
+
+// flowTestItem adds a Flow test given as FlowTesting.<flow>.<test> or
+// FlowTesting.<namespace>.<flow>.<test> to the items of a test request, as
+// the Apex library of sf does.  It reports whether name is a Flow test.
+// The library asks the org for its namespaces to tell a three-part name
+// with a namespace from one with a test; this takes the third part as the
+// test.
+func flowTestItem(name string, items *[]interface{}, byClass map[string]*orderedMap) bool {
+	if !strings.HasPrefix(name, flowTestPrefix) {
+		return false
+	}
+	parts := strings.Split(name, ".")
+	class, method, namespace := "", "", ""
+	switch len(parts) {
+	case 4:
+		namespace = parts[0] + "." + parts[1]
+		class, method = namespace+"."+parts[2], parts[3]
+	case 3:
+		class, method = parts[0]+"."+parts[1], parts[2]
+	default:
+		return false
+	}
+	item, known := byClass[class]
+	if !known {
+		item = newOrderedMap()
+		if namespace != "" {
+			item.Set("namespace", namespace)
+		}
+		item.Set("className", class)
+		item.Set("testMethods", []string{})
+		byClass[class] = item
+		*items = append(*items, item)
+	}
+	methods, _ := item.values["testMethods"].([]string)
+	item.Set("testMethods", append(methods, method))
+	return true
+}
+
 // apexTestRequest builds the request body for runTestsAsynchronous and
 // runTestsSynchronous from --class-names, --suite-names, --tests and
-// --test-level.
-func apexTestRequest(cmd *cobra.Command) (*orderedMap, error) {
+// --test-level.  logic is set for "logic run test", which also takes
+// --test-category.
+func apexTestRequest(cmd *cobra.Command, logic bool) (*orderedMap, error) {
 	classNames := splitList(cmd, "class-names")
 	suiteNames := splitList(cmd, "suite-names")
 	tests := splitList(cmd, "tests")
@@ -148,6 +197,28 @@ func apexTestRequest(cmd *cobra.Command) (*orderedMap, error) {
 	if specified > 1 {
 		return nil, &Error{Message: "--class-names=" + strings.Join(classNames, ",") + " cannot also be provided when using --suite-names or --tests\nSee more help with --help", ExitCode: 2}
 	}
+	// sf checks these combinations before it sends the request.
+	if synchronous, _ := cmd.Flags().GetBool("synchronous"); synchronous && (len(suiteNames) > 0 || len(classNames) > 1) {
+		if logic {
+			return nil, &Error{Message: "-- Synchronous test runs can include test methods from only one Apex class or Flow test. Omit the --synchronous flag or include tests from only one class", ExitCode: 1}
+		}
+		return nil, &Error{Message: "Synchronous test runs can include test methods from only one Apex class. Omit the --synchronous flag or include tests from only one class", ExitCode: 1}
+	}
+	var categories []string
+	if logic {
+		categories = splitList(cmd, "test-category")
+		for _, category := range categories {
+			if category != "Apex" && category != "Flow" {
+				return nil, &Error{Message: fmt.Sprintf("Expected --test-category=%s to be one of: Apex, Flow\nSee more help with --help", category), ExitCode: 2}
+			}
+		}
+		if len(categories) > 0 && testLevel == "" {
+			return nil, &Error{Message: "When using --test-category, you must also specify --test-level.", ExitCode: 1}
+		}
+	}
+	if specified > 0 && testLevel != "" && testLevel != "RunSpecifiedTests" {
+		return nil, &Error{Message: "When specifying classnames, suitenames, or tests, indicate RunSpecifiedTests as the testlevel", ExitCode: 1}
+	}
 	if testLevel == "" {
 		testLevel = "RunLocalTests"
 		if specified > 0 {
@@ -158,6 +229,11 @@ func apexTestRequest(cmd *cobra.Command) (*orderedMap, error) {
 	case "RunLocalTests", "RunAllTestsInOrg", "RunSpecifiedTests":
 	default:
 		return nil, &Error{Message: fmt.Sprintf("Expected --test-level=%s to be one of: RunLocalTests, RunAllTestsInOrg, RunSpecifiedTests\nSee more help with --help", testLevel), ExitCode: 1}
+	}
+	// "apex run test" runs the Apex tests of the org; a run of named
+	// tests has no category.
+	if !logic && testLevel != "RunSpecifiedTests" {
+		categories = []string{"Apex"}
 	}
 	request := newOrderedMap()
 	classItem := func(name string) *orderedMap {
@@ -174,6 +250,15 @@ func apexTestRequest(cmd *cobra.Command) (*orderedMap, error) {
 		return item
 	}
 	switch {
+	case len(classNames) > 0 && len(categories) > 0:
+		// With a category the names are sent as they are: they can be
+		// Flow tests.
+		items := make([]interface{}, 0, len(classNames))
+		for _, name := range classNames {
+			items = append(items, orderedFields("className", name))
+		}
+		request.Set("tests", items)
+		testLevel = "RunSpecifiedTests"
 	case len(classNames) > 0:
 		items := make([]interface{}, 0, len(classNames))
 		for _, name := range classNames {
@@ -185,7 +270,12 @@ func apexTestRequest(cmd *cobra.Command) (*orderedMap, error) {
 	case len(tests) > 0:
 		var order []string
 		methods := map[string][]string{}
+		var flowItems []interface{}
+		flowClasses := map[string]*orderedMap{}
 		for _, test := range tests {
+			if flowTestItem(test, &flowItems, flowClasses) {
+				continue
+			}
 			class, method := test, ""
 			if index := strings.LastIndex(test, "."); index >= 0 {
 				class, method = test[:index], test[index+1:]
@@ -207,9 +297,12 @@ func apexTestRequest(cmd *cobra.Command) (*orderedMap, error) {
 			}
 			items = append(items, item)
 		}
-		request.Set("tests", items)
+		request.Set("tests", append(items, flowItems...))
 	}
 	request.Set("testLevel", testLevel)
+	if _, named := request.Get("tests"); !named && len(categories) > 0 {
+		request.Set("category", categories)
+	}
 	request.Set("skipCodeCoverage", !codeCoverage)
 	return request, nil
 }
@@ -220,6 +313,7 @@ func apexTestRequest(cmd *cobra.Command) (*orderedMap, error) {
 // sf takes the values of every other list flag as they are given.
 var commaListFlags = map[string]map[string]bool{
 	"sf apex run test":                  {"class-names": true, "suite-names": true, "tests": true},
+	"sf logic run test":                 {"class-names": true, "suite-names": true, "tests": true, "test-category": true},
 	"sf cmdt generate field":            {"picklist-values": true},
 	"sf commands":                       {"columns": true},
 	"sf data import tree":               {"files": true},
@@ -235,7 +329,7 @@ var commaListFlags = map[string]map[string]bool{
 
 // commaWarningAfterBeta are the commands of commaListFlags that give the
 // warning themselves, after their beta warning, as sf orders them.
-var commaWarningAfterBeta = map[string]bool{"sf template generate flexipage": true}
+var commaWarningAfterBeta = map[string]bool{"sf template generate flexipage": true, "sf logic run test": true}
 
 // commaListWarning is the warning sf gives when a command with such a flag
 // is given an argument that contains a comma.
@@ -330,17 +424,28 @@ var testRunDone = map[string]bool{"Completed": true, "Failed": true, "Aborted": 
 
 // waitForTestRun polls the queue items of a test run until each has
 // finished or the timeout passes.  It returns the queue item ids.
-func waitForTestRun(org *targetOrg, testRunID string, timeout time.Duration, interval time.Duration) ([]string, bool, error) {
+// testQueueItems are the queue items of a test run.  An item without an
+// Apex class is a Flow test.
+type testQueueItems struct {
+	apex []string
+	flow []string
+}
+
+func waitForTestRun(org *targetOrg, testRunID string, timeout time.Duration, interval time.Duration) (testQueueItems, bool, error) {
 	deadline := time.Now().Add(timeout)
 	for {
 		items, err := toolingRecords(org, fmt.Sprintf("SELECT Id, Status, ApexClassId, TestRunResultId, ParentJobId FROM ApexTestQueueItem WHERE ParentJobId = '%s'", testRunID))
 		if err != nil {
-			return nil, false, err
+			return testQueueItems{}, false, err
 		}
 		done := len(items) > 0
-		ids := make([]string, 0, len(items))
+		var ids testQueueItems
 		for _, item := range items {
-			ids = append(ids, text(item.values["Id"]))
+			if item.values["ApexClassId"] == nil {
+				ids.flow = append(ids.flow, text(item.values["Id"]))
+			} else {
+				ids.apex = append(ids.apex, text(item.values["Id"]))
+			}
 			if !testRunDone[text(item.values["Status"])] {
 				done = false
 			}
@@ -355,7 +460,8 @@ func waitForTestRun(org *targetOrg, testRunID string, timeout time.Duration, int
 	}
 }
 
-func loadTestRun(org *targetOrg, testRunID string, queueItemIDs []string) (*apexTestRun, error) {
+func loadTestRun(org *targetOrg, testRunID string, queueItems testQueueItems) (*apexTestRun, error) {
+	queueItemIDs := queueItems.apex
 	run := &apexTestRun{TestRunId: testRunID}
 	summaries, err := toolingRecords(org, fmt.Sprintf("SELECT AsyncApexJobId, Status, ClassesCompleted, ClassesEnqueued, MethodsEnqueued, StartTime, EndTime, TestTime, TestSetupTime, UserId FROM ApexTestRunResult WHERE AsyncApexJobId = '%s'", testRunID))
 	if err != nil {
@@ -390,11 +496,44 @@ func loadTestRun(org *targetOrg, testRunID string, queueItemIDs []string) (*apex
 				MethodName:     text(record.values["MethodName"]),
 				Outcome:        text(record.values["Outcome"]),
 				RunTime:        intValue(record.values["RunTime"]),
+				Category:       "Apex",
 			}
 			if class, ok := record.values["ApexClass"].(*orderedMap); ok {
 				test.ClassId = text(class.values["Id"])
 				test.ClassName = text(class.values["Name"])
 				test.NamespacePrefix = class.values["NamespacePrefix"]
+			}
+			test.FullName = test.ClassName + "." + test.MethodName
+			if namespace := text(test.NamespacePrefix); namespace != "" {
+				test.FullName = namespace + "." + test.FullName
+			}
+			run.Tests = append(run.Tests, test)
+		}
+	}
+	// The results of Flow tests are in another object.  sf reports them
+	// in the form of Apex test results: the flow as the class and the
+	// Flow test as the method.
+	for start := 0; start < len(queueItems.flow); start += 100 {
+		end := start + 100
+		if end > len(queueItems.flow) {
+			end = len(queueItems.flow)
+		}
+		records, err := toolingRecords(org, fmt.Sprintf("SELECT Id, ApexTestQueueItemId, Result, TestStartDateTime,TestEndDateTime, FlowTest.DeveloperName, FlowDefinition.DeveloperName, FlowDefinition.NamespacePrefix FROM FlowTestResult WHERE ApexTestQueueItemId IN (%s)", quoteIds(queueItems.flow[start:end])))
+		if err != nil {
+			return nil, err
+		}
+		for _, record := range records {
+			queueItem := text(record.values["ApexTestQueueItemId"])
+			test := apexTest{
+				Id: text(record.values["Id"]), QueueItemId: queueItem, StackTrace: "", Message: "", AsyncApexJobId: queueItem,
+				Outcome: text(record.values["Result"]), ClassId: queueItem, Category: "Flow",
+			}
+			if flowTest, ok := record.values["FlowTest"].(*orderedMap); ok {
+				test.MethodName = text(flowTest.values["DeveloperName"])
+			}
+			if flow, ok := record.values["FlowDefinition"].(*orderedMap); ok {
+				test.ClassName = text(flow.values["DeveloperName"])
+				test.NamespacePrefix = flow.values["NamespacePrefix"]
 			}
 			test.FullName = test.ClassName + "." + test.MethodName
 			if namespace := text(test.NamespacePrefix); namespace != "" {
@@ -480,8 +619,15 @@ func loadCoverage(org *targetOrg, run *apexTestRun) error {
 			coverage.PerTest = append(coverage.PerTest, perTest)
 		}
 	}
-	if len(coveredClassIDs) > 0 {
-		records, err := toolingRecords(org, fmt.Sprintf("SELECT ApexClassOrTrigger.Id, ApexClassOrTrigger.Name, NumLinesCovered, NumLinesUncovered, Coverage FROM ApexCodeCoverageAggregate WHERE ApexClassorTriggerId IN (%s)", quoteIds(coveredClassIDs)))
+	{
+		// Without coverage records for the tests of the run, sf reads the
+		// aggregate coverage of every class and trigger: an org can be set
+		// to store only the aggregates.
+		soql := "SELECT ApexClassOrTrigger.Id, ApexClassOrTrigger.Name, NumLinesCovered, NumLinesUncovered, Coverage FROM ApexCodeCoverageAggregate"
+		if len(coveredClassIDs) > 0 {
+			soql += fmt.Sprintf(" WHERE ApexClassorTriggerId IN (%s)", quoteIds(coveredClassIDs))
+		}
+		records, err := toolingRecords(org, soql)
 		if err != nil {
 			return err
 		}
@@ -584,7 +730,7 @@ func (r *apexTestRun) json(org *targetOrg, commandTime time.Duration) *orderedMa
 	}
 	tests := make([]interface{}, 0, total)
 	for _, test := range r.Tests {
-		tests = append(tests, test.json())
+		tests = append(tests, test.json(r.Logic))
 	}
 	result := newOrderedMap()
 	result.Set("summary", summary)
@@ -669,6 +815,17 @@ func (c *apexCoverage) coverageOf(test apexTest) []apexTestCoverage {
 	return entries
 }
 
+// withCategory inserts the category of a test into a table row at the given
+// position, for the logic commands.
+func withCategory(logic bool, at int, category string, row []string) []string {
+	if !logic {
+		return row
+	}
+	result := append([]string{}, row[:at]...)
+	result = append(result, category)
+	return append(result, row[at:]...)
+}
+
 func (r *apexTestRun) human(org *targetOrg, concise bool, detailed bool) string {
 	var sections []string
 	var rows [][]string
@@ -682,10 +839,10 @@ func (r *apexTestRun) human(org *targetOrg, concise bool, detailed bool) string 
 			runtime := fmt.Sprintf("%d", test.RunTime)
 			entries := r.Coverage.coverageOf(test)
 			if len(entries) == 0 {
-				rows = append(rows, []string{test.FullName, "", test.Outcome, "", testMessage(test), runtime})
+				rows = append(rows, withCategory(r.Logic, 2, test.Category, []string{test.FullName, "", test.Outcome, "", testMessage(test), runtime}))
 			}
 			for _, entry := range entries {
-				rows = append(rows, []string{test.FullName, entry.ClassName, test.Outcome, entry.percentage(), testMessage(test), runtime})
+				rows = append(rows, withCategory(r.Logic, 2, test.Category, []string{test.FullName, entry.ClassName, test.Outcome, entry.percentage(), testMessage(test), runtime}))
 			}
 			continue
 		}
@@ -693,15 +850,15 @@ func (r *apexTestRun) human(org *targetOrg, concise bool, detailed bool) string 
 		if test.Outcome != "Fail" {
 			runtime = fmt.Sprintf("%d", test.RunTime)
 		}
-		rows = append(rows, []string{test.FullName, test.Outcome, testMessage(test), runtime})
+		rows = append(rows, withCategory(r.Logic, 1, test.Category, []string{test.FullName, test.Outcome, testMessage(test), runtime}))
 	}
 	switch {
 	case len(rows) == 0:
 		sections = append(sections, "")
 	case detailed:
-		sections = append(sections, textTable("Apex Code Coverage for Test Run "+r.TestRunId, []string{"TEST NAME", "CLASS BEING TESTED", "OUTCOME", "PERCENT", "MESSAGE", "RUNTIME (MS)"}, rows))
+		sections = append(sections, textTable("Apex Code Coverage for Test Run "+r.TestRunId, withCategory(r.Logic, 2, "CATEGORY", []string{"TEST NAME", "CLASS BEING TESTED", "OUTCOME", "PERCENT", "MESSAGE", "RUNTIME (MS)"}), rows))
 	default:
-		sections = append(sections, textTable("Test Results", []string{"TEST NAME", "OUTCOME", "MESSAGE", "RUNTIME (MS)"}, rows))
+		sections = append(sections, textTable("Test Results", withCategory(r.Logic, 1, "CATEGORY", []string{"TEST NAME", "OUTCOME", "MESSAGE", "RUNTIME (MS)"}), rows))
 	}
 	if r.Coverage != nil && !concise {
 		var coverageRows [][]string
@@ -838,6 +995,7 @@ func (r *apexTestRun) junit(org *targetOrg, commandTime time.Duration) string {
 // answers with the results.
 func runTestsSynchronously(org *targetOrg, request *orderedMap) (*apexTestRun, error) {
 	request.Delete("testLevel")
+	request.Delete("category")
 	content, err := encodeJSON(request)
 	if err != nil {
 		return nil, err
@@ -880,8 +1038,15 @@ func runTestsSynchronously(org *targetOrg, request *orderedMap) (*apexTestRun, e
 		}
 		return name
 	}
+	category := func(namespace interface{}) string {
+		if strings.HasPrefix(text(namespace), flowTestPrefix) {
+			return "Flow"
+		}
+		return "Apex"
+	}
 	for _, success := range response.Successes {
 		run.Tests = append(run.Tests, apexTest{
+			Category:   category(success.Namespace),
 			StackTrace: "", Message: "", MethodName: success.MethodName, Outcome: "Pass",
 			ClassId: success.Id, ClassName: success.Name, NamespacePrefix: success.Namespace,
 			RunTime: int(success.Time), FullName: fullName(success.Namespace, success.Name, success.MethodName),
@@ -889,6 +1054,7 @@ func runTestsSynchronously(org *targetOrg, request *orderedMap) (*apexTestRun, e
 	}
 	for _, failure := range response.Failures {
 		run.Tests = append(run.Tests, apexTest{
+			Category:   category(failure.Namespace),
 			StackTrace: failure.StackTrace, Message: failure.Message, MethodName: failure.MethodName, Outcome: "Fail",
 			ClassId: failure.Id, ClassName: failure.Name, NamespacePrefix: failure.Namespace,
 			RunTime: int(failure.Time), FullName: fullName(failure.Namespace, failure.Name, failure.MethodName),
@@ -1038,13 +1204,26 @@ func reportTestRun(cmd *cobra.Command, org *targetOrg, run *apexTestRun, format 
 	return nil
 }
 
-func newApexGetTestCmd() *cobra.Command {
+func newApexGetTestCmd() *cobra.Command { return newGetTestCmd(false) }
+
+// newLogicGetTestCmd is "logic get test": "apex get test" for a run of
+// Apex and Flow tests, with the category of each test in the results.
+func newLogicGetTestCmd() *cobra.Command { return newGetTestCmd(true) }
+
+func newGetTestCmd(logic bool) *cobra.Command {
+	short, class := "Display test results for a specific asynchronous test run.", "Test"
+	if logic {
+		short, class = "Get the results of a test run.", "TestLogic"
+	}
 	cmd := &cobra.Command{
 		Use:         "test",
-		Short:       "Display test results for a specific asynchronous test run.",
+		Short:       short,
 		Args:        cobra.NoArgs,
-		Annotations: map[string]string{commandNameAnnotation: "Test"},
+		Annotations: map[string]string{commandNameAnnotation: class},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if logic {
+				warn(cmd, betaWarning)
+			}
 			format, err := testResultFormat(cmd)
 			if err != nil {
 				return err
@@ -1066,6 +1245,11 @@ func newApexGetTestCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			run.Logic = logic
+			if logic {
+				// sf does not pass the flag on for this command.
+				cmd.Flags().Set("detailed-coverage", "false")
+			}
 			return reportTestRun(cmd, org, run, format, time.Since(started))
 		},
 	}
@@ -1085,18 +1269,34 @@ func newApexGetTestCmd() *cobra.Command {
 // shorten it.
 var testPollInterval = time.Second
 
-func newApexRunTestCmd() *cobra.Command {
+func newApexRunTestCmd() *cobra.Command { return newRunTestCmd(false) }
+
+// newLogicRunTestCmd is "logic run test": "apex run test" for Apex and Flow
+// tests, with --test-category to choose between them.
+func newLogicRunTestCmd() *cobra.Command { return newRunTestCmd(true) }
+
+func newRunTestCmd(logic bool) *cobra.Command {
+	short, class, topic := "Invoke Apex tests in an org.", "Test", "apex"
+	if logic {
+		short, class, topic = "Invoke tests for Apex and Flows in an org.", "RunTestLogic", "logic"
+	}
 	cmd := &cobra.Command{
 		Use:         "test",
-		Short:       "Invoke Apex tests in an org.",
+		Short:       short,
 		Args:        cobra.NoArgs,
-		Annotations: map[string]string{commandNameAnnotation: "Test"},
+		Annotations: map[string]string{commandNameAnnotation: class},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if logic {
+				warn(cmd, betaWarning)
+				if hasUnescapedComma(currentArgs) {
+					warn(cmd, commaListWarning)
+				}
+			}
 			format, err := testResultFormat(cmd)
 			if err != nil {
 				return err
 			}
-			request, err := apexTestRequest(cmd)
+			request, err := apexTestRequest(cmd, logic)
 			if err != nil {
 				return err
 			}
@@ -1119,7 +1319,14 @@ func newApexRunTestCmd() *cobra.Command {
 				}
 				body, err := org.Force.PostREST("/tooling/runTestsAsynchronous", content)
 				if err != nil {
-					return apiError(err)
+					// sf shows the error code of a refused test run in
+					// place of the exit status.
+					converted := apiError(err)
+					if e, ok := converted.(*Error); ok {
+						e.Label = ""
+						e.Data = nil
+					}
+					return converted
 				}
 				var testRunID string
 				if err := json.Unmarshal([]byte(body), &testRunID); err != nil {
@@ -1129,7 +1336,7 @@ func newApexRunTestCmd() *cobra.Command {
 					result := newOrderedMap()
 					result.Set("testRunId", testRunID)
 					return emit(cmd, result, func(w io.Writer) {
-						fmt.Fprintf(w, "Run \""+binName+" apex get test -i %s -o %s\" to retrieve test results\n", testRunID, org.Username)
+						fmt.Fprintf(w, "Run \""+binName+" "+topic+" get test -i %s -o %s\" to retrieve test results\n", testRunID, org.Username)
 						fmt.Fprintln(w, "Run with --synchronous or increase --wait timeout to wait for results.")
 					})
 				}
@@ -1138,8 +1345,10 @@ func newApexRunTestCmd() *cobra.Command {
 					return notWaiting()
 				}
 				interval := testPollInterval
-				if seconds, _ := cmd.Flags().GetInt("poll-interval"); seconds > 0 {
-					interval = time.Duration(seconds) * time.Second
+				if !logic {
+					if seconds, _ := cmd.Flags().GetInt("poll-interval"); seconds > 0 {
+						interval = time.Duration(seconds) * time.Second
+					}
 				}
 				queueItemIDs, finished, err := waitForTestRun(org, testRunID, time.Duration(wait)*time.Minute, interval)
 				if err != nil {
@@ -1153,6 +1362,7 @@ func newApexRunTestCmd() *cobra.Command {
 					return err
 				}
 			}
+			run.Logic = logic
 			return reportTestRun(cmd, org, run, format, time.Since(started))
 		},
 	}
@@ -1163,8 +1373,13 @@ func newApexRunTestCmd() *cobra.Command {
 	cmd.Flags().StringArrayP("class-names", "n", nil, "Apex test class names to run.")
 	cmd.Flags().StringP("result-format", "r", "human", "Format of the test results.")
 	cmd.Flags().StringArrayP("suite-names", "s", nil, "Apex test suite names to run.")
-	cmd.Flags().StringArrayP("tests", "t", nil, "Apex test class names or IDs and, if applicable, test methods to run.")
-	cmd.Flags().IntP("poll-interval", "i", 0, "Number of seconds to wait between retries.")
+	if logic {
+		cmd.Flags().StringArrayP("tests", "t", nil, "Comma-separated list of test names to run. Can include Apex test classes and Flow tests.")
+		cmd.Flags().StringArray("test-category", nil, "Category of tests to run, such as Apex or Flow.")
+	} else {
+		cmd.Flags().StringArrayP("tests", "t", nil, "Apex test class names or IDs and, if applicable, test methods to run.")
+		cmd.Flags().IntP("poll-interval", "i", 0, "Number of seconds to wait between retries.")
+	}
 	cmd.Flags().IntP("wait", "w", 0, "Sets the streaming client socket timeout in minutes.")
 	cmd.Flags().BoolP("synchronous", "y", false, "Runs test methods from a single Apex class synchronously.")
 	cmd.Flags().BoolP("detailed-coverage", "v", false, "Display detailed code coverage per test.")

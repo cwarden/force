@@ -244,10 +244,10 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [x] `apex get compile-status` (compared with sf against a scratch org without compile problems; the table of problems follows the plugin source)
 - [x] `apex get test`
 
-### logic (2 open, 0 done)
+### logic (0 open, 2 done)
 
-- [ ] `logic get test`
-- [ ] `logic run test`
+- [x] `logic get test` (compared with sf for Apex tests; Flow tests follow the source)
+- [x] `logic run test` (compared with sf for Apex tests; Flow tests follow the source)
 
 ### flow (2 open, 0 done)
 

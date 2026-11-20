@@ -108,7 +108,7 @@ func serveTestRun(org *fakeOrg) *string {
 		soql := r.URL.Query().Get("q")
 		switch {
 		case strings.Contains(soql, "FROM ApexTestQueueItem"):
-			io.WriteString(w, `{"done":true,"totalSize":1,"records":[{"Id":"709000000000001AAA","Status":"Completed"}]}`)
+			io.WriteString(w, `{"done":true,"totalSize":1,"records":[{"Id":"709000000000001AAA","Status":"Completed","ApexClassId":"01p000000000002AAA"}]}`)
 		case strings.Contains(soql, "FROM ApexTestRunResult"):
 			io.WriteString(w, `{"done":true,"totalSize":1,"records":[{"AsyncApexJobId":"707000000000001AAA","Status":"Completed","StartTime":"2026-01-02T03:04:05.678+0000","TestTime":83,"TestSetupTime":0,"UserId":"005000000000001AAA"}]}`)
 		case strings.Contains(soql, "FROM ApexTestResult"):
@@ -263,7 +263,7 @@ func TestApexRunTestWithoutWaitReportsTheRunId(t *testing.T) {
   "warnings": []
 }
 `, "apex", "run", "test", "--json")
-	if *request != `{"testLevel":"RunLocalTests","skipCodeCoverage":true}` {
+	if *request != `{"testLevel":"RunLocalTests","category":["Apex"],"skipCodeCoverage":true}` {
 		t.Errorf("default request = %s", *request)
 	}
 }

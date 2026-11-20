@@ -24,6 +24,7 @@ sf [flags]
 * [sf config](sf_config.md)	 - Commands to configure Salesforce CLI.
 * [sf data](sf_data.md)	 - Manage records in your org.
 * [sf force](sf_force.md)	 - Legacy commands.
+* [sf logic](sf_logic.md)	 - Commands to run and get the results of Apex and Flow tests.
 * [sf org](sf_org.md)	 - Commands to create and manage orgs and scratch org users.
 * [sf package](sf_package.md)	 - Commands to develop and install unlocked packages and managed 2GP packages.
 * [sf package1](sf_package1.md)	 - Commands to develop first-generation managed and unmanaged packages.

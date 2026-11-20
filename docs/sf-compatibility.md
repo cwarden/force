@@ -106,6 +106,8 @@ The files written by the `template generate` commands come from the salesforcedx
 | `sf force data bulk delete` | `force bulk delete` | Sends the file as one batch; sf splits it into batches of 10,000 records. | Compared with sf |
 | `sf force data bulk status` | `force bulk job`, `force bulk batch` |  | Compared with sf |
 | `sf force data bulk upsert` | `force bulk upsert` | Sends the file as one batch. | Compared with sf |
+| `sf logic get test` | none | The tests of a run are listed in the order of their names; sf lists them in the order the org returns them. A Flow test named with three parts is taken as `FlowTesting.<flow>.<test>`; sf asks the org for its namespaces to tell it from `FlowTesting.<namespace>.<flow>`. Compared with sf for Apex tests; the scratch org used had no Flow tests. | Compared with sf |
+| `sf logic run test` | none | The tests of a run are listed in the order of their names; sf lists them in the order the org returns them. A Flow test named with three parts is taken as `FlowTesting.<flow>.<test>`; sf asks the org for its namespaces to tell it from `FlowTesting.<namespace>.<flow>`. Compared with sf for Apex tests; the scratch org used had no Flow tests. | Compared with sf |
 | `sf org assign permset` | none |  | Compared with sf |
 | `sf org assign permsetlicense` | none |  | Compared with sf |
 | `sf org auth show-access-token` | none |  | Compared with sf |
@@ -268,7 +270,7 @@ A flag listed as unsupported returns an error that names the flag.
 
 ## sf Commands Not Implemented
 
-90 of the 239 commands of `sf` 2.138.6 and its bundled and install-on-first-use plugins are not implemented. Third-party plugins and the retired Functions plugin are not counted. Running one of these commands prints the message `sf` prints for an unknown command and exits with status 127.
+88 of the 239 commands of `sf` 2.138.6 and its bundled and install-on-first-use plugins are not implemented. Third-party plugins and the retired Functions plugin are not counted. Running one of these commands prints the message `sf` prints for an unknown command and exits with status 127.
 
 ### org
 
@@ -287,13 +289,6 @@ A flag listed as unsupported returns an error that names the flag.
 | `sf project deploy pipeline resume` | Resume watching a pipeline deploy operation. | DevOps Center API; no force code exists. |
 | `sf project deploy pipeline start` | Deploy changes from a branch to the pipeline stage’s org. | DevOps Center API; no force code exists. |
 | `sf project deploy pipeline validate` | Perform a validate-only deployment from a branch to the pipeline stage’s org. | DevOps Center API; no force code exists. |
-
-### logic
-
-| sf command | Summary | What is required |
-|---|---|---|
-| `sf logic get test` | Get the results of a test run. | Extend the test request and reporters of `apex run test` with Flow tests and the category column. |
-| `sf logic run test` | Invoke tests for Apex and Flows in an org. | Extend the test request and reporters of `apex run test` with Flow tests and the category column. |
 
 ### flow
 
