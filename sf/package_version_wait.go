@@ -7,9 +7,11 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 
 	"github.com/ForceCLI/force/lib"
 )
@@ -18,25 +20,64 @@ import (
 // request.  Tests replace it.
 var packageVersionSleep = time.Sleep
 
-// statusLine prints "message... status" on stderr.  On a terminal each
-// update replaces the line; otherwise only the final status is printed, as
-// sf does when its output is not a terminal.
+// statusLine prints "message... status" on stderr.  On a terminal the line
+// is redrawn every 100 milliseconds with the next frame of a spinner before
+// the status, as sf does; otherwise only the final status is printed.
 type statusLine struct {
 	out      io.Writer
 	message  string
 	terminal bool
 	silent   bool
 	verbose  bool
+
+	mu     sync.Mutex
+	status string
+	frame  int
+	done   chan struct{}
 }
+
+// spinnerFrames are the frames of the spinner of sf.
+var spinnerFrames = []string{"⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"}
 
 func startStatusLine(cmd *cobra.Command, message string) *statusLine {
 	line := &statusLine{out: cmd.ErrOrStderr(), message: message, silent: jsonRequested(cmd)}
 	if line.silent {
 		return line
 	}
-	line.terminal = colorEnabled(line.out)
+	line.terminal = colorEnabled(line.out) && isTerminalWriter(line.out)
 	fmt.Fprintf(line.out, "%s... ", message)
+	if line.terminal {
+		line.done = make(chan struct{})
+		done := line.done
+		activeStatusLine = line
+		go func() {
+			ticker := time.NewTicker(100 * time.Millisecond)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-done:
+					return
+				case <-ticker.C:
+					line.mu.Lock()
+					line.draw()
+					line.mu.Unlock()
+				}
+			}
+		}()
+	}
 	return line
+}
+
+// draw replaces the line with the message, the next frame and the status.
+// The caller holds the lock.
+func (l *statusLine) draw() {
+	frame := paint(l.out, styleMagenta, spinnerFrames[l.frame%len(spinnerFrames)])
+	l.frame++
+	text := l.message + "... " + frame
+	if l.status != "" {
+		text += " " + l.status
+	}
+	fmt.Fprintf(l.out, "\r\x1b[2K%s", text)
 }
 
 func (l *statusLine) update(status string) {
@@ -47,7 +88,9 @@ func (l *statusLine) update(status string) {
 	if l.silent || !l.terminal {
 		return
 	}
-	fmt.Fprintf(l.out, "\r\x1b[2K%s... %s", l.message, status)
+	l.mu.Lock()
+	l.status = status
+	l.mu.Unlock()
 }
 
 func (l *statusLine) stop(status string) {
@@ -55,10 +98,46 @@ func (l *statusLine) stop(status string) {
 		return
 	}
 	if l.terminal {
+		l.mu.Lock()
+		if l.done != nil {
+			close(l.done)
+			l.done = nil
+		}
 		fmt.Fprintf(l.out, "\r\x1b[2K%s... %s\n", l.message, status)
+		l.mu.Unlock()
 		return
 	}
 	fmt.Fprintln(l.out, status)
+}
+
+// activeStatusLine is the status line that is being redrawn, if any.
+var activeStatusLine *statusLine
+
+// abandonStatusLine ends the redrawing of a status line that a failed
+// command left running, so that the error is not erased by the next frame.
+func abandonStatusLine() {
+	line := activeStatusLine
+	if line == nil {
+		return
+	}
+	line.mu.Lock()
+	if line.done != nil {
+		close(line.done)
+		line.done = nil
+		fmt.Fprintf(line.out, "\r\x1b[2K%s... \n", line.message)
+	}
+	line.mu.Unlock()
+	activeStatusLine = nil
+}
+
+// isTerminalWriter reports whether w is a terminal, whatever the color
+// settings are.
+func isTerminalWriter(w io.Writer) bool {
+	if wrapper, ok := w.(*deprecationWriter); ok {
+		w = wrapper.Writer
+	}
+	file, ok := w.(*os.File)
+	return ok && term.IsTerminal(int(file.Fd()))
 }
 
 // waitForPackageVersion submits a package version and reports the create

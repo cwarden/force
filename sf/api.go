@@ -124,18 +124,14 @@ func decodeOrdered(dec *json.Decoder) (interface{}, error) {
 // that waits on the org: "<message>... " when the work starts and a status
 // such as "done" when it ends.  Nothing is printed with --json.
 func startSpinner(cmd *cobra.Command, message string) func(status string) {
-	if jsonRequested(cmd) {
-		return func(string) {}
-	}
-	errOut := cmd.ErrOrStderr()
-	fmt.Fprintf(errOut, "%s... ", message)
+	line := startStatusLine(cmd, message)
 	stopped := false
 	return func(status string) {
 		if stopped {
 			return
 		}
 		stopped = true
-		fmt.Fprintln(errOut, status)
+		line.stop(status)
 	}
 }
 

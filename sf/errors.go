@@ -84,6 +84,7 @@ type errorEnvelope struct {
 // writeError prints err the way sf does and returns the exit status.  With
 // --json the envelope goes to stdout; otherwise the message goes to stderr.
 func writeError(out, errOut io.Writer, cmd *cobra.Command, err error, jsonOutput bool) int {
+	abandonStatusLine()
 	if status, ok := err.(exitStatus); ok {
 		return int(status)
 	}
