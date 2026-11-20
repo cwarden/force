@@ -173,7 +173,7 @@ The files written by the `template generate` commands come from the salesforcedx
 | `sf package version displaydependencies` | none | Not compared with sf. | Follows the sf plugin source |
 | `sf package version list` | `force package version list` | The Dev Hub used for the comparison had no version with an ancestor, so the ancestor version number follows the plugin source, as does `--show-conversions-only`. | Compared with sf |
 | `sf package version promote` | `force package version release` |  | Follows the sf plugin source |
-| `sf package version report` | `force package version get` | The report and `--verbose` follow the sf plugin source. Only the error for a version that does not exist was compared with sf. | Follows the sf plugin source |
+| `sf package version report` | `force package version get` | The code coverage rows of `--verbose` follow the sf plugin source; the version compared with sf had no code coverage or dependencies. | Compared with sf |
 | `sf package version retrieve` | none | Not compared with sf: it needs a package version whose developer package zip can be downloaded. The rows are listed in the order this mode writes the files. | Follows the sf plugin source |
 | `sf package version update` | none |  | Follows the sf plugin source |
 | `sf package1 version create` | none | The messages for a queued request, a request in progress, a failed upload and a finished upload were compared with sf against a packaging org. `--wait` was compared too: sf prints nothing while it waits. | Follows the sf plugin source |
