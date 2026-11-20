@@ -656,17 +656,24 @@ func newProjectGenerateManifestCmd() *cobra.Command {
 		Args:        cobra.NoArgs,
 		Annotations: map[string]string{commandNameAnnotation: "ManifestGenerate"},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := unsupportedFlags(cmd, "from-org", "include-packages"); err != nil {
-				return err
-			}
 			metadata := splitList(cmd, "metadata")
+			fromOrg, _ := cmd.Flags().GetString("from-org")
+			includePackages := splitList(cmd, "include-packages")
+			for _, kind := range includePackages {
+				if kind != "managed" && kind != "unlocked" {
+					return &Error{Message: fmt.Sprintf("Expected --include-packages=%s to be one of: managed, unlocked\nSee more help with --help", kind), ExitCode: 2}
+				}
+			}
+			if len(includePackages) > 0 && fromOrg == "" {
+				return &Error{Message: "The following error occurred:\n  All of the following must be provided when using --include-packages: --from-org\nSee more help with --help", ExitCode: 2}
+			}
 			sourceDirs := splitList(cmd, "source-dir")
 			name, _ := cmd.Flags().GetString("name")
 			manifestType, _ := cmd.Flags().GetString("type")
 			if name != "" && manifestType != "" {
 				return &Error{Message: fmt.Sprintf("The following errors occurred:\n  --name=%s cannot also be provided when using --type\n  --type=%s cannot also be provided when using --name\nSee more help with --help", name, manifestType), ExitCode: 2}
 			}
-			if len(metadata) == 0 && len(sourceDirs) == 0 {
+			if len(metadata) == 0 && len(sourceDirs) == 0 && fromOrg == "" {
 				return &Error{Message: "provided flags must include at least one of: metadata,source-dir,from-org", ExitCode: 1}
 			}
 			fileNames := map[string]string{"": "package.xml", "package": "package.xml", "pre": "destructiveChangesPre.xml", "post": "destructiveChangesPost.xml", "destroy": "destructiveChanges.xml"}
@@ -693,11 +700,47 @@ func newProjectGenerateManifestCmd() *cobra.Command {
 				}
 			}
 			for _, entry := range metadata {
+				// With --from-org the entries choose among the components
+				// of the org, and are not listed themselves.
+				if fromOrg != "" {
+					break
+				}
 				metadataType, member, hasMember := strings.Cut(entry, ":")
 				if !hasMember {
 					member = "*"
 				}
 				add(metadataType, member)
+			}
+			if fromOrg != "" {
+				org, err := loadOrg(fromOrg)
+				if err != nil {
+					var actions []string
+					if similar := similarOrgName(fromOrg); similar != "" {
+						actions = []string{fmt.Sprintf("It looks like you mistyped the username or alias. Did you mean %q?", similar)}
+					}
+					return &Error{
+						Name:     "NamedOrgNotFoundError",
+						Message:  fmt.Sprintf("Parsing --from-org \n\tNo authorization information found for %s.\nSee more help with --help", fromOrg),
+						ExitCode: 2,
+						Actions:  actions,
+					}
+				}
+				// sf asks the org with the API version of the manifest:
+				// --api-version, or the sourceApiVersion of the project.
+				if version := projectAPIVersion(project); version != "" {
+					if err := lib.SetApiVersion(version); err == nil {
+						org.Force.Metadata = lib.NewForceMetadata(org.Force)
+					}
+				}
+				orgTypes, err := orgManifestTypes(org, metadata, splitList(cmd, "excluded-metadata"), includePackages)
+				if err != nil {
+					return err
+				}
+				for metadataType, members := range orgTypes {
+					for _, member := range members {
+						add(metadataType, member)
+					}
+				}
 			}
 			if len(sourceDirs) > 0 {
 				set := newSourceSet()

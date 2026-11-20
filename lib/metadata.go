@@ -8,6 +8,7 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
+	"html"
 	"io"
 	"io/ioutil"
 	"os"
@@ -1735,6 +1736,27 @@ func (fm *ForceMetadata) ListMetadata(query string) (res []byte, err error) {
 	} else {
 		return fm.soapExecute("listMetadata", fmt.Sprintf("<queries><type>%s</type></queries>", query))
 	}
+}
+
+// ListMetadataQuery names a metadata type and, for a type whose components
+// are in folders, a folder.
+type ListMetadataQuery struct {
+	Type   string
+	Folder string
+}
+
+// ListMetadataQueries sends one listMetadata request with up to three
+// queries, which is the most the Metadata API accepts in a request.
+func (fm *ForceMetadata) ListMetadataQueries(queries []ListMetadataQuery) (res []byte, err error) {
+	var body strings.Builder
+	for _, query := range queries {
+		body.WriteString("<queries>")
+		if query.Folder != "" {
+			fmt.Fprintf(&body, "<folder>%s</folder>", html.EscapeString(query.Folder))
+		}
+		fmt.Fprintf(&body, "<type>%s</type></queries>", html.EscapeString(query.Type))
+	}
+	return fm.soapExecute("listMetadata", body.String())
 }
 
 func (fm *ForceMetadata) ListAllMetadata() (describe MetadataDescribeResult, err error) {
