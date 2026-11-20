@@ -286,7 +286,7 @@ func TestDataExportBulk(t *testing.T) {
 	resumeFile := filepath.Join(dir, "later.csv")
 	out, _, status = run("data", "export", "bulk", "-q", "SELECT Id FROM Account", "--output-file", resumeFile)
 	if status != 0 || !strings.HasSuffix(out, "Run \"sf data export resume --job-id 750000000000002AAA\" to get the latest status and results.\n") ||
-		!strings.Contains(out, " ✔ creating query job 0ms\n ✔ done 0ms\n\n Status: ⠁\n") {
+		!regexp.MustCompile(` ✔ creating query job \d+ms\n ✔ done \d+ms\n\n Status: ⠁\n`).MatchString(out) {
 		t.Errorf("async export: status %d\n%s", status, out)
 	}
 	if _, err := os.Stat(resumeFile); !os.IsNotExist(err) {
