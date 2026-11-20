@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/url"
 	"os"
@@ -55,6 +56,10 @@ func (f *Force) getScratchOrg(scratchOrgId string) (scratchOrg ScratchOrg, err e
 	return
 }
 
+// ScratchOrgProgress receives the progress messages of the creation of a
+// scratch org.
+var ScratchOrgProgress io.Writer = os.Stderr
+
 var scratchOrgPollInterval = 5 * time.Second
 var scratchOrgMaxWait = 10 * time.Minute
 
@@ -84,14 +89,14 @@ func (f *Force) waitForScratchOrgReady(scratchOrgId string) (org ForceRecord, er
 				err = errors.New("Timed out waiting for scratch org to become ready")
 				return
 			}
-			fmt.Fprintf(os.Stderr, "Waiting for scratch org to be ready (status: %s)...\n", status)
+			fmt.Fprintf(ScratchOrgProgress, "Waiting for scratch org to be ready (status: %s)...\n", status)
 			time.Sleep(scratchOrgPollInterval)
 		default:
 			if time.Since(start) > scratchOrgMaxWait {
 				err = fmt.Errorf("Timed out waiting for scratch org (status: %s)", status)
 				return
 			}
-			fmt.Fprintf(os.Stderr, "Waiting for scratch org to be ready (status: %s)...\n", status)
+			fmt.Fprintf(ScratchOrgProgress, "Waiting for scratch org to be ready (status: %s)...\n", status)
 			time.Sleep(scratchOrgPollInterval)
 		}
 	}
@@ -151,7 +156,7 @@ func (s *ScratchOrg) getSession(client ScratchOrgClient) (session ForceSession, 
 		return
 	}
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-	fmt.Fprintln(os.Stderr, "Logging into scratch org")
+	fmt.Fprintln(ScratchOrgProgress, "Logging into scratch org")
 	res, err := doRequest(req)
 	if err != nil {
 		fmt.Println(err.Error())

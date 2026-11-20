@@ -509,6 +509,10 @@ type completedScratchOrg struct {
 // authorization file, sets the alias and the default org, and deploys the
 // settings of the definition.
 func completeScratchOrg(hub *targetOrg, id string, settings *orderedMap, alias string, setDefault, tracksSource bool, client lib.ScratchOrgClient) (*completedScratchOrg, error) {
+	// sf prints nothing while it waits for the org and logs in to it.
+	previous := lib.ScratchOrgProgress
+	lib.ScratchOrgProgress = io.Discard
+	defer func() { lib.ScratchOrgProgress = previous }()
 	session, err := hub.Force.ForceLoginNewScratchWithClient(id, client)
 	if err != nil {
 		return nil, &Error{
