@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -1018,6 +1019,18 @@ func newPackageVersionPromoteCmd() *cobra.Command {
 	return cmd
 }
 
+// flagText and flagSet return the value of a string flag and of a boolean
+// flag.
+func flagText(cmd *cobra.Command, name string) string {
+	value, _ := cmd.Flags().GetString(name)
+	return value
+}
+
+func flagSet(cmd *cobra.Command, name string) bool {
+	value, _ := cmd.Flags().GetBool(name)
+	return value
+}
+
 func newPackageVersionCreateCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:         "create",
@@ -1025,9 +1038,18 @@ func newPackageVersionCreateCmd() *cobra.Command {
 		Args:        cobra.NoArgs,
 		Annotations: map[string]string{commandNameAnnotation: "PackageVersionCreateCommand"},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := unsupportedFlags(cmd, "installation-key", "definition-file", "branch", "post-install-script", "post-install-url",
-				"releasenotes-url", "uninstall-script", "language", "generate-pkg-zip", "skip-ancestor-check", "verbose"); err != nil {
+			if err := unsupportedFlags(cmd, "definition-file", "skip-ancestor-check", "verbose"); err != nil {
 				return err
+			}
+			installationKey, _ := cmd.Flags().GetString("installation-key")
+			if bypass, _ := cmd.Flags().GetBool("installation-key-bypass"); (installationKey != "") == bypass {
+				return exactlyOneError("installation-key", "installation-key-bypass")
+			}
+			postInstallURL, _ := cmd.Flags().GetString("post-install-url")
+			if postInstallURL != "" {
+				if parsed, err := url.Parse(postInstallURL); err != nil || parsed.Scheme == "" || parsed.Host == "" {
+					return newError("MalformedUrlError", "The %s value \"%s\" from the command line or sfdx-project.json is not in the correct format for a URL. It must be a valid URL in the format \"http://salesforce.com\". More information: https://nodejs.org/api/url.html#url_url_strings_and_url_objects", "postInstallUrl", postInstallURL)
+				}
 			}
 			packageFlag, _ := cmd.Flags().GetString("package")
 			path, _ := cmd.Flags().GetString("path")
@@ -1099,6 +1121,13 @@ func newPackageVersionCreateCmd() *cobra.Command {
 				SkipValidation:     skipValidation,
 				AsyncValidation:    asyncValidation,
 				CodeCoverage:       codeCoverage,
+				Branch:             flagText(cmd, "branch"),
+				InstallationKey:    installationKey,
+				Language:           flagText(cmd, "language"),
+				GeneratePackageZip: flagSet(cmd, "generate-pkg-zip"),
+				ReleaseNotesURL:    flagText(cmd, "releasenotes-url"),
+				PostInstallURL:     postInstallURL,
+				PostInstallScript:  flagText(cmd, "post-install-script"),
 			}, nil)
 			if err != nil {
 				return apiError(err)

@@ -379,3 +379,26 @@ func Test_InstallPackageVersion_rejects_an_id_that_is_not_a_subscriber_package_v
 		t.Fatal("expected an error for a 05i Id")
 	}
 }
+
+func TestPackageVersionCreateBodySendsTheOptionsOfTheRequest(t *testing.T) {
+	body, _, err := packageVersionCreateBody([]byte("zip"), []byte("{}"), PackageVersionRequest{
+		PackageId: "0Ho000000000001", Tag: "v1", Branch: "main", InstallationKey: "secret", Language: "en_US", GeneratePackageZip: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`"Tag":"v1"`, `"Branch":"main"`, `"InstallKey":"secret"`, `"Language":"en_US"`, `"IsDevUsePkgZipRequested":true`} {
+		if !strings.Contains(string(body), want) {
+			t.Errorf("request lacks %s:\n%s", want, body)
+		}
+	}
+	body, _, err = packageVersionCreateBody([]byte("zip"), []byte("{}"), PackageVersionRequest{PackageId: "0Ho000000000001"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, absent := range []string{`"Branch"`, `"InstallKey"`, `"Language"`, `"Tag"`} {
+		if strings.Contains(string(body), absent) {
+			t.Errorf("request without options has %s:\n%s", absent, body)
+		}
+	}
+}

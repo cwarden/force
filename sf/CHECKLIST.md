@@ -92,7 +92,8 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [x] `package create`: `--no-namespace`, `--org-dependent`, `--error-notification-username`
 - [x] `package install`: `--skip-handlers`
 - [x] `package install`: `--publish-wait` (follows the sf plugin source)
-- [ ] `package version create`: `--installation-key`, `--definition-file`, `--branch`, `--post-install-script`, `--post-install-url`, `--releasenotes-url`, `--uninstall-script`, `--language`, `--generate-pkg-zip`, `--skip-ancestor-check`, `--verbose`
+- [x] `package version create`: `--installation-key`, `--branch`, `--post-install-script`, `--post-install-url`, `--releasenotes-url`, `--uninstall-script`, `--language`, `--generate-pkg-zip` (follow the source of the sf packaging library)
+- [ ] `package version create`: `--definition-file`, `--skip-ancestor-check`, `--verbose`
 - [x] `package update`: `--skip-ancestor-check`, and the ancestor check of a new recommended version
 - [x] `package version create list`: `--show-conversions-only`, `--verbose`
 - [x] `package version list`: `--show-conversions-only`
@@ -114,7 +115,7 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [ ] `org login access-token`: `--no-prompt`
 - [ ] `org logout`: `--client-app`
 - [ ] `package install`: `--no-prompt` (remote site settings are enabled without asking)
-- [ ] `package version create`: `--wait` (the command always waits), `--installation-key-bypass`
+- [ ] `package version create`: `--wait` (the command always waits)
 - [ ] `package version report`: `--verbose`
 - [x] `project deploy start`, `project deploy validate`: `--verbose` (deploy URL, size, file count, passed tests and the coverage table; compared with sf against a scratch org), `--ignore-conflicts`
 - [ ] `project deploy start`, `project deploy validate`: `--single-package` (accepted without effect)

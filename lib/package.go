@@ -41,6 +41,19 @@ type PackageVersionRequest struct {
 	SkipValidation  bool
 	AsyncValidation bool
 	CodeCoverage    bool
+	// Branch is the source control branch the version is based on.
+	Branch string
+	// InstallationKey protects the installation of the version.
+	InstallationKey string
+	// Language is the language of the package version.
+	Language string
+	// GeneratePackageZip asks for a package zip that can be downloaded.
+	GeneratePackageZip bool
+	// ReleaseNotesURL, PostInstallURL and PostInstallScript go into the
+	// descriptor of the version.
+	ReleaseNotesURL   string
+	PostInstallURL    string
+	PostInstallScript string
 }
 
 // PackageVersion identifies a created package version.
@@ -120,6 +133,11 @@ func (f *Force) CreatePackageVersion(req PackageVersionRequest, progress io.Writ
 	}
 
 	descriptor := buildPackageVersionDescriptor(req.VersionName, req.VersionNumber, req.VersionDescription, req.PackageId, ancestorId, req.Dependencies)
+	for key, value := range map[string]string{"releaseNotesUrl": req.ReleaseNotesURL, "postInstallUrl": req.PostInstallURL, "postInstallScript": req.PostInstallScript} {
+		if value != "" {
+			descriptor[key] = value
+		}
+	}
 	descriptorJson, err := json.Marshal(descriptor)
 	if err != nil {
 		return PackageVersion{}, fmt.Errorf("Failed to create descriptor JSON: %w", err)
@@ -439,10 +457,12 @@ func packageVersionCreateBody(packageZip []byte, descriptorJson []byte, req Pack
 		"SkipValidation":             req.SkipValidation,
 		"AsyncValidation":            req.AsyncValidation,
 		"CalcTransitiveDependencies": false,
-		"IsDevUsePkgZipRequested":    false,
+		"IsDevUsePkgZipRequested":    req.GeneratePackageZip,
 	}
-	if req.Tag != "" {
-		request["Tag"] = req.Tag
+	for key, value := range map[string]string{"Tag": req.Tag, "Branch": req.Branch, "InstallKey": req.InstallationKey, "Language": req.Language} {
+		if value != "" {
+			request[key] = value
+		}
 	}
 	requestJson, err := json.Marshal(request)
 	if err != nil {

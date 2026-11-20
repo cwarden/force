@@ -297,12 +297,24 @@ func TestPackageVersionListReportAndPromote(t *testing.T) {
 
 func TestPackageVersionCreateRequiresAPackageDirectory(t *testing.T) {
 	devHubSetup(t)
-	_, errOut, status := run("package", "version", "create")
+	_, errOut, status := run("package", "version", "create", "-x")
 	if status != 1 || !strings.Contains(errOut, "Either --package or --path is required") {
 		t.Errorf("status %d, stderr %q", status, errOut)
 	}
-	_, errOut, status = run("package", "version", "create", "-p", "billing", "-d", "force-app", "-k", "key")
-	if status != 1 || !strings.Contains(errOut, "The --installation-key flag is not supported") {
-		t.Errorf("installation key: status %d, stderr %q", status, errOut)
+	// As in sf, the command needs an installation key or the flag that
+	// says the version has none.
+	for _, args := range [][]string{{"-p", "billing", "-d", "force-app"}, {"-p", "billing", "-d", "force-app", "-k", "key", "-x"}} {
+		_, errOut, status = run(append([]string{"package", "version", "create"}, args...)...)
+		if status != 2 || !strings.Contains(errOut, "Exactly one of the following must be provided: --installation-key, --installation-key-bypass") {
+			t.Errorf("%v: status %d, stderr %q", args, status, errOut)
+		}
+	}
+	_, errOut, status = run("package", "version", "create", "-p", "billing", "-d", "force-app", "-x", "-f", "def.json")
+	if status != 1 || !strings.Contains(errOut, "The --definition-file flag is not supported") {
+		t.Errorf("definition file: status %d, stderr %q", status, errOut)
+	}
+	_, errOut, status = run("package", "version", "create", "-p", "billing", "-d", "force-app", "-x", "--post-install-url", "not a url")
+	if status != 1 || !strings.Contains(errOut, "Error (MalformedUrlError): The postInstallUrl value \"not a url\"") {
+		t.Errorf("post install url: status %d, stderr %q", status, errOut)
 	}
 }
