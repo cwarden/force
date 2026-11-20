@@ -110,7 +110,7 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [ ] `apex tail log`: `--color`
 - [ ] `org create scratch`: `--wait` (the wait is the one in lib: up to 10 minutes)
 - [x] `org display`: `--verbose` (no sfdxAuthUrl is shown) — now adds the redacted Sfdx Auth Url row, as sf does
-- [ ] `org list`: `--verbose`, `--clean`, `--no-prompt`
+- [x] `org list`: `--verbose`, `--clean`, `--no-prompt`, and the `Expires` column of scratch orgs (follow the plugin source)
 - [ ] `org login access-token`: `--no-prompt`
 - [ ] `org logout`: `--client-app`
 - [ ] `package install`: `--no-prompt` (remote site settings are enabled without asking)

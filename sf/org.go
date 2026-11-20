@@ -324,16 +324,30 @@ func newOrgListCmd() *cobra.Command {
 					inactive++
 				}
 			}
-			if clean, _ := cmd.Flags().GetBool("clean"); inactive > 0 && !clean {
+			clean, _ := cmd.Flags().GetBool("clean")
+			if inactive > 0 && !clean {
 				warn(cmd, fmt.Sprintf("You have %d expired or deleted local scratch org authorizations. To remove authorizations for inactive orgs, run \""+binName+" org list --clean\".\n", inactive))
 			}
+			if inactive > 0 && clean && confirm(cmd, fmt.Sprintf("Found (%d) org configurations to delete. Are you sure (yes/no)?", inactive)) {
+				// Remove the authorizations of the scratch orgs that are
+				// not active.  The list printed below is the one read
+				// before this, as in sf.
+				for _, entry := range entries {
+					if entry.expires && entry.status != "Active" {
+						if err := logout(entry.username); err != nil {
+							warn(cmd, fmt.Sprintf("Unable to clean org with username %s. You can run \"%s org delete scratch -o %s\" to remove it.", entry.username, binName, entry.username))
+						}
+					}
+				}
+			}
+			verbose, _ := cmd.Flags().GetBool("verbose")
 			warnJSON(cmd, secretsHiddenWarning("org list"))
 			return emit(cmd, result, func(w io.Writer) {
 				var ordered []*orgEntry
 				for _, group := range groups {
 					ordered = append(ordered, group...)
 				}
-				printOrgList(w, ordered, !skipStatus, all)
+				printOrgList(w, ordered, !skipStatus, all, verbose)
 			})
 		},
 	}
@@ -346,7 +360,18 @@ func newOrgListCmd() *cobra.Command {
 	return cmd
 }
 
-func printOrgList(w io.Writer, entries []*orgEntry, withStatus bool, all bool) {
+// expirationDate returns the expiration date of a scratch org, from its
+// ScratchOrgInfo record or from its authorization file.
+func (e *orgEntry) expirationDate() string {
+	if e.scratchInfo != nil {
+		if date := text(e.scratchInfo.values["ExpirationDate"]); date != "" {
+			return date
+		}
+	}
+	return e.org.Fields.String("expirationDate")
+}
+
+func printOrgList(w io.Writer, entries []*orgEntry, withStatus bool, all bool, verbose bool) {
 	if len(entries) == 0 {
 		fmt.Fprintln(w, "No Orgs found.")
 	} else {
@@ -363,6 +388,29 @@ func printOrgList(w io.Writer, entries []*orgEntry, withStatus bool, all bool) {
 		headers = append(headers, "Alias", "Username", "Org Id")
 		if withStatus {
 			headers = append(headers, "Status")
+		}
+		// A column for values that only scratch orgs have is shown when
+		// one of the orgs has the value.
+		hasDevHub, hasCreated, hasExpiration := false, false, false
+		for _, entry := range entries {
+			if entry.scratchInfo != nil {
+				hasDevHub, hasCreated = true, true
+			}
+			if entry.expirationDate() != "" {
+				hasExpiration = true
+			}
+		}
+		if verbose {
+			headers = append(headers, "Instance Url", "Namespace")
+			if hasDevHub {
+				headers = append(headers, "Dev Hub Id")
+			}
+			if hasCreated {
+				headers = append(headers, "Created")
+			}
+		}
+		if hasExpiration {
+			headers = append(headers, "Expires")
 		}
 		rows := make([][]string, 0, len(entries))
 		for _, entry := range entries {
@@ -382,6 +430,26 @@ func printOrgList(w io.Writer, entries []*orgEntry, withStatus bool, all bool) {
 			row = append(row, entry.alias, entry.username, entry.org.Fields.String("orgId"))
 			if withStatus {
 				row = append(row, entry.status)
+			}
+			if verbose {
+				row = append(row, entry.org.Fields.String("instanceUrl"), entry.org.Fields.String("namespacePrefix"))
+				created := ""
+				if entry.scratchInfo != nil {
+					created = text(entry.scratchInfo.values["CreatedDate"])
+				}
+				if hasDevHub {
+					devHub := ""
+					if entry.scratchInfo != nil {
+						devHub = entry.devHubOrgID
+					}
+					row = append(row, devHub)
+				}
+				if hasCreated {
+					row = append(row, created)
+				}
+			}
+			if hasExpiration {
+				row = append(row, entry.expirationDate())
 			}
 			rows = append(rows, row)
 		}

@@ -133,7 +133,7 @@ The files written by the `template generate` commands come from the salesforcedx
 | `sf org display` | `force whoami`, `force active` | An HTML response from the org, such as the one an expired scratch org gives, is reported in other words than in `sf`. | Compared with sf |
 | `sf org display user` | `force whoami` |  | Compared with sf |
 | `sf org generate password` | `force password reset` (sets a password the org generates) | The password is stored only for users that have an authorization file. | Compared with sf |
-| `sf org list` | `force logins --sfdx` | `--clean` and `--verbose` are accepted and have no effect. An authorization file that `sf` cannot decrypt (`AuthDecryptError`) may be decrypted, because every key found is tried. No warning for an http instance URL. | Compared with sf |
+| `sf org list` | `force logins --sfdx` | `--verbose`, `--clean` and the `Expires` column of scratch orgs follow the plugin source and were not compared with sf. An authorization file that `sf` cannot decrypt (`AuthDecryptError`) may be decrypted, because every key found is tried. No warning for an http instance URL. | Compared with sf |
 | `sf org list auth` | `force logins` |  | Compared with sf |
 | `sf org list limits` | `force limits` |  | Compared with sf |
 | `sf org list metadata` | `force describe metadata --type` |  | Compared with sf |

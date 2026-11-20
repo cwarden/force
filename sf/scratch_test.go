@@ -129,6 +129,15 @@ func TestOrgCreateScratchFromDefinitionFile(t *testing.T) {
 	if !strings.Contains(out, "│ Scratch │") || !strings.Contains(out, "test-scratch@example.com │ 00D000000000000 │ Active") {
 		t.Errorf("org list:\n%s", out)
 	}
+	// A scratch org has an expiration date, which gives the table a column.
+	if !strings.Contains(out, "│ Status    │ Expires    │") || !strings.Contains(out, "│ Active    │ 2026-12-31 │") {
+		t.Errorf("org list lacks the expiration date:\n%s", out)
+	}
+	out, _, _ = run("org", "list", "--verbose", "--skip-connection-status")
+	if !strings.Contains(out, "│ Instance Url ") || !strings.Contains(out, "│ Namespace │ Dev Hub Id      │ Created                      │ Expires    │") ||
+		!strings.Contains(out, "│ 00D000000000000 │ 2026-11-01T00:00:00.000+0000 │ 2026-12-31 │") {
+		t.Errorf("org list --verbose:\n%s", out)
+	}
 
 	// sf describes the org from that record, without a connected status.
 	out, _, _ = run("org", "display", "-o", "test-scratch@example.com", "--json")
@@ -148,7 +157,11 @@ func TestOrgCreateScratchFromDefinitionFile(t *testing.T) {
 	// A deleted scratch org is listed only with --all, and a scratch org
 	// without a record in the Dev Hub is not listed and cannot be
 	// displayed.
-	org.queries["FROM ScratchOrgInfo WHERE ScratchOrg IN ('00D000000000000')"][0]["Status"] = "Deleted"
+	org.queries["FROM ScratchOrgInfo WHERE ScratchOrg IN ('00D000000000000')"] = []map[string]interface{}{{
+		"attributes": map[string]interface{}{"type": "ScratchOrgInfo"}, "Status": "Deleted", "SignupUsername": "test-scratch@example.com", "ScratchOrg": "00D000000000000",
+		"ExpirationDate": "2026-12-31", "Edition": "Developer", "OrgName": "Company", "CreatedDate": "2026-11-01T00:00:00.000+0000", "Namespace": nil,
+		"CreatedBy": map[string]interface{}{"Username": "me@example.com"}, "LoginUrl": org.URL,
+	}}
 	if out, _, _ := run("org", "list"); strings.Contains(out, "test-scratch@example.com") {
 		t.Errorf("a deleted scratch org is listed without --all:\n%s", out)
 	}
@@ -162,6 +175,33 @@ func TestOrgCreateScratchFromDefinitionFile(t *testing.T) {
 	_, errOut, status = run("org", "display", "-o", "test-scratch@example.com")
 	if status != 1 || !strings.Contains(errOut, "Error (NoScratchInfo): No information for scratch org with ID 00D000000000000 found in Dev Hub me@example.com.") {
 		t.Errorf("org display without a record: status %d, stderr %q", status, errOut)
+	}
+
+	// --clean removes the authorizations of scratch orgs that are not
+	// active.  Without --no-prompt it asks, and an empty answer is "no".
+	org.queries["FROM ScratchOrgInfo WHERE ScratchOrg IN ('00D000000000000')"] = []map[string]interface{}{{
+		"attributes": map[string]interface{}{"type": "ScratchOrgInfo"}, "Status": "Deleted", "SignupUsername": "test-scratch@example.com", "ScratchOrg": "00D000000000000",
+		"ExpirationDate": "2026-12-31", "Edition": "Developer", "OrgName": "Company", "CreatedDate": "2026-11-01T00:00:00.000+0000", "Namespace": nil,
+		"CreatedBy": map[string]interface{}{"Username": "me@example.com"}, "LoginUrl": org.URL,
+	}}
+	_, cleanErr, _ := run("org", "list", "--skip-connection-status")
+	if !strings.Contains(cleanErr, "You have 1 expired or deleted local scratch org authorizations.") {
+		t.Errorf("warning for an inactive scratch org: %q", cleanErr)
+	}
+	if _, cleanErr, _ = run("org", "list", "--clean", "--skip-connection-status"); !strings.Contains(cleanErr, "Found (1) org configurations to delete. Are you sure (yes/no)?") {
+		t.Errorf("clean prompt: %q", cleanErr)
+	}
+	if _, err := lib.ReadSFDXAuthFields("test-scratch@example.com"); err != nil {
+		t.Errorf("a declined clean removed the authorization: %v", err)
+	}
+	if _, errOut, status := run("org", "list", "--clean", "--no-prompt", "--skip-connection-status"); status != 0 || strings.Contains(errOut, "expired or deleted") {
+		t.Errorf("clean: status %d, stderr %q", status, errOut)
+	}
+	if _, err := lib.ReadSFDXAuthFields("test-scratch@example.com"); err == nil {
+		t.Errorf("--clean kept the authorization of the deleted scratch org")
+	}
+	if _, err := lib.ReadSFDXAuthFields("me@example.com"); err != nil {
+		t.Errorf("--clean removed the Dev Hub authorization: %v", err)
 	}
 }
 
