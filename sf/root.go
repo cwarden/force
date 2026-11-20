@@ -199,6 +199,7 @@ func NewRootCmd() *cobra.Command {
 		newAutocompleteCmd(),
 		newCmdtCmd(),
 		newCommandsCmd(),
+		newWhichCmd(),
 		newConfigCmd(),
 		newDataCmd(),
 		newForceLegacyCmd(),

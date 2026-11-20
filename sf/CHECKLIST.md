@@ -387,7 +387,7 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [ ] `dev generate flag`
 - [ ] `dev generate plugin`
 
-### CLI management (22 open, 1 done)
+### CLI management (21 open, 2 done)
 
 - [x] `autocomplete` (instructions for cobra completion scripts; the mechanism differs from sf)
 - [ ] `doctor`
@@ -411,4 +411,4 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [ ] `search`
 - [ ] `update`
 - [ ] `whatsnew`
-- [ ] `which`
+- [x] `which`

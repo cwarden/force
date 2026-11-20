@@ -212,6 +212,7 @@ The files written by the `template generate` commands come from the salesforcedx
 | `sf template generate static-resource` | none |  | Compared with sf |
 | `sf template generate visualforce component` | `force create apexcomponent` |  | Compared with sf |
 | `sf template generate visualforce page` | `force create apexpage` |  | Compared with sf |
+| `sf which` | none | Names the sf plugin that provides the command in sf 2.138.6; this mode has no plugins. Knows the commands this mode implements. | Compared with sf |
 | `sf version` | `force version` | Prints the sf release this mode matches and the force version in place of the Node.js version. | Compared with sf |
 
 A flag listed as unsupported returns an error that names the flag.
@@ -276,7 +277,7 @@ A flag listed as unsupported returns an error that names the flag.
 
 ## sf Commands Not Implemented
 
-82 of the 239 commands of `sf` 2.138.6 and its bundled and install-on-first-use plugins are not implemented. Third-party plugins and the retired Functions plugin are not counted. Running one of these commands prints the message `sf` prints for an unknown command and exits with status 127.
+81 of the 239 commands of `sf` 2.138.6 and its bundled and install-on-first-use plugins are not implemented. Third-party plugins and the retired Functions plugin are not counted. Running one of these commands prints the message `sf` prints for an unknown command and exits with status 127.
 
 ### org
 
@@ -408,7 +409,6 @@ A flag listed as unsupported returns an error that names the flag.
 | `sf search` | Search for a command. | Interactive search of commands. |
 | `sf update` |  | Updates the Node.js CLI; it does not apply to force. |
 | `sf whatsnew` | Display Salesforce CLI release notes on the command line. | Alias of `info releasenotes display`. |
-| `sf which` |  | Reports the plugin a command belongs to. |
 
 ### Features Shared By Several Commands
 

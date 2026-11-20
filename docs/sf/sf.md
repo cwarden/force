@@ -35,4 +35,5 @@ sf [flags]
 * [sf sobject](sf_sobject.md)	 - Commands to interact with Salesforce objects.
 * [sf template](sf_template.md)	 - Commands to create metadata from templates.
 * [sf version](sf_version.md)	 - Display the version
+* [sf which](sf_which.md)	 - Show which plugin a command is in.
 
