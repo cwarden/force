@@ -142,7 +142,15 @@ func writeError(out, errOut io.Writer, cmd *cobra.Command, err error, jsonOutput
 	if len(e.Actions) > 0 {
 		fmt.Fprintf(errOut, "%s\n\n", paint(errOut, styleDim, "Try this:"))
 		for _, action := range e.Actions {
-			fmt.Fprintf(errOut, "%s\n", paint(errOut, styleDim, action))
+			// sf dims each line of an action on its own, and prints an
+			// empty action as an empty line.
+			if action == "" {
+				fmt.Fprintln(errOut)
+				continue
+			}
+			for _, line := range strings.Split(action, "\n") {
+				fmt.Fprintf(errOut, "%s\n", paint(errOut, styleDim, line))
+			}
 		}
 		fmt.Fprintln(errOut)
 	}

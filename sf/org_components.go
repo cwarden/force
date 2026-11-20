@@ -264,3 +264,27 @@ func orgManifestTypes(org *targetOrg, metadata, excluded, includePackages []stri
 	}
 	return types, nil
 }
+
+// typeNameSuggestions returns the lines sf adds to the error for a metadata
+// type name it does not know: the known names that differ from it the
+// least, and an empty line.
+func typeNameSuggestions(name string) []string {
+	names := append([]string{}, registryTypeNames...)
+	sort.SliceStable(names, func(i, j int) bool { return strings.ToLower(names[i]) < strings.ToLower(names[j]) })
+	lowest := -1
+	var closest []string
+	for _, candidate := range names {
+		// sf compares the letters without regard to case.
+		distance := editDistance(strings.ToLower(name), strings.ToLower(candidate))
+		switch {
+		case lowest < 0 || distance < lowest:
+			lowest, closest = distance, []string{candidate}
+		case distance == lowest:
+			closest = append(closest, candidate)
+		}
+	}
+	if len(closest) == 0 {
+		return nil
+	}
+	return []string{fmt.Sprintf("Did you mean one of the following types? [%s]", strings.Join(closest, ",")), ""}
+}

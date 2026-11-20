@@ -137,7 +137,7 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [x] `data query`: sf's layout for child records of a subquery, and columns from the column metadata of the query (`columns=true`)
 - [ ] `project convert source`: the order of elements in a composed custom object (sf writes the fields and other child components after the elements of the object file; this mode writes all elements in alphabetical order)
 - [ ] `project convert mdapi --metadata`, `--manifest`: a child component named on its own, such as `CustomField:Invoice__c.Amount__c` (only whole objects are selected)
-- [ ] Unknown metadata type name: the "Did you mean one of the following types?" line (needs sf's list of all type names)
+- [x] Unknown metadata type name: the "Did you mean one of the following types?" line (compared with sf)
 - [x] `package version list`: ancestor version numbers and code coverage (code coverage compared with sf; the Dev Hub used for the comparison had no version with an ancestor, so that lookup follows the plugin source)
 - [ ] `force data bulk delete`, `force data bulk upsert`: batches of 10,000 records (the file is sent as one batch)
 - [x] `project retrieve start`: `fileProperties`, `id` and `messages` in the JSON result, failed entries in `files` and the Warnings table for components the org does not have (compared with sf against a scratch org)

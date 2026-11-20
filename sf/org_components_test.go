@@ -156,3 +156,18 @@ func TestProjectGenerateManifestFromOrg(t *testing.T) {
 		t.Errorf("unknown org: status %d, stderr %q", status, errOut)
 	}
 }
+
+// Compared with sf: the names suggested for a metadata type name that sf
+// does not know, in the order sf lists names that are equally close.
+func TestTypeNameSuggestions(t *testing.T) {
+	for name, want := range map[string]string{
+		"ApexClas":   "Did you mean one of the following types? [ApexClass]",
+		"Layuot":     "Did you mean one of the following types? [Layout]",
+		"custmfield": "Did you mean one of the following types? [CustomLabels,CustomSite]",
+	} {
+		got := typeNameSuggestions(name)
+		if len(got) != 2 || got[0] != want || got[1] != "" {
+			t.Errorf("typeNameSuggestions(%q) = %q, want %q and an empty line", name, got, want)
+		}
+	}
+}

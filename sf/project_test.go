@@ -255,7 +255,7 @@ func TestProjectConvertMdapiSelectsComponents(t *testing.T) {
 		}
 	}
 	_, errOut, status = run("project", "convert", "mdapi", "-r", "md", "-d", "out", "-m", "Bogus")
-	if status != 1 || !strings.HasPrefix(errOut, "Error (RegistryError): Missing metadata type definition in registry for id 'Bogus'.\n\n\nTry this:\n\nConfirm the metadata type name is correct.") {
+	if status != 1 || !strings.HasPrefix(errOut, "Error (RegistryError): Missing metadata type definition in registry for id 'Bogus'.\n\n\nTry this:\n\nDid you mean one of the following types? [Bot]\n\nConfirm the metadata type name is correct.") {
 		t.Errorf("unknown type: status %d, stderr %q", status, errOut)
 	}
 	_, errOut, status = run("project", "convert", "mdapi", "-r", "one.xml", "-d", "out")

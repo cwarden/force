@@ -349,7 +349,7 @@ func mdapiSelection(rootDir string, files lib.ForceMetadataFiles, manifestPath s
 					Name:     "RegistryError",
 					Message:  fmt.Sprintf("Missing metadata type definition in registry for id '%s'.", metadataType),
 					ExitCode: 1,
-					Actions:  []string{registryTypeAdvice},
+					Actions:  append(typeNameSuggestions(metadataType), registryTypeAdvice),
 				}
 			}
 			if !hasMember {
