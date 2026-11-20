@@ -49,6 +49,7 @@ var (
 	styleGreen         = style{"\x1b[32m", "\x1b[39m"}
 	styleRed           = style{"\x1b[31m", "\x1b[39m"}
 	styleMagenta       = style{"\x1b[35m", "\x1b[39m"}
+	styleTableHeader   = style{"\x1b[1m\x1b[34m", "\x1b[39m\x1b[22m"}
 	styleBold          = style{"\x1b[1m", "\x1b[22m"}
 	styleBoldGreen     = style{"\x1b[1m\x1b[32m", "\x1b[39m\x1b[22m"}
 )

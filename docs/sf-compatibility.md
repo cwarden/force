@@ -177,8 +177,8 @@ The files written by the `template generate` commands come from the salesforcedx
 | `sf package version update` | none |  | Follows the sf plugin source |
 | `sf package1 version create` | none | Not compared with sf: it needs an org with a first-generation package. | Follows the sf plugin source |
 | `sf package1 version create get` | none | Not compared with sf: it needs an org with a first-generation package. | Follows the sf plugin source |
-| `sf package1 version display` | none; queries MetadataPackageVersion with the Tooling API | The table of a result follows the plugin source; the org used for the comparison had no first-generation package. | Compared with sf |
-| `sf package1 version list` | none; queries MetadataPackageVersion with the Tooling API | The table of a result follows the plugin source; the org used for the comparison had no first-generation package. | Compared with sf |
+| `sf package1 version display` | none; queries MetadataPackageVersion with the Tooling API |  | Compared with sf |
+| `sf package1 version list` | none; queries MetadataPackageVersion with the Tooling API |  | Compared with sf |
 | `sf project delete source` | `force import` of a directory that holds only a destructive changes manifest; this mode also deletes the local files | Deleting one file of a bundle, which `sf` turns into a deploy of the remaining files. The test results of a delete that runs tests are not printed. Without `--no-prompt` and without a terminal the command is canceled; `sf` fails with status 13. When the org refuses a delete given with `--track-source`, `sf` still updates the tracking files; this mode leaves them as they are. | Compared with sf |
 | `sf project delete tracking` | none; deletes the tracking files in `<project>/.sf/orgs/<orgId>/` | Without `--no-prompt` and without a terminal the command does nothing; `sf` fails with status 13. | Compared with sf |
 | `sf project reset tracking` | none; writes the tracking files in `<project>/.sf/orgs/<orgId>/` | Without `--no-prompt` and without a terminal the command does nothing; `sf` fails with status 13. | Compared with sf |

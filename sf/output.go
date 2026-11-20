@@ -156,7 +156,8 @@ func printStyledTable(w io.Writer, title string, headers []string, rows [][]stri
 		fmt.Fprintln(w, title)
 	}
 	fmt.Fprintln(w, border("┌", "┬", "┐"))
-	fmt.Fprintln(w, line(headers, nil))
+	// In a terminal sf prints the column headers bold and blue.
+	fmt.Fprintln(w, line(headers, &styleTableHeader))
 	fmt.Fprintln(w, border("├", "┼", "┤"))
 	for i, row := range rows {
 		var cellStyle *style

@@ -170,6 +170,7 @@ func TestWriteErrorFormats(t *testing.T) {
 }
 
 func TestPrintTable(t *testing.T) {
+	t.Setenv("FORCE_COLOR", "0")
 	var out bytes.Buffer
 	printTable(&out, "Alias List", []string{"Alias", "Value"}, [][]string{{"dev", "me@example.com"}, {"hub", "h@example.com"}})
 	want := `Alias List
@@ -183,5 +184,16 @@ func TestPrintTable(t *testing.T) {
 `
 	if out.String() != want {
 		t.Errorf("table =\n%s\nwant\n%s", out.String(), want)
+	}
+}
+
+// Compared with a screenshot of sf in a terminal: the column headers are
+// bold and blue.
+func TestPrintTableStylesTheHeadersInATerminal(t *testing.T) {
+	t.Setenv("FORCE_COLOR", "1")
+	var out strings.Builder
+	printTable(&out, "", []string{"Name"}, [][]string{{"dev"}})
+	if !strings.Contains(out.String(), "│ \x1b[1m\x1b[34mName\x1b[39m\x1b[22m │") || !strings.Contains(out.String(), "│ dev  │") {
+		t.Errorf("table = %q", out.String())
 	}
 }
