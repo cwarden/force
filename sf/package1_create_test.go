@@ -81,3 +81,16 @@ func TestPackage1VersionCreate(t *testing.T) {
 		t.Errorf("failed request: status %d, stderr %q", status, errOut)
 	}
 }
+
+// The command that the status message suggests names the program as it was
+// started.
+func TestPackage1UploadStatusNamesTheStartedProgram(t *testing.T) {
+	previous := binName
+	binName = "force --sf"
+	t.Cleanup(func() { binName = previous })
+	request := orderedFields("Id", "0HD000000000001AAA", "Status", "IN_PROGRESS")
+	want := "PackageUploadRequest is still InProgress. You can query the status using\nforce --sf package1:version:create:get -i 0HD000000000001AAA -o me@example.com"
+	if got := uploadStatusMessage(request, "me@example.com"); got != want {
+		t.Errorf("message = %q, want %q", got, want)
+	}
+}

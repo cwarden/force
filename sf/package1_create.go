@@ -11,9 +11,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// The package1 version create commands follow the sf plugin source and
-// were not compared with sf: they need an org with a first-generation
-// package.
+// The package1 version create commands follow the sf plugin source.  The
+// messages for a queued request, a request in progress and a failed upload
+// were compared with sf against a packaging org.  Waiting for an upload and
+// a successful upload were not.
 
 // package1UploadInterval is the time between checks of a package upload
 // request.
@@ -56,9 +57,9 @@ func uploadStatusMessage(request *orderedMap, username string) string {
 	case "SUCCESS":
 		return fmt.Sprintf("Successfully uploaded package [%s]", text(request.values["MetadataPackageVersionId"]))
 	case "QUEUED":
-		return fmt.Sprintf("PackageUploadRequest has been enqueued. You can query the status using\nsf package1:version:create:get -i %s -o %s", text(request.values["Id"]), username)
+		return fmt.Sprintf("PackageUploadRequest has been enqueued. You can query the status using\n%s package1:version:create:get -i %s -o %s", binName, text(request.values["Id"]), username)
 	}
-	return fmt.Sprintf("PackageUploadRequest is still InProgress. You can query the status using\nsf package1:version:create:get -i %s -o %s", text(request.values["Id"]), username)
+	return fmt.Sprintf("PackageUploadRequest is still InProgress. You can query the status using\n%s package1:version:create:get -i %s -o %s", binName, text(request.values["Id"]), username)
 }
 
 func newPackage1VersionCreateCmd() *cobra.Command {
