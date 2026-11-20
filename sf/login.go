@@ -309,8 +309,34 @@ func newOrgLoginWebCmd() *cobra.Command {
 		Short: "Log in to a Salesforce org using the web server flow.",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := unsupportedFlags(cmd, "browser", "client-app", "username", "scopes"); err != nil {
+			if err := unsupportedFlags(cmd, "client-app", "username"); err != nil {
 				return err
+			}
+			browser, _ := cmd.Flags().GetString("browser")
+			if browser != "" && browserCommands[browser] == nil {
+				return &Error{Message: fmt.Sprintf("Expected --browser=%s to be one of: chrome, edge, firefox\nSee more help with --help", browser), ExitCode: 2}
+			}
+			var browserErr error
+			if browser != "" {
+				previous := lib.OpenLoginBrowser
+				lib.OpenLoginBrowser = func(uri string) error {
+					if err := openInBrowser(browser, uri); err != nil {
+						browserErr = &Error{
+							Name:     "CannotOpenBrowserError",
+							Message:  fmt.Sprintf("Unable to open the browser you specified (%s).", browser),
+							ExitCode: 1,
+							Actions:  []string{fmt.Sprintf("Ensure that %s is installed on your computer. Or specify a different browser using the --browser flag.", browser)},
+						}
+					}
+					return browserErr
+				}
+				lib.LoginBrowserRequired = true
+				defer func() { lib.OpenLoginBrowser, lib.LoginBrowserRequired = previous, false }()
+			}
+			if scopes, _ := cmd.Flags().GetString("scopes"); scopes != "" {
+				previous := lib.LoginScope
+				lib.LoginScope = scopes
+				defer func() { lib.LoginScope = previous }()
 			}
 			if clientID, _ := cmd.Flags().GetString("client-id"); clientID != "" {
 				previous := lib.ClientId
@@ -320,6 +346,9 @@ func newOrgLoginWebCmd() *cobra.Command {
 			instanceURL := loginInstanceURL(cmd)
 			warnIfInsecure(cmd, instanceURL)
 			session, err := lib.ForceLoginAtEndpointWithPromptAndPort(instanceURL, "login", lib.DefaultOAuthCallbackPort)
+			if browserErr != nil {
+				return browserErr
+			}
 			if err != nil {
 				return err
 			}
