@@ -21,6 +21,7 @@ sf [flags]
 * [sf autocomplete](sf_autocomplete.md)	 - Display autocomplete installation instructions.
 * [sf cmdt](sf_cmdt.md)	 - Generate custom metadata types and their records.
 * [sf commands](sf_commands.md)	 - List all sf commands.
+* [sf community](sf_community.md)	 - Commands to create and publish Experience Cloud sites.
 * [sf config](sf_config.md)	 - Commands to configure Salesforce CLI.
 * [sf data](sf_data.md)	 - Manage records in your org.
 * [sf flow](sf_flow.md)	 - Commands to run and get the results of Flow tests.

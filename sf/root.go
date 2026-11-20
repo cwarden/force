@@ -205,6 +205,7 @@ func NewRootCmd() *cobra.Command {
 		newOrgCmd(),
 		newPackageCmd(),
 		newPackage1Cmd(),
+		newCommunityCmd(),
 		newGroup("flow", "Commands to run and get the results of Flow tests.",
 			newGroup("run", "Run Flow tests.", newFlowRunTestCmd()),
 			newGroup("get", "Get Flow test results.", newFlowGetTestCmd()),

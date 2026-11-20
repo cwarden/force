@@ -39,7 +39,7 @@ values of `sf` (`~/.sfdx` and `~/.sf`), and prints output in the format of
 Commands that the mode suggests in its messages are written the way the program was started:
 `sf ...` for `sf` on the PATH, `/tmp/sf ...` for that path, and `force --sf ...` with the flag.
 
-153 `sf` commands are implemented.
+156 `sf` commands are implemented.
 [docs/sf-compatibility.md](docs/sf-compatibility.md) lists them with the
 `force` command each corresponds to, the flags that are not supported, and the
 `sf` commands that are not implemented. [docs/sf/sf.md](docs/sf/sf.md) has the

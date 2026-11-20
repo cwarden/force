@@ -78,6 +78,9 @@ The files written by the `template generate` commands come from the salesforcedx
 | `sf cmdt generate record` | none |  | Compared with sf |
 | `sf cmdt generate records` | none |  | Compared with sf |
 | `sf commands` | none | Lists only the commands this mode implements. sf prints more columns. | Not compared |
+| `sf community create` | none | Follows the source of the sf community plugin, version 4.0.27, which is not part of the sf installation used for the comparisons; not compared with sf. `--description` is accepted and not sent, as in sf. | Follows the sf plugin source |
+| `sf community list template` | none | Follows the source of the sf community plugin, version 4.0.27, which is not part of the sf installation used for the comparisons; not compared with sf. Run against a scratch org with this mode. | Follows the sf plugin source |
+| `sf community publish` | none | Follows the source of the sf community plugin, version 4.0.27, which is not part of the sf installation used for the comparisons; not compared with sf. | Follows the sf plugin source |
 | `sf config get` | none; reads sf config files | Does not suggest a name for an unknown config name. | Compared with sf |
 | `sf config list` | `force active` (for the default org) |  | Compared with sf |
 | `sf config set` | `force active <account>` (for `target-org`) | An unknown config name is reported as a failure; sf asks whether a similar name was meant. | Compared with sf |
@@ -272,7 +275,7 @@ A flag listed as unsupported returns an error that names the flag.
 
 ## sf Commands Not Implemented
 
-86 of the 239 commands of `sf` 2.138.6 and its bundled and install-on-first-use plugins are not implemented. Third-party plugins and the retired Functions plugin are not counted. Running one of these commands prints the message `sf` prints for an unknown command and exits with status 127.
+83 of the 239 commands of `sf` 2.138.6 and its bundled and install-on-first-use plugins are not implemented. Third-party plugins and the retired Functions plugin are not counted. Running one of these commands prints the message `sf` prints for an unknown command and exits with status 127.
 
 ### org
 
@@ -312,14 +315,6 @@ A flag listed as unsupported returns an error that names the flag.
 | sf command | Summary | What is required |
 |---|---|---|
 | `sf package convert` | Convert a managed-released first-generation managed package into a second-generation managed package. | Create a Package2VersionCreateRequest for a first-generation package. |
-
-### community
-
-| sf command | Summary | What is required |
-|---|---|---|
-| `sf community create` | Create an Experience Cloud site using a template. | Connect API community resources; no force code exists. |
-| `sf community list template` | Retrieve the list of templates available in your org. | Connect API community resources; no force code exists. |
-| `sf community publish` | Publish an Experience Builder site to make it live. | Connect API community resources; no force code exists. |
 
 ### lightning
 

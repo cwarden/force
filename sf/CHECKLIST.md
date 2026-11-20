@@ -313,11 +313,11 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [x] `cmdt generate record`
 - [x] `cmdt generate records`
 
-### community (3 open, 0 done)
+### community (0 open, 3 done)
 
-- [ ] `community create`
-- [ ] `community list template`
-- [ ] `community publish`
+- [x] `community create` (follows the source of the sf community plugin; not compared with sf)
+- [x] `community list template` (follows the source of the sf community plugin; not compared with sf)
+- [x] `community publish` (follows the source of the sf community plugin; not compared with sf)
 
 ### lightning (3 open, 0 done)
 
