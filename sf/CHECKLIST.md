@@ -85,7 +85,8 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [ ] `data delete resume`, `data upsert resume`: `--target-org` (not defined; the org comes from the job cache)
 - [x] `org create scratch`: `--async`, `--track-source` (the output follows a transcript of sf; not run against a Dev Hub)
 - [x] `org create scratch`: `--no-ancestors`, `--source-org`, `--snapshot`, and the package ancestors of sfdx-project.json
-- [ ] `org create scratch`: `--client-id`, and the connected app of the Dev Hub authorization in the request
+- [x] `org create scratch`: `--client-id` (follows the sf core source)
+- [ ] `org create scratch`: the connected app of the Dev Hub authorization in the request when `--client-id` is not given (this mode requests the org with PlatformCLI)
 - [x] `org login web`: `--browser`, `--scopes` (follow the sf plugin source)
 - [ ] `org login web`: `--client-app`, `--username`
 - [x] `org open`: `--browser`, `--source-file`

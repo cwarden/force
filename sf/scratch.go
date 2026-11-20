@@ -1,10 +1,12 @@
 package sf
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
+	"golang.org/x/term"
 	"io"
 	"os"
 	"path/filepath"
@@ -85,9 +87,6 @@ func newOrgCreateScratchCmd() *cobra.Command {
 		Args:        cobra.NoArgs,
 		Annotations: map[string]string{commandNameAnnotation: "OrgCreateScratch"},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := unsupportedFlags(cmd, "client-id"); err != nil {
-				return err
-			}
 			if err := sandboxFlagConflicts(cmd, [][2]string{{"edition", "snapshot"}, {"edition", "source-org"}, {"snapshot", "source-org"}}); err != nil {
 				return err
 			}
@@ -225,8 +224,18 @@ func newOrgCreateScratchCmd() *cobra.Command {
 					}
 				}
 			}
-			request.Set("ConnectedAppConsumerKey", "PlatformCLI")
-			request.Set("ConnectedAppCallbackUrl", "http://localhost:1717/OauthRedirect")
+			// sf asks for the secret of the connected app when one is
+			// named, before it does anything else.
+			client := lib.DefaultScratchOrgClient
+			if clientID := flagText(cmd, "client-id"); clientID != "" {
+				secret, err := promptSecret(cmd, "OAuth client secret of your personal connected app")
+				if err != nil {
+					return err
+				}
+				client = scratchOrgClient(clientID, secret)
+			}
+			request.Set("ConnectedAppConsumerKey", client.ClientId)
+			request.Set("ConnectedAppCallbackUrl", client.RedirectURI)
 
 			hub, err := resolveTargetDevHub(cmd)
 			if err != nil {
@@ -277,6 +286,9 @@ func newOrgCreateScratchCmd() *cobra.Command {
 				}
 				entry.Set("setDefault", setDefault)
 				entry.Set("tracksSource", tracksSource)
+				if client.ClientSecret != "" {
+					entry.Set("clientSecret", client.ClientSecret)
+				}
 				if err := writeScratchCacheEntry(created.Id, entry); err != nil {
 					return err
 				}
@@ -305,7 +317,7 @@ func newOrgCreateScratchCmd() *cobra.Command {
 					fmt.Fprintf(w, "Resume scratch org creation by running \""+binName+" org resume scratch --job-id %s\"\n", created.Id)
 				})
 			}
-			done, err := completeScratchOrg(hub, created.Id, settings, alias, setDefault, tracksSource)
+			done, err := completeScratchOrg(hub, created.Id, settings, alias, setDefault, tracksSource, client)
 			if err != nil {
 				return err
 			}
@@ -438,6 +450,34 @@ func writeScratchCacheEntry(id string, entry *orderedMap) error {
 	return writeScratchCache(cache)
 }
 
+// scratchOrgClient returns the connected app to request a scratch org with.
+// The callback URL is the one sf names, except for the connected app of
+// force, which has a callback URL of its own.
+func scratchOrgClient(clientID, secret string) lib.ScratchOrgClient {
+	client := lib.ScratchOrgClient{ClientId: clientID, ClientSecret: secret, RedirectURI: lib.DefaultScratchOrgClient.RedirectURI}
+	if clientID == lib.ClientId {
+		client.RedirectURI = lib.RedirectUri
+	}
+	return client
+}
+
+// promptSecret asks for a secret on stderr and reads it without echo from a
+// terminal, or as a line from other input.
+func promptSecret(cmd *cobra.Command, message string) (string, error) {
+	fmt.Fprintf(cmd.ErrOrStderr(), "? %s ", message)
+	if file, ok := cmd.InOrStdin().(*os.File); ok && term.IsTerminal(int(file.Fd())) {
+		secret, err := term.ReadPassword(int(file.Fd()))
+		fmt.Fprintln(cmd.ErrOrStderr())
+		return string(secret), err
+	}
+	line, err := bufio.NewReader(cmd.InOrStdin()).ReadString('\n')
+	fmt.Fprintln(cmd.ErrOrStderr())
+	if err != nil && err != io.EOF {
+		return "", err
+	}
+	return strings.TrimRight(line, "\r\n"), nil
+}
+
 // completedScratchOrg is a scratch org that is authorized and set up.
 type completedScratchOrg struct {
 	username      string
@@ -450,8 +490,8 @@ type completedScratchOrg struct {
 // authorizes it with the authorization code of the request, writes the
 // authorization file, sets the alias and the default org, and deploys the
 // settings of the definition.
-func completeScratchOrg(hub *targetOrg, id string, settings *orderedMap, alias string, setDefault, tracksSource bool) (*completedScratchOrg, error) {
-	session, err := hub.Force.ForceLoginNewScratch(id)
+func completeScratchOrg(hub *targetOrg, id string, settings *orderedMap, alias string, setDefault, tracksSource bool, client lib.ScratchOrgClient) (*completedScratchOrg, error) {
+	session, err := hub.Force.ForceLoginNewScratchWithClient(id, client)
 	if err != nil {
 		return nil, &Error{
 			Name:     "ScratchOrgCreateError",
@@ -481,6 +521,9 @@ func completeScratchOrg(hub *targetOrg, id string, settings *orderedMap, alias s
 		"isDevHub":       false,
 		"created":        fmt.Sprintf("%d", time.Now().UnixMilli()),
 		"tracksSource":   tracksSource,
+	}
+	if client.ClientSecret != "" {
+		extra["clientSecret"] = client.ClientSecret
 	}
 	if expiration := text(info.values["ExpirationDate"]); expiration != "" {
 		extra["expirationDate"] = expiration
@@ -661,7 +704,15 @@ func newOrgResumeScratchCmd() *cobra.Command {
 			if value, ok := entry.values["tracksSource"].(bool); ok {
 				tracksSource = value
 			}
-			done, err := completeScratchOrg(hub, id, settings, alias, setDefault, tracksSource)
+			// The request names the connected app; the cache has its
+			// secret when it has one.
+			client := lib.DefaultScratchOrgClient
+			if requested, err := scratchOrgRequest(hub, id); err == nil {
+				if key := text(requested.values["ConnectedAppConsumerKey"]); key != "" {
+					client = scratchOrgClient(key, text(entry.values["clientSecret"]))
+				}
+			}
+			done, err := completeScratchOrg(hub, id, settings, alias, setDefault, tracksSource, client)
 			if err != nil {
 				failedFrame()
 				return err

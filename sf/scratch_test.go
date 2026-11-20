@@ -250,10 +250,6 @@ func TestOrgCreateScratchValidation(t *testing.T) {
 	if status != 2 || !strings.Contains(errOut, "The id must be 15 characters.") {
 		t.Errorf("--source-org: status %d, stderr %q", status, errOut)
 	}
-	_, errOut, status = run("org", "create", "scratch", "-e", "developer", "--client-id", "app")
-	if status != 1 || !strings.Contains(errOut, "The --client-id flag is not supported") {
-		t.Errorf("--client-id: status %d, stderr %q", status, errOut)
-	}
 }
 
 func TestOrgCreateScratchSnapshotSourceOrgAndAncestors(t *testing.T) {
@@ -474,5 +470,38 @@ func TestStageFrameWrapsALongValueUnderItsStart(t *testing.T) {
 `
 	if b.String() != want {
 		t.Errorf("frame =\n%s\nwant\n%s", b.String(), want)
+	}
+}
+
+func TestOrgCreateScratchWithAClientId(t *testing.T) {
+	org := devHubSetup(t)
+	var request map[string]interface{}
+	org.handlers["/services/data/v67.0/sobjects/ScratchOrgInfo"] = func(w http.ResponseWriter, r *http.Request) {
+		json.NewDecoder(r.Body).Decode(&request)
+		org.username = "test-scratch@example.com"
+		w.WriteHeader(http.StatusCreated)
+		io.WriteString(w, `{"id":"2SR000000000001AAA","success":true,"errors":[]}`)
+	}
+	org.handlers["/services/data/v67.0/sobjects/ScratchOrgInfo/2SR000000000001AAA"] = func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"attributes":{"type":"ScratchOrgInfo"},"Id":"2SR000000000001AAA","Status":"Active","SignupUsername":"test-scratch@example.com","LoginUrl":"`+org.URL+`","AuthCode":"auth-code","ScratchOrg":"00D000000000000","ExpirationDate":"2026-12-31","SignupInstance":"CS99","Edition":"Developer"}`)
+	}
+	// The secret is read from standard input, which is empty here.
+	_, errOut, status := run("org", "create", "scratch", "-e", "developer", "-i", lib.ClientId)
+	if status != 0 || !strings.HasPrefix(errOut, "? OAuth client secret of your personal connected app ") {
+		t.Fatalf("status %d, stderr %s", status, errOut)
+	}
+	// The connected app of force has a callback URL of its own.
+	if request["ConnectedAppConsumerKey"] != lib.ClientId || request["ConnectedAppCallbackUrl"] != lib.RedirectUri {
+		t.Errorf("ScratchOrgInfo request = %v", request)
+	}
+	fields, err := lib.ReadSFDXAuthFields("test-scratch@example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fields.String("clientId") != lib.ClientId {
+		t.Errorf("clientId = %q", fields.String("clientId"))
+	}
+	if client := scratchOrgClient("3MVGcustom", "secret"); client.RedirectURI != "http://localhost:1717/OauthRedirect" || client.ClientSecret != "secret" {
+		t.Errorf("custom client = %+v", client)
 	}
 }

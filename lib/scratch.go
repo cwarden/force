@@ -97,13 +97,31 @@ func (f *Force) waitForScratchOrgReady(scratchOrgId string) (org ForceRecord, er
 	}
 }
 
+// ScratchOrgClient is the connected app a scratch org was requested with:
+// the authorization code of the scratch org is exchanged with its consumer
+// key, its secret when it has one, and its callback URL.
+type ScratchOrgClient struct {
+	ClientId     string
+	ClientSecret string
+	RedirectURI  string
+}
+
+// DefaultScratchOrgClient is the connected app of the Salesforce CLI.
+var DefaultScratchOrgClient = ScratchOrgClient{ClientId: "PlatformCLI", RedirectURI: "http://localhost:1717/OauthRedirect"}
+
 // Log into a Scratch Org
 func (f *Force) ForceLoginNewScratch(scratchOrgId string) (session ForceSession, err error) {
+	return f.ForceLoginNewScratchWithClient(scratchOrgId, DefaultScratchOrgClient)
+}
+
+// ForceLoginNewScratchWithClient logs into a scratch org that was requested
+// with a connected app other than the default one.
+func (f *Force) ForceLoginNewScratchWithClient(scratchOrgId string, client ScratchOrgClient) (session ForceSession, err error) {
 	scratchOrg, err := f.getScratchOrg(scratchOrgId)
 	if err != nil {
 		return
 	}
-	session, err = scratchOrg.getSession()
+	session, err = scratchOrg.getSession(client)
 	if err != nil {
 		return
 	}
@@ -111,18 +129,21 @@ func (f *Force) ForceLoginNewScratch(scratchOrgId string) (session ForceSession,
 		RefreshMethod: RefreshOauth,
 	}
 	session.ForceEndpoint = EndpointTest
-	session.ClientId = "PlatformCLI"
+	session.ClientId = client.ClientId
 	return
 }
 
 // Use the AuthCode for a new Scratch Org from the Dev Hub to get a new
 // ForceSession
-func (s *ScratchOrg) getSession() (session ForceSession, err error) {
+func (s *ScratchOrg) getSession(client ScratchOrgClient) (session ForceSession, err error) {
 	attrs := url.Values{}
 	attrs.Set("grant_type", "authorization_code")
 	attrs.Set("code", s.AuthCode)
-	attrs.Set("client_id", "PlatformCLI")
-	attrs.Set("redirect_uri", "http://localhost:1717/OauthRedirect")
+	attrs.Set("client_id", client.ClientId)
+	if client.ClientSecret != "" {
+		attrs.Set("client_secret", client.ClientSecret)
+	}
+	attrs.Set("redirect_uri", client.RedirectURI)
 
 	postVars := attrs.Encode()
 	req, err := httpRequest("POST", s.tokenURL(), bytes.NewReader([]byte(postVars)))
