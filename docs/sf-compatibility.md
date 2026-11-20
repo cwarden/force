@@ -45,7 +45,7 @@ The files written by the `template generate` commands come from the salesforcedx
 - An error prints `Error (<name>): <message>` on stderr, or with `--json` an envelope with `name`, `message`, `exitCode`, `context`, `code`, `status` and `commandName`. The envelope has no `stack` or `cause` field, and `data` holds only `errorCode` and `message`.
 - A legacy command id, such as `force:org:list`, and a legacy flag name, such as `--targetusername`, `-u` or `--classname`, are accepted where `sf` accepts them, with the deprecation warning `sf` reports: on stderr, or in the `warnings` array with `--json`. The flag names are in `sf/flagaliases.go`, generated from `sf commands --json`.
 - Exit status follows `sf`: 2 for a missing or malformed flag, 1 for a flag value outside its list of options, 127 for an unknown command, 100 for failing Apex tests, 1 for other failures.
-- Color is used when `FORCE_COLOR` is set to a value other than `0`, when `COLORTERM=truecolor`, or when the output is a terminal. `NO_COLOR` and `FORCE_COLOR=0` turn it off.
+- Color is used when `FORCE_COLOR` is set to a value other than `0`, when `COLORTERM=truecolor`, or when the output is a terminal. `NO_COLOR` and `FORCE_COLOR=0` turn it off. `--json` output is colored on a terminal and when `FORCE_COLOR` is set, and is not colored in a pipe when only `COLORTERM=truecolor` is set.
 - `sf` redraws a progress display while it waits for a bulk job, deploy, retrieve or scratch org. This mode prints the last frame once.
 - `--flags-dir` reads one file per flag; a file name can be the long or the short name of the flag.
 - Authorization files are written with mode 0600; `sf` writes them with the default file mode.
