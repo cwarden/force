@@ -15,6 +15,7 @@ sf package [flags]
 ### SEE ALSO
 
 * [sf](sf.md)	 - sf-compatible mode of the force CLI
+* [sf package convert](sf_package_convert.md)	 - Convert a managed-released first-generation managed package into a second-generation managed package.
 * [sf package create](sf_package_create.md)	 - Create a package.
 * [sf package delete](sf_package_delete.md)	 - Delete a package.
 * [sf package install](sf_package_install.md)	 - Install or upgrade a version of a package in the target org.

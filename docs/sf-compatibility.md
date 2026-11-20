@@ -151,6 +151,7 @@ The files written by the `template generate` commands come from the salesforcedx
 | `sf org login web` | `force login` | `--browser`, `--client-app`, `--username`, `--scopes`. Uses the force connected app and callback port unless `--client-id` is given. | Run against an org; the output was not compared with sf |
 | `sf org logout` | `force logout` | `--client-app` is accepted and has no effect. | Compared with sf |
 | `sf org open` | `force open` | `--private` `--browser` starts the browser by its program name on Linux and by its application name on macOS and Windows. `--source-file` follows the sf core source and recognizes the metadata type by the file name. | Compared with sf |
+| `sf package convert` | none | `--seed-metadata`, and the `seedMetadata` and `unpackagedMetadata` of the package directory. sf 2.138.6 fails with "Cannot read properties of undefined" after it sent the request when `--wait` is not given; this mode reports the request. Follows the source of the sf packaging library. | Follows the sf plugin source |
 | `sf package create` | `force package create` |  | Follows the sf plugin source |
 | `sf package delete` | none |  | Follows the sf plugin source |
 | `sf package install` | `force package install` | `--publish-wait`. Does not prompt about remote site settings; they are enabled. | Follows the sf plugin source |
@@ -275,7 +276,7 @@ A flag listed as unsupported returns an error that names the flag.
 
 ## sf Commands Not Implemented
 
-83 of the 239 commands of `sf` 2.138.6 and its bundled and install-on-first-use plugins are not implemented. Third-party plugins and the retired Functions plugin are not counted. Running one of these commands prints the message `sf` prints for an unknown command and exits with status 127.
+82 of the 239 commands of `sf` 2.138.6 and its bundled and install-on-first-use plugins are not implemented. Third-party plugins and the retired Functions plugin are not counted. Running one of these commands prints the message `sf` prints for an unknown command and exits with status 127.
 
 ### org
 
@@ -309,12 +310,6 @@ A flag listed as unsupported returns an error that names the flag.
 |---|---|---|
 | `sf template generate digital-experience site` | Generate an Experience Cloud site. | Render the files of the matching archive in `sf/templates`. The flexipage templates use EJS loops, which the renderer does not handle; the digital experience site command also creates the site in an org. |
 | `sf template generate ui-bundle` | Generate a UI bundle, which contains the code and metadata to build a UI experience that uses non-native Salesforce frameworks, such as React. | Render the files of the matching archive in `sf/templates`. The flexipage templates use EJS loops, which the renderer does not handle; the digital experience site command also creates the site in an org. |
-
-### package
-
-| sf command | Summary | What is required |
-|---|---|---|
-| `sf package convert` | Convert a managed-released first-generation managed package into a second-generation managed package. | Create a Package2VersionCreateRequest for a first-generation package. |
 
 ### lightning
 

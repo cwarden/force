@@ -279,9 +279,9 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [x] `template generate static-resource`
 - [ ] `template generate ui-bundle`
 
-### package (1 open, 15 done)
+### package (0 open, 16 done)
 
-- [ ] `package convert`
+- [x] `package convert` (follows the source of the sf packaging library; `--seed-metadata` is not supported)
 - [x] `package delete` (follows the sf plugin source)
 - [x] `package install report` (follows the sf plugin source)
 - [x] `package push-upgrade abort` (follows the sf plugin source)

@@ -22,6 +22,7 @@ var packagePollInterval = 2 * time.Second
 func newPackageCmd() *cobra.Command {
 	return newGroup("package", "Commands to develop and install unlocked packages and managed 2GP packages.",
 		newPackageCreateCmd(),
+		newPackageConvertCmd(),
 		newPackageDeleteCmd(false),
 		newPackageListCmd(),
 		newPackageUpdateCmd(),

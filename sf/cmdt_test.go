@@ -411,7 +411,7 @@ func TestLegacyAliasReportsDeprecation(t *testing.T) {
 	if _, errOut, _ := run("alias", "list"); errOut != "" {
 		t.Errorf("alias list: stderr %q", errOut)
 	}
-	if _, errOut, status := run("force:package:convert"); status != 127 || strings.Contains(errOut, "deprecated") {
+	if _, errOut, status := run("generate:metadata:field"); status != 127 || strings.Contains(errOut, "deprecated") {
 		t.Errorf("alias of a missing command: status %d, stderr %q", status, errOut)
 	}
 }
