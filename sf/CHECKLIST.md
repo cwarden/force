@@ -88,7 +88,7 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [ ] `org create scratch`: `--client-id`, and the connected app of the Dev Hub authorization in the request
 - [ ] `org login web`: `--browser`, `--client-app`, `--username`, `--scopes`
 - [x] `org open`: `--browser`, `--source-file`
-- [ ] `org open`: `--private`
+- [x] `org open`: `--private` (chrome, brave, firefox and edge as the default browser, as in sf; not compared with sf)
 - [x] `package create`: `--no-namespace`, `--org-dependent`, `--error-notification-username`
 - [x] `package install`: `--skip-handlers`
 - [x] `package install`: `--publish-wait` (follows the sf plugin source)

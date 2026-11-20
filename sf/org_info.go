@@ -134,10 +134,7 @@ func newOrgOpenCmd() *cobra.Command {
 		Short: "Open your default scratch org, or another specified org, in a browser.",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := unsupportedFlags(cmd, "private"); err != nil {
-				return err
-			}
-			if err := sandboxFlagConflicts(cmd, [][2]string{{"browser", "url-only"}}); err != nil {
+			if err := sandboxFlagConflicts(cmd, [][2]string{{"private", "url-only"}, {"private", "browser"}, {"browser", "url-only"}}); err != nil {
 				return err
 			}
 			browser, _ := cmd.Flags().GetString("browser")
@@ -188,6 +185,9 @@ func newOrgOpenCmd() *cobra.Command {
 			}
 			if browser != "" {
 				return openInBrowser(browser, result.URL)
+			}
+			if private, _ := cmd.Flags().GetBool("private"); private {
+				return openPrivately(result.URL)
 			}
 			return openBrowser(result.URL)
 		},

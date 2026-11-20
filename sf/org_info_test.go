@@ -58,10 +58,6 @@ func TestOrgOpenStartsTheBrowser(t *testing.T) {
 	if opened != "https://example.my.salesforce.com/secur/frontdoor.jsp?otp=abc" {
 		t.Errorf("opened %q", opened)
 	}
-	_, errOut, status := run("org", "open", "--private")
-	if status != 1 || !strings.Contains(errOut, "The --private flag is not supported") {
-		t.Errorf("--private: status %d, stderr %q", status, errOut)
-	}
 }
 
 func TestOrgOpenSourceFileAndBrowser(t *testing.T) {
@@ -125,6 +121,20 @@ func TestOrgOpenSourceFileAndBrowser(t *testing.T) {
 	expectRun(t, 0, "Opening org 00D000000000000 as user me@example.com\n", "org", "open", "-b", "firefox")
 	if len(opened) != 2 || opened[0] != "firefox" || opened[1] != "https://example.my.salesforce.com/secur/frontdoor.jsp?otp=abc" {
 		t.Errorf("opened %q", opened)
+	}
+	var private string
+	previousPrivate := openPrivately
+	openPrivately = func(url string) error {
+		private = url
+		return nil
+	}
+	defer func() { openPrivately = previousPrivate }()
+	expectRun(t, 0, "Opening org 00D000000000000 as user me@example.com\n", "org", "open", "--private")
+	if private != "https://example.my.salesforce.com/secur/frontdoor.jsp?otp=abc" {
+		t.Errorf("opened privately %q", private)
+	}
+	if _, errOut, status := run("org", "open", "--private", "-r"); status != 2 || !strings.Contains(errOut, "cannot also be provided when using --url-only") {
+		t.Errorf("private with url-only: status %d, stderr %q", status, errOut)
 	}
 	if _, errOut, status := run("org", "open", "-b", "lynx"); status != 2 || !strings.Contains(errOut, "Expected --browser=lynx to be one of: chrome, edge, firefox") {
 		t.Errorf("other browser: status %d, stderr %q", status, errOut)
@@ -241,5 +251,22 @@ Test Required: false
 	if status != 0 || !strings.Contains(out, `"organizationNamespace": "ns"`) || strings.Contains(out, `"metadataVersion"`) || !strings.Contains(out, "\"result\": {\n    \"metadataObjects\": [") ||
 		!strings.Contains(out, "\"xmlName\": \"CustomObject\",\n        \"childXmlNames\": [\n          \"CustomField\",\n          \"ListView\"\n        ]") {
 		t.Errorf("json: status %d\n%s", status, out)
+	}
+}
+
+func TestPrivateBrowserCommandUsesTheDefaultBrowser(t *testing.T) {
+	name, args, err := privateBrowserCommand("darwin", "org.mozilla.firefox", "https://x")
+	if err != nil || name != "open" || strings.Join(args, " ") != "-n -a firefox https://x --args --private-window" {
+		t.Errorf("macOS firefox: %s %v, %v", name, args, err)
+	}
+	name, args, err = privateBrowserCommand("windows", "MSEdgeHTM", "https://x")
+	if err != nil || name != "cmd" || strings.Join(args, " ") != "/c start  msedge --inPrivate https://x" {
+		t.Errorf("Windows edge: %s %v, %v", name, args, err)
+	}
+	if _, args, err = privateBrowserCommand("windows", "FirefoxURL-308046B0AF4A39CB", "https://x"); err != nil || args[4] != "--private-window" {
+		t.Errorf("Windows firefox: %v, %v", args, err)
+	}
+	if _, _, err = privateBrowserCommand("linux", "epiphany.desktop", "https://x"); err == nil || err.Error() != "epiphany.desktop is not supported as a default browser" {
+		t.Errorf("other browser: %v", err)
 	}
 }
