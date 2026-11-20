@@ -261,6 +261,13 @@ func TestPackageVersionCreateWaitsAndRecordsTheVersionAlias(t *testing.T) {
 		t.Errorf("sfdx-project.json lacks the version alias:\n%s", project)
 	}
 
+	// With --verbose each status is a line on stdout.
+	statuses = []string{"Initializing", "Success"}
+	out, _, _ = run("package", "version", "create", "-p", "billing", "-n", "1.2.0.NEXT", "-x", "-w", "10", "--verbose")
+	if !strings.HasPrefix(out, "Version create...\n10 minutes remaining until timeout. Create version status: Initializing\nCreate version status: Success\nSuccessfully created") {
+		t.Errorf("verbose: stdout %q", out)
+	}
+
 	// Without --wait the command reports the request and returns.
 	statuses = []string{"Queued"}
 	sleeps = nil

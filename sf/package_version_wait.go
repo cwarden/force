@@ -26,6 +26,7 @@ type statusLine struct {
 	message  string
 	terminal bool
 	silent   bool
+	verbose  bool
 }
 
 func startStatusLine(cmd *cobra.Command, message string) *statusLine {
@@ -39,6 +40,10 @@ func startStatusLine(cmd *cobra.Command, message string) *statusLine {
 }
 
 func (l *statusLine) update(status string) {
+	if l.verbose && !l.silent {
+		fmt.Fprintln(l.out, status)
+		return
+	}
 	if l.silent || !l.terminal {
 		return
 	}
@@ -46,7 +51,7 @@ func (l *statusLine) update(status string) {
 }
 
 func (l *statusLine) stop(status string) {
-	if l.silent {
+	if l.silent || (l.verbose && status == "") {
 		return
 	}
 	if l.terminal {
@@ -59,8 +64,17 @@ func (l *statusLine) stop(status string) {
 // waitForPackageVersion submits a package version and reports the create
 // request the way sf does: at once without a wait, otherwise after the
 // request finishes or the wait ends.
-func waitForPackageVersion(cmd *cobra.Command, org *targetOrg, projectRoot string, request lib.PackageVersionRequest, wait time.Duration, frequency time.Duration) error {
-	line := startStatusLine(cmd, "Version create.")
+func waitForPackageVersion(cmd *cobra.Command, org *targetOrg, projectRoot string, request lib.PackageVersionRequest, wait time.Duration, frequency time.Duration, verbose bool) error {
+	// With --verbose sf prints each status on a line of its own on stdout.
+	var line *statusLine
+	if verbose {
+		line = &statusLine{out: cmd.OutOrStdout(), silent: jsonRequested(cmd), verbose: true}
+		if !line.silent {
+			fmt.Fprintln(line.out, "Version create...")
+		}
+	} else {
+		line = startStatusLine(cmd, "Version create.")
+	}
 	requestID, err := org.Force.SubmitPackageVersion(request, nil)
 	if err != nil {
 		line.stop("")

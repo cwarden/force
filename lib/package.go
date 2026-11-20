@@ -41,6 +41,9 @@ type PackageVersionRequest struct {
 	SkipValidation  bool
 	AsyncValidation bool
 	CodeCoverage    bool
+	// TransitiveDependencies asks the org to add the dependencies of the
+	// dependencies.
+	TransitiveDependencies bool
 	// Branch is the source control branch the version is based on.
 	Branch string
 	// InstallationKey protects the installation of the version.
@@ -469,7 +472,7 @@ func packageVersionCreateBody(packageZip []byte, descriptorJson []byte, req Pack
 		"CalculateCodeCoverage":      req.CodeCoverage,
 		"SkipValidation":             req.SkipValidation,
 		"AsyncValidation":            req.AsyncValidation,
-		"CalcTransitiveDependencies": false,
+		"CalcTransitiveDependencies": req.TransitiveDependencies,
 		"IsDevUsePkgZipRequested":    req.GeneratePackageZip,
 	}
 	for key, value := range map[string]string{"Tag": req.Tag, "Branch": req.Branch, "InstallKey": req.InstallationKey, "Language": req.Language} {

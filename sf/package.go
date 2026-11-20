@@ -1038,7 +1038,7 @@ func newPackageVersionCreateCmd() *cobra.Command {
 		Args:        cobra.NoArgs,
 		Annotations: map[string]string{commandNameAnnotation: "PackageVersionCreateCommand"},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := unsupportedFlags(cmd, "definition-file", "skip-ancestor-check", "verbose"); err != nil {
+			if err := unsupportedFlags(cmd, "definition-file"); err != nil {
 				return err
 			}
 			installationKey, _ := cmd.Flags().GetString("installation-key")
@@ -1114,23 +1114,57 @@ func newPackageVersionCreateCmd() *cobra.Command {
 			if skipValidation {
 				warn(cmd, "Skipping validation suppresses errors that usually surface during package version creation. Instead, these errors surface at a later stage, such as installation or post-installation. If you encounter errors that are difficult to debug, retry package version creation without the --skip-validation flag.")
 			}
+			packageRecordID := packageID(packageFlag)
+			directory, aliases := packageDirectoryEntry(project.Root, packageFlag, path)
+			if directory == nil {
+				directory = newOrderedMap()
+			}
+			for _, key := range []string{"definitionFile", "unpackagedMetadata", "seedMetadata"} {
+				if directory.values[key] != nil {
+					return newError("UnsupportedPackageDirectoryKeyError", "The %s key of the package directory in sfdx-project.json is not supported.", key)
+				}
+			}
+			packages, err := toolingRecords(org, fmt.Sprintf("SELECT Id, ContainerOptions FROM Package2 WHERE Id = '%s'", strings.ReplaceAll(packageRecordID, "'", `\'`)))
+			if err != nil {
+				return err
+			}
+			ancestor := ""
+			if len(packages) > 0 && text(packages[0].values["ContainerOptions"]) == "Unlocked" {
+				if flagText(cmd, "post-install-script") != "" || flagText(cmd, "uninstall-script") != "" {
+					return newError("ErrorScriptsNotApplicableToUnlockedPackageError", "We can’t create the package version. This parameter is available only for second-generation managed packages. Create the package version without the postinstallscript or uninstallscript parameters.")
+				}
+				if directory.values["ancestorId"] != nil || directory.values["ancestorVersion"] != nil {
+					return newError("ErrorAncestorNotApplicableToUnlockedPackageError", "Can’t create package version. Specifying an ancestor is available only for second-generation managed packages. Remove the ancestorId or ancestorVersion from your sfdx-project.json file, and then create the package version again.")
+				}
+			} else if len(packages) > 0 {
+				if ancestor, err = packageVersionAncestor(org, directory, aliases, packageRecordID, versionNumber, flagSet(cmd, "skip-ancestor-check")); err != nil {
+					return err
+				}
+			}
+			dependencies, err := packageVersionDependencies(org, directory, aliases, flagText(cmd, "branch"))
+			if err != nil {
+				return err
+			}
 			request := lib.PackageVersionRequest{
-				Path:               roots[0],
-				PackageId:          packageID(packageFlag),
-				VersionNumber:      versionNumber,
-				VersionName:        versionName,
-				VersionDescription: description,
-				Tag:                tag,
-				SkipValidation:     skipValidation,
-				AsyncValidation:    asyncValidation,
-				CodeCoverage:       codeCoverage,
-				Branch:             flagText(cmd, "branch"),
-				InstallationKey:    installationKey,
-				Language:           flagText(cmd, "language"),
-				GeneratePackageZip: flagSet(cmd, "generate-pkg-zip"),
-				ReleaseNotesURL:    flagText(cmd, "releasenotes-url"),
-				PostInstallURL:     postInstallURL,
-				PostInstallScript:  flagText(cmd, "post-install-script"),
+				AncestorId:             ancestor,
+				Dependencies:           dependencies,
+				TransitiveDependencies: directory.values["calculateTransitiveDependencies"] == true,
+				Path:                   roots[0],
+				PackageId:              packageRecordID,
+				VersionNumber:          versionNumber,
+				VersionName:            versionName,
+				VersionDescription:     description,
+				Tag:                    tag,
+				SkipValidation:         skipValidation,
+				AsyncValidation:        asyncValidation,
+				CodeCoverage:           codeCoverage,
+				Branch:                 flagText(cmd, "branch"),
+				InstallationKey:        installationKey,
+				Language:               flagText(cmd, "language"),
+				GeneratePackageZip:     flagSet(cmd, "generate-pkg-zip"),
+				ReleaseNotesURL:        flagText(cmd, "releasenotes-url"),
+				PostInstallURL:         postInstallURL,
+				PostInstallScript:      flagText(cmd, "post-install-script"),
 			}
 			if request.VersionName == "" {
 				// As in sf, the name defaults to the number without .NEXT.
@@ -1152,7 +1186,7 @@ func newPackageVersionCreateCmd() *cobra.Command {
 				}
 			}
 			defer recordTypes()
-			return waitForPackageVersion(cmd, org, project.Root, request, time.Duration(minutes)*time.Minute, frequency)
+			return waitForPackageVersion(cmd, org, project.Root, request, time.Duration(minutes)*time.Minute, frequency, flagSet(cmd, "verbose"))
 		},
 	}
 	addJSONFlag(cmd)
