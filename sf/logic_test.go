@@ -131,3 +131,82 @@ func TestLogicRunTestRequests(t *testing.T) {
 		t.Errorf("apex run test request = %s", *request)
 	}
 }
+
+// The flow commands follow the source of the sf flow plugin, version
+// 2.0.2.  They were not compared with sf.
+
+func TestFlowRunTestRequests(t *testing.T) {
+	org := loggedInFakeOrg(t)
+	request := serveTestRun(org)
+	for _, c := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{}, `{"testLevel":"RunLocalTests","category":["flow"],"skipCodeCoverage":true}`},
+		// Each name gets the prefix "flowtesting.".
+		{[]string{"-n", "Approve_Order", "-c"}, `{"tests":[{"className":"flowtesting.Approve_Order"}],"testLevel":"RunSpecifiedTests","skipCodeCoverage":false}`},
+		{[]string{"-t", "Approve_Order.Approves_Small_Orders"}, `{"tests":[{"namespace":"flowtesting","className":"Approve_Order","testMethods":["Approves_Small_Orders"]}],"testLevel":"RunSpecifiedTests","skipCodeCoverage":true}`},
+		{[]string{"-s", "Orders"}, `{"suiteNames":"Orders","testLevel":"RunSpecifiedTests","category":["flow"],"skipCodeCoverage":true}`},
+	} {
+		// The command has no --wait flag: it prints the Id of the run.
+		out, errOut, status := run(append([]string{"flow", "run", "test"}, c.args...)...)
+		if status != 0 || errOut != "" || *request != c.want {
+			t.Errorf("%v: status %d, stderr %q\nrequest %s\nwant    %s", c.args, status, errOut, *request, c.want)
+		}
+		if out != "Run \"sf flow get test -i 707000000000001AAA -o me@example.com\" to retrieve test results.\nRun with --synchronous or increase --wait timeout to wait for results.\n" {
+			t.Errorf("%v: stdout %q", c.args, out)
+		}
+	}
+	for _, c := range []struct {
+		args   []string
+		stderr string
+	}{
+		{[]string{"-n", "A", "-n", "B", "-y"}, "Error (1): Synchronous test runs can include tests from only one Flow. Omit the --synchronous flag or include tests from only one flow.\n\n\n"},
+		{[]string{"-n", "A", "-l", "RunLocalTests"}, "Error (1): When specifying flows or tests, indicate RunSpecifiedTests as the testlevel.\n\n\n"},
+	} {
+		_, errOut, status := run(append([]string{"flow", "run", "test"}, c.args...)...)
+		if status != 1 || errOut != c.stderr {
+			t.Errorf("%v: status %d, stderr %q", c.args, status, errOut)
+		}
+	}
+	if _, _, status := run("flow", "run", "test", "-w", "5"); status == 0 {
+		t.Errorf("flow run test accepted --wait")
+	}
+}
+
+func TestFlowGetTestReportsFlowTestResults(t *testing.T) {
+	org := loggedInFakeOrg(t)
+	serveTestRun(org)
+	apexQueries := org.handlers["/services/data/v67.0/tooling/query"]
+	org.handlers["/services/data/v67.0/tooling/query"] = func(w http.ResponseWriter, r *http.Request) {
+		soql := r.URL.Query().Get("q")
+		switch {
+		case strings.Contains(soql, "FROM ApexTestQueueItem"):
+			io.WriteString(w, `{"done":true,"totalSize":1,"records":[{"Id":"709000000000002AAA","Status":"Completed","ApexClassId":null}]}`)
+		case strings.Contains(soql, "FROM FlowTestResult"):
+			io.WriteString(w, `{"done":true,"totalSize":2,"records":[`+
+				`{"Id":"4Ti000000000001AAA","ApexTestQueueItemId":"709000000000002AAA","Result":"Pass","FlowTest":{"DeveloperName":"Approves_Small_Orders"},"FlowDefinition":{"DeveloperName":"Approve_Order","NamespacePrefix":null}},`+
+				`{"Id":"4Ti000000000002AAA","ApexTestQueueItemId":"709000000000002AAA","Result":"Fail","FlowTest":{"DeveloperName":"Rejects_Large_Orders"},"FlowDefinition":{"DeveloperName":"Approve_Order","NamespacePrefix":"acme"}}]}`)
+		default:
+			apexQueries(w, r)
+		}
+	}
+	out, errOut, status := run("flow", "get", "test", "-i", "707000000000001AAA")
+	if status != 100 || errOut != "" {
+		t.Errorf("status %d, stderr %q", status, errOut)
+	}
+	// The report has no category column.
+	for _, want := range []string{
+		"TEST NAME                                OUTCOME  MESSAGE  RUNTIME (MS)",
+		"Approve_Order.Approves_Small_Orders      Pass              0",
+		"acme.Approve_Order.Rejects_Large_Orders  Fail ",
+		"Tests Ran            2 ", "Pass Rate            50%",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("report lacks %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "CATEGORY") {
+		t.Errorf("flow get test shows the category:\n%s", out)
+	}
+}

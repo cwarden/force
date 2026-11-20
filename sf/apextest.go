@@ -138,6 +138,19 @@ func (r *apexTestRun) outcome() string {
 	return "Passed"
 }
 
+// testKind tells the three families of test commands apart.
+type testKind string
+
+const (
+	// apexTests is "apex run test" and "apex get test".
+	apexTests testKind = "apex"
+	// logicTests is the logic commands, which run Apex and Flow tests
+	// and report the category of each test.
+	logicTests testKind = "logic"
+	// flowTests is the flow commands, which run Flow tests.
+	flowTests testKind = "flow"
+)
+
 // flowTestPrefix starts the name of a Flow test: FlowTesting.<flow>.<test>.
 const flowTestPrefix = "FlowTesting."
 
@@ -182,10 +195,20 @@ func flowTestItem(name string, items *[]interface{}, byClass map[string]*ordered
 // runTestsSynchronous from --class-names, --suite-names, --tests and
 // --test-level.  logic is set for "logic run test", which also takes
 // --test-category.
-func apexTestRequest(cmd *cobra.Command, logic bool) (*orderedMap, error) {
+func apexTestRequest(cmd *cobra.Command, kind testKind) (*orderedMap, error) {
+	logic := kind == logicTests
 	classNames := splitList(cmd, "class-names")
 	suiteNames := splitList(cmd, "suite-names")
 	tests := splitList(cmd, "tests")
+	if kind == flowTests {
+		// The flow commands put this prefix before each name.
+		for i := range classNames {
+			classNames[i] = "flowtesting." + classNames[i]
+		}
+		for i := range tests {
+			tests[i] = "flowtesting." + tests[i]
+		}
+	}
 	testLevel, _ := cmd.Flags().GetString("test-level")
 	codeCoverage, _ := cmd.Flags().GetBool("code-coverage")
 	specified := 0
@@ -199,8 +222,11 @@ func apexTestRequest(cmd *cobra.Command, logic bool) (*orderedMap, error) {
 	}
 	// sf checks these combinations before it sends the request.
 	if synchronous, _ := cmd.Flags().GetBool("synchronous"); synchronous && (len(suiteNames) > 0 || len(classNames) > 1) {
-		if logic {
+		switch kind {
+		case logicTests:
 			return nil, &Error{Message: "-- Synchronous test runs can include test methods from only one Apex class or Flow test. Omit the --synchronous flag or include tests from only one class", ExitCode: 1}
+		case flowTests:
+			return nil, &Error{Message: "Synchronous test runs can include tests from only one Flow. Omit the --synchronous flag or include tests from only one flow.", ExitCode: 1}
 		}
 		return nil, &Error{Message: "Synchronous test runs can include test methods from only one Apex class. Omit the --synchronous flag or include tests from only one class", ExitCode: 1}
 	}
@@ -217,6 +243,9 @@ func apexTestRequest(cmd *cobra.Command, logic bool) (*orderedMap, error) {
 		}
 	}
 	if specified > 0 && testLevel != "" && testLevel != "RunSpecifiedTests" {
+		if kind == flowTests {
+			return nil, &Error{Message: "When specifying flows or tests, indicate RunSpecifiedTests as the testlevel.", ExitCode: 1}
+		}
 		return nil, &Error{Message: "When specifying classnames, suitenames, or tests, indicate RunSpecifiedTests as the testlevel", ExitCode: 1}
 	}
 	if testLevel == "" {
@@ -232,8 +261,11 @@ func apexTestRequest(cmd *cobra.Command, logic bool) (*orderedMap, error) {
 	}
 	// "apex run test" runs the Apex tests of the org; a run of named
 	// tests has no category.
-	if !logic && testLevel != "RunSpecifiedTests" {
+	if kind == apexTests && testLevel != "RunSpecifiedTests" {
 		categories = []string{"Apex"}
+	}
+	if kind == flowTests {
+		categories = []string{"flow"}
 	}
 	request := newOrderedMap()
 	classItem := func(name string) *orderedMap {
@@ -1204,13 +1236,17 @@ func reportTestRun(cmd *cobra.Command, org *targetOrg, run *apexTestRun, format 
 	return nil
 }
 
-func newApexGetTestCmd() *cobra.Command { return newGetTestCmd(false) }
+func newApexGetTestCmd() *cobra.Command { return newGetTestCmd(apexTests) }
+
+// newFlowGetTestCmd is "flow get test": the results of a run of Flow tests.
+func newFlowGetTestCmd() *cobra.Command { return newGetTestCmd(flowTests) }
 
 // newLogicGetTestCmd is "logic get test": "apex get test" for a run of
 // Apex and Flow tests, with the category of each test in the results.
-func newLogicGetTestCmd() *cobra.Command { return newGetTestCmd(true) }
+func newLogicGetTestCmd() *cobra.Command { return newGetTestCmd(logicTests) }
 
-func newGetTestCmd(logic bool) *cobra.Command {
+func newGetTestCmd(kind testKind) *cobra.Command {
+	logic := kind == logicTests
 	short, class := "Display test results for a specific asynchronous test run.", "Test"
 	if logic {
 		short, class = "Get the results of a test run.", "TestLogic"
@@ -1269,16 +1305,24 @@ func newGetTestCmd(logic bool) *cobra.Command {
 // shorten it.
 var testPollInterval = time.Second
 
-func newApexRunTestCmd() *cobra.Command { return newRunTestCmd(false) }
+func newApexRunTestCmd() *cobra.Command { return newRunTestCmd(apexTests) }
+
+// newFlowRunTestCmd is "flow run test".  It runs Flow tests, and it has no
+// --wait flag: without --synchronous it prints the Id of the test run.
+func newFlowRunTestCmd() *cobra.Command { return newRunTestCmd(flowTests) }
 
 // newLogicRunTestCmd is "logic run test": "apex run test" for Apex and Flow
 // tests, with --test-category to choose between them.
-func newLogicRunTestCmd() *cobra.Command { return newRunTestCmd(true) }
+func newLogicRunTestCmd() *cobra.Command { return newRunTestCmd(logicTests) }
 
-func newRunTestCmd(logic bool) *cobra.Command {
+func newRunTestCmd(kind testKind) *cobra.Command {
+	logic := kind == logicTests
 	short, class, topic := "Invoke Apex tests in an org.", "Test", "apex"
-	if logic {
+	switch kind {
+	case logicTests:
 		short, class, topic = "Invoke tests for Apex and Flows in an org.", "RunTestLogic", "logic"
+	case flowTests:
+		short, class, topic = "Invoke flow tests in an org.", "FlowRunTest", "flow"
 	}
 	cmd := &cobra.Command{
 		Use:         "test",
@@ -1296,7 +1340,7 @@ func newRunTestCmd(logic bool) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			request, err := apexTestRequest(cmd, logic)
+			request, err := apexTestRequest(cmd, kind)
 			if err != nil {
 				return err
 			}
@@ -1336,7 +1380,11 @@ func newRunTestCmd(logic bool) *cobra.Command {
 					result := newOrderedMap()
 					result.Set("testRunId", testRunID)
 					return emit(cmd, result, func(w io.Writer) {
-						fmt.Fprintf(w, "Run \""+binName+" "+topic+" get test -i %s -o %s\" to retrieve test results\n", testRunID, org.Username)
+						period := ""
+						if kind == flowTests {
+							period = "."
+						}
+						fmt.Fprintf(w, "Run \""+binName+" "+topic+" get test -i %s -o %s\" to retrieve test results%s\n", testRunID, org.Username, period)
 						fmt.Fprintln(w, "Run with --synchronous or increase --wait timeout to wait for results.")
 					})
 				}
@@ -1345,7 +1393,7 @@ func newRunTestCmd(logic bool) *cobra.Command {
 					return notWaiting()
 				}
 				interval := testPollInterval
-				if !logic {
+				if kind == apexTests {
 					if seconds, _ := cmd.Flags().GetInt("poll-interval"); seconds > 0 {
 						interval = time.Duration(seconds) * time.Second
 					}
@@ -1367,6 +1415,20 @@ func newRunTestCmd(logic bool) *cobra.Command {
 		},
 	}
 	addJSONFlag(cmd)
+	if kind == flowTests {
+		cmd.Flags().BoolP("code-coverage", "c", false, "Retrieve code coverage results.")
+		cmd.Flags().StringP("output-dir", "d", "", "Directory in which to store test result files.")
+		cmd.Flags().StringP("test-level", "l", "", "Level of tests to run; default is RunLocalTests.")
+		cmd.Flags().StringArrayP("class-names", "n", nil, "Flow test class names to run; default is all classes.")
+		cmd.Flags().StringP("result-format", "r", "human", "Format of the test results.")
+		cmd.Flags().StringArrayP("suite-names", "s", nil, "Flow test suite names to run.")
+		cmd.Flags().StringArrayP("tests", "t", nil, "Flow test class names or IDs and, if applicable, test methods to run; default is all tests.")
+		cmd.Flags().BoolP("synchronous", "y", false, "Runs test methods from a single Flow synchronously.")
+		cmd.Flags().Bool("concise", false, "Display only failed test results; works with human-readable output only.")
+		addAPIVersionFlag(cmd)
+		addTargetOrgFlag(cmd)
+		return cmd
+	}
 	cmd.Flags().BoolP("code-coverage", "c", false, "Retrieve code coverage results.")
 	cmd.Flags().StringP("output-dir", "d", "", "Directory in which to store test run files.")
 	cmd.Flags().StringP("test-level", "l", "", "Level of tests to run; default is RunLocalTests.")

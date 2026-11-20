@@ -249,10 +249,10 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [x] `logic get test` (compared with sf for Apex tests; Flow tests follow the source)
 - [x] `logic run test` (compared with sf for Apex tests; Flow tests follow the source)
 
-### flow (2 open, 0 done)
+### flow (0 open, 2 done)
 
-- [ ] `flow get test`
-- [ ] `flow run test`
+- [x] `flow get test` (follows the source of the sf flow plugin; not compared with sf)
+- [x] `flow run test` (follows the source of the sf flow plugin; not compared with sf)
 
 ### api (0 open, 1 done)
 

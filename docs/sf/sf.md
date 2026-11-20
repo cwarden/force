@@ -23,6 +23,7 @@ sf [flags]
 * [sf commands](sf_commands.md)	 - List all sf commands.
 * [sf config](sf_config.md)	 - Commands to configure Salesforce CLI.
 * [sf data](sf_data.md)	 - Manage records in your org.
+* [sf flow](sf_flow.md)	 - Commands to run and get the results of Flow tests.
 * [sf force](sf_force.md)	 - Legacy commands.
 * [sf logic](sf_logic.md)	 - Commands to run and get the results of Apex and Flow tests.
 * [sf org](sf_org.md)	 - Commands to create and manage orgs and scratch org users.
