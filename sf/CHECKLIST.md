@@ -281,7 +281,7 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 
 ### package (0 open, 16 done)
 
-- [x] `package convert` (follows the source of the sf packaging library; `--seed-metadata` is not supported)
+- [x] `package convert` (follows the source of the sf packaging library; `--seed-metadata` is not supported; run against a Dev Hub up to the creation of the package, which failed in the same way for sf; the conversion request was not sent)
 - [x] `package delete` (follows the sf plugin source)
 - [x] `package install report` (follows the sf plugin source)
 - [x] `package push-upgrade abort` (follows the sf plugin source)
