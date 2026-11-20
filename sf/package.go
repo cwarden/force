@@ -940,27 +940,7 @@ func newPackageVersionReportCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			result := packageVersionResult(record, true, true, nil)
-			result.Set("CodeCoverage", "N/A")
-			return emit(cmd, result, func(w io.Writer) {
-				rows := [][]string{
-					{"Name", resultCell(result, "Name")},
-					{"Subscriber Package Version Id", resultCell(result, "SubscriberPackageVersionId")},
-					{"Id", resultCell(result, "Id")},
-					{"Package Id", resultCell(result, "Package2Id")},
-					{"Version", resultCell(result, "Version")},
-					{"Description", resultCell(result, "Description")},
-					{"Branch", resultCell(result, "Branch")},
-					{"Tag", resultCell(result, "Tag")},
-					{"Released", resultCell(result, "IsReleased") + " "},
-					{"Validation Skipped", resultCell(result, "ValidationSkipped")},
-					{"Validated Async", resultCell(result, "ValidatedAsync")},
-					{"Ancestor", resultCell(result, "AncestorId")},
-					{"Ancestor Version", resultCell(result, "AncestorVersion")},
-					{"Code Coverage", "N/A"},
-				}
-				printTable(w, paint(w, style{"\x1b[34m", "\x1b[39m"}, "Package Version"), []string{"Name", "Value"}, rows)
-			})
+			return runPackageVersionReport(cmd, org, text(record.values["Id"]))
 		},
 	}
 	addJSONFlag(cmd)

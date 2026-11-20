@@ -276,12 +276,49 @@ func TestPackageVersionListReportAndPromote(t *testing.T) {
 		io.WriteString(w, `{"done":true,"totalSize":1,"records":[`+packageVersionRecord+`]}`)
 	}
 
+	var reportQueries []string
+	org.handlers["/services/data/v67.0/tooling/query"] = func(w http.ResponseWriter, r *http.Request) {
+		soql = r.URL.Query().Get("q")
+		reportQueries = append(reportQueries, soql)
+		io.WriteString(w, `{"done":true,"totalSize":1,"records":[`+packageVersionRecord+`]}`)
+	}
 	out, _, status = run("package", "version", "report", "-p", "04t000000000001AAA")
-	if status != 0 || !strings.HasPrefix(out, "Package Version\n") || !strings.Contains(out, "│ Subscriber Package Version Id │ 04t000000000001AAA │") || !strings.Contains(out, "│ Version                       │ 1.0.0.1 ") {
+	for _, row := range []string{
+		"│ Key                            │ Value              │",
+		"│ Subscriber Package Version Id  │ 04t000000000001AAA │",
+		"│ Version                        │ 1.0.0.1            │",
+		"│ Released                       │ false              │",
+		"│ Code Coverage                  │ 85.00%             │",
+		"│ Org-Dependent Unlocked Package │ No                 │",
+		"│ Release Version                │ 67.0               │",
+		"│ Created By                     │ 005000000000001AAA │",
+	} {
+		if !strings.Contains(out, row) {
+			t.Errorf("version report lacks %q\n%s", row, out)
+		}
+	}
+	if status != 0 || !strings.HasPrefix(out, "Package Version\n") || strings.Contains(out, "│ Id ") || strings.Contains(out, "Dependencies") {
 		t.Errorf("version report: status %d\n%s", status, out)
 	}
-	if !strings.Contains(soql, "WHERE SubscriberPackageVersionId = '04t000000000001AAA'") {
-		t.Errorf("report query = %s", soql)
+	if len(reportQueries) < 2 || !strings.Contains(reportQueries[0], "WHERE SubscriberPackageVersionId = '04t000000000001AAA'") ||
+		!strings.Contains(reportQueries[1], "WHERE Id = '05i000000000001AAA' AND IsDeprecated != true") || strings.Contains(reportQueries[1], "CodeCoveragePercentages") {
+		t.Errorf("report queries = %q", reportQueries)
+	}
+	reportQueries = nil
+	out, _, _ = run("package", "version", "report", "-p", "04t000000000001AAA", "--verbose")
+	for _, row := range []string{"│ Id ", "│ Dependencies ", "│ Converted From Version Id ", "│ End To End Build Duration In Seconds ", "│ Code Coverage Details "} {
+		if !strings.Contains(out, row) {
+			t.Errorf("verbose version report lacks %q\n%s", row, out)
+		}
+	}
+	if len(reportQueries) < 2 || !strings.Contains(reportQueries[1], ",SubscriberPackageVersion.Dependencies,CodeCoveragePercentages,EndToEndBuildDurationInSeconds FROM") {
+		t.Errorf("verbose report queries = %q", reportQueries)
+	}
+	out, _, _ = run("package", "version", "report", "-p", "04t000000000001AAA", "--json")
+	for _, field := range []string{`"Version": "1.0.0.1"`, `"AncestorId": "N/A"`, `"HasMetadataRemoved": "N/A"`, `"IsOrgDependent": "No"`, `"ConvertedFromVersionId": " "`} {
+		if !strings.Contains(out, field) {
+			t.Errorf("version report JSON lacks %s\n%s", field, out)
+		}
 	}
 
 	expectRun(t, 0, "Successfully promoted the package version, ID: 04t000000000001AAA, to released.\n", "package", "version", "promote", "-p", "05i000000000001AAA", "--no-prompt")
