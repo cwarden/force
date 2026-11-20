@@ -248,3 +248,99 @@ func packageVersionAncestor(org *targetOrg, directory, aliases *orderedMap, pack
 	}
 	return resolved, nil
 }
+
+// trimmedList returns the entries of a list given as an array or as a
+// comma-separated string.
+func trimmedList(value interface{}) []interface{} {
+	var entries []interface{}
+	switch list := value.(type) {
+	case string:
+		for _, entry := range strings.Split(list, ",") {
+			entries = append(entries, strings.TrimSpace(entry))
+		}
+	case []interface{}:
+		for _, entry := range list {
+			entries = append(entries, strings.TrimSpace(text(entry)))
+		}
+	}
+	return entries
+}
+
+// packageVersionDescriptor returns the properties of the descriptor of a new
+// package version that come from the package directory and from a
+// definition file, and the files that go with them: the definition file and
+// a zip file of the settings it has.  As in sf, the features, org
+// preferences and snapshot come from the definition file when there is one,
+// and from the package directory otherwise.
+func packageVersionDescriptor(directory *orderedMap, definitionFile string, codeCoverage bool) (map[string]interface{}, map[string][]byte, error) {
+	handled := map[string]bool{
+		// Used by this program only, as in sf.
+		"default": true, "includeProfileUserLicenses": true, "unpackagedMetadata": true, "seedMetadata": true, "branch": true,
+		"fullPath": true, "name": true, "scopeProfiles": true,
+		// Set from flags and resolved values.
+		"path": true, "package": true, "versionName": true, "versionNumber": true, "versionDescription": true, "dependencies": true,
+		"ancestorId": true, "ancestorVersion": true, "definitionFile": true, "language": true, "apexTestAccess": true, "packageMetadataAccess": true,
+	}
+	descriptor := map[string]interface{}{}
+	for _, key := range directory.keys {
+		if !handled[key] {
+			descriptor[key] = directory.values[key]
+		}
+	}
+	if access, ok := directory.values["apexTestAccess"].(*orderedMap); ok && codeCoverage {
+		if sets := trimmedList(access.values["permissionSets"]); sets != nil {
+			descriptor["permissionSetNames"] = sets
+		}
+		if licenses := trimmedList(access.values["permissionSetLicenses"]); licenses != nil {
+			descriptor["permissionSetLicenseDeveloperNames"] = licenses
+		}
+	}
+	if access, ok := directory.values["packageMetadataAccess"].(*orderedMap); ok {
+		if sets := trimmedList(access.values["permissionSets"]); sets != nil {
+			descriptor["packageMetadataPermissionSetNames"] = sets
+		}
+		if licenses := trimmedList(access.values["permissionSetLicenses"]); licenses != nil {
+			descriptor["packageMetadataPermissionSetLicenseNames"] = licenses
+		}
+	}
+	if definitionFile == "" {
+		return descriptor, nil, nil
+	}
+	data, err := os.ReadFile(definitionFile)
+	if err != nil {
+		return nil, nil, newError("Error", "ENOENT: no such file or directory, open '%s'", definitionFile)
+	}
+	parsed, err := parseOrderedJSON(data)
+	definition, ok := parsed.(*orderedMap)
+	if err != nil || !ok {
+		return nil, nil, newError("SyntaxError", "The definition file %s is not a JSON object.", definitionFile)
+	}
+	if definition.values["objectSettings"] != nil {
+		return nil, nil, newError("UnsupportedDefinitionKeyError", "The objectSettings key of the definition file is not supported.")
+	}
+	settings, _ := definition.values["settings"].(*orderedMap)
+	hasSettings := settings != nil && len(settings.keys) > 0
+	if hasSettings && definition.values["orgPreferences"] != nil {
+		return nil, nil, newError("SignupDuplicateSettingsSpecifiedError", "You cannot use 'settings' and 'orgPreferences' in your scratch definition file, please specify one or the other.")
+	}
+	for _, key := range []string{"features", "orgPreferences", "snapshot"} {
+		delete(descriptor, key)
+	}
+	for _, property := range []string{"country", "edition", "language", "features", "orgPreferences", "snapshot", "release", "sourceOrg"} {
+		for _, key := range definition.keys {
+			if strings.EqualFold(key, property) {
+				descriptor[property] = definition.values[key]
+				break
+			}
+		}
+	}
+	files := map[string][]byte{"scratch-org-definition.json": data}
+	if hasSettings {
+		archive, err := zipFiles(scratchSettingsFiles(settings), "")
+		if err != nil {
+			return nil, nil, err
+		}
+		files["settings.zip"] = archive
+	}
+	return descriptor, files, nil
+}

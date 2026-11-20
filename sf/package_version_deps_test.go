@@ -1,8 +1,11 @@
 package sf
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -107,5 +110,41 @@ func TestPackageVersionAncestorMustBeTheHighestReleasedVersion(t *testing.T) {
 	highest = ""
 	if id, err := ancestor(`{}`, false); err != nil || id != "" {
 		t.Errorf("first version: id %q, err %v", id, err)
+	}
+}
+
+func TestPackageVersionDescriptorTakesFeaturesFromTheDefinitionFile(t *testing.T) {
+	directory := directoryFixture(t, `{"path": "force-app", "default": true, "package": "billing", "features": ["OldFeature"], "postInstallScript": "Setup",
+		"apexTestAccess": {"permissionSets": "Admin, Tester"}, "packageMetadataAccess": {"permissionSets": ["Builder"]}}`)
+	descriptor, files, err := packageVersionDescriptor(directory, "", true)
+	if err != nil || files != nil {
+		t.Fatalf("files %v, err %v", files, err)
+	}
+	encoded, _ := json.Marshal(descriptor)
+	if string(encoded) != `{"features":["OldFeature"],"packageMetadataPermissionSetNames":["Builder"],"permissionSetNames":["Admin","Tester"],"postInstallScript":"Setup"}` {
+		t.Errorf("descriptor without a definition file = %s", encoded)
+	}
+
+	definition := filepath.Join(t.TempDir(), "def.json")
+	os.WriteFile(definition, []byte(`{"orgName": "Acme", "Edition": "Enterprise", "features": ["Communities"], "settings": {"lightningExperienceSettings": {"enableS1DesktopEnabled": true}}}`), 0o644)
+	descriptor, files, err = packageVersionDescriptor(directory, definition, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, _ = json.Marshal(descriptor)
+	if string(encoded) != `{"edition":"Enterprise","features":["Communities"],"packageMetadataPermissionSetNames":["Builder"],"postInstallScript":"Setup"}` {
+		t.Errorf("descriptor with a definition file = %s", encoded)
+	}
+	if !strings.Contains(string(files["scratch-org-definition.json"]), `"orgName": "Acme"`) {
+		t.Errorf("definition file = %s", files["scratch-org-definition.json"])
+	}
+	settings, err := unzipFiles(files["settings.zip"])
+	if err != nil || !strings.Contains(string(settings["settings/LightningExperience.settings"]), "<enableS1DesktopEnabled>true</enableS1DesktopEnabled>") || settings["package.xml"] == nil {
+		t.Errorf("settings.zip = %v, err %v", settings, err)
+	}
+
+	os.WriteFile(definition, []byte(`{"orgPreferences": {"enabled": ["S1DesktopEnabled"]}, "settings": {"lightningExperienceSettings": {"enableS1DesktopEnabled": true}}}`), 0o644)
+	if _, _, err = packageVersionDescriptor(directory, definition, false); err == nil || !strings.Contains(err.Error(), "You cannot use 'settings' and 'orgPreferences'") {
+		t.Errorf("settings with orgPreferences: %v", err)
 	}
 }

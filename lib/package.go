@@ -44,6 +44,12 @@ type PackageVersionRequest struct {
 	// TransitiveDependencies asks the org to add the dependencies of the
 	// dependencies.
 	TransitiveDependencies bool
+	// ExtraDescriptor holds more properties of the descriptor of the
+	// version, such as features and orgPreferences.
+	ExtraDescriptor map[string]interface{}
+	// ExtraFiles are more files of the version, by name, such as
+	// scratch-org-definition.json and settings.zip.
+	ExtraFiles map[string][]byte
 	// Branch is the source control branch the version is based on.
 	Branch string
 	// InstallationKey protects the installation of the version.
@@ -163,6 +169,11 @@ func (f *Force) SubmitPackageVersion(req PackageVersionRequest, progress io.Writ
 	}
 
 	descriptor := buildPackageVersionDescriptor(req.VersionName, req.VersionNumber, req.VersionDescription, req.PackageId, ancestorId, req.Dependencies)
+	for key, value := range req.ExtraDescriptor {
+		if _, set := descriptor[key]; !set {
+			descriptor[key] = value
+		}
+	}
 	for key, value := range map[string]string{"releaseNotesUrl": req.ReleaseNotesURL, "postInstallUrl": req.PostInstallURL, "postInstallScript": req.PostInstallScript} {
 		if value != "" {
 			descriptor[key] = value
@@ -434,13 +445,23 @@ func packageVersionCreateBody(packageZip []byte, descriptorJson []byte, req Pack
 	modTime := time.Now()
 	finalZipBuffer := new(bytes.Buffer)
 	finalZipWriter := zip.NewWriter(finalZipBuffer)
-	for _, entry := range []struct {
+	type versionFile struct {
 		name string
 		data []byte
-	}{
+	}
+	entries := []versionFile{
 		{"package.zip", packageZip},
 		{"package2-descriptor.json", descriptorJson},
-	} {
+	}
+	extraNames := make([]string, 0, len(req.ExtraFiles))
+	for name := range req.ExtraFiles {
+		extraNames = append(extraNames, name)
+	}
+	sort.Strings(extraNames)
+	for _, name := range extraNames {
+		entries = append(entries, versionFile{name, req.ExtraFiles[name]})
+	}
+	for _, entry := range entries {
 		w, err := finalZipWriter.CreateHeader(fatZipHeader(entry.name, zip.Deflate, modTime))
 		if err != nil {
 			return nil, "", fmt.Errorf("Failed to create %s entry: %w", entry.name, err)

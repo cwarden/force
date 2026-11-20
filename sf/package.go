@@ -1018,9 +1018,6 @@ func newPackageVersionCreateCmd() *cobra.Command {
 		Args:        cobra.NoArgs,
 		Annotations: map[string]string{commandNameAnnotation: "PackageVersionCreateCommand"},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := unsupportedFlags(cmd, "definition-file"); err != nil {
-				return err
-			}
 			installationKey, _ := cmd.Flags().GetString("installation-key")
 			if bypass, _ := cmd.Flags().GetBool("installation-key-bypass"); (installationKey != "") == bypass {
 				return exactlyOneError("installation-key", "installation-key-bypass")
@@ -1099,7 +1096,7 @@ func newPackageVersionCreateCmd() *cobra.Command {
 			if directory == nil {
 				directory = newOrderedMap()
 			}
-			for _, key := range []string{"definitionFile", "unpackagedMetadata", "seedMetadata"} {
+			for _, key := range []string{"unpackagedMetadata", "seedMetadata"} {
 				if directory.values[key] != nil {
 					return newError("UnsupportedPackageDirectoryKeyError", "The %s key of the package directory in sfdx-project.json is not supported.", key)
 				}
@@ -1125,7 +1122,19 @@ func newPackageVersionCreateCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			definitionFile := flagText(cmd, "definition-file")
+			if definitionFile == "" {
+				if fromDirectory := text(directory.values["definitionFile"]); fromDirectory != "" {
+					definitionFile = filepath.Join(project.Root, fromDirectory)
+				}
+			}
+			extraDescriptor, extraFiles, err := packageVersionDescriptor(directory, definitionFile, codeCoverage)
+			if err != nil {
+				return err
+			}
 			request := lib.PackageVersionRequest{
+				ExtraDescriptor:        extraDescriptor,
+				ExtraFiles:             extraFiles,
 				AncestorId:             ancestor,
 				Dependencies:           dependencies,
 				TransitiveDependencies: directory.values["calculateTransitiveDependencies"] == true,

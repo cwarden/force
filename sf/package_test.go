@@ -346,10 +346,6 @@ func TestPackageVersionCreateRequiresAPackageDirectory(t *testing.T) {
 			t.Errorf("%v: status %d, stderr %q", args, status, errOut)
 		}
 	}
-	_, errOut, status = run("package", "version", "create", "-p", "billing", "-d", "force-app", "-x", "-f", "def.json")
-	if status != 1 || !strings.Contains(errOut, "The --definition-file flag is not supported") {
-		t.Errorf("definition file: status %d, stderr %q", status, errOut)
-	}
 	_, errOut, status = run("package", "version", "create", "-p", "billing", "-d", "force-app", "-x", "--post-install-url", "not a url")
 	if status != 1 || !strings.Contains(errOut, "Error (MalformedUrlError): The postInstallUrl value \"not a url\"") {
 		t.Errorf("post install url: status %d, stderr %q", status, errOut)

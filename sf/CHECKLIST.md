@@ -96,7 +96,8 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 - [x] `package install`: `--publish-wait` (follows the sf plugin source)
 - [x] `package version create`: `--installation-key`, `--branch`, `--post-install-script`, `--post-install-url`, `--releasenotes-url`, `--uninstall-script`, `--language`, `--generate-pkg-zip` (follow the source of the sf packaging library)
 - [x] `package version create`: `--skip-ancestor-check`, `--verbose`, and the `dependencies`, `ancestorId`, `ancestorVersion` and `calculateTransitiveDependencies` keys of the package directory (follow the source of the sf packaging library)
-- [ ] `package version create`: `--definition-file`, the `definitionFile`, `unpackagedMetadata`, `seedMetadata`, `scopeProfiles` and `includeProfileUserLicenses` keys of the package directory, and profiles in the package
+- [x] `package version create`: `--definition-file`, and the `definitionFile`, `features`, `orgPreferences`, `snapshot`, `apexTestAccess`, `packageMetadataAccess`, `postInstallScript`, `uninstallScript`, `postInstallUrl` and `releaseNotesUrl` keys of the package directory (follow the source of the sf packaging library)
+- [ ] `package version create`: `objectSettings` in a definition file, the `unpackagedMetadata`, `seedMetadata`, `scopeProfiles` and `includeProfileUserLicenses` keys of the package directory, and profiles in the package
 - [x] `package update`: `--skip-ancestor-check`, and the ancestor check of a new recommended version
 - [x] `package version create list`: `--show-conversions-only`, `--verbose`
 - [x] `package version list`: `--show-conversions-only`
