@@ -12,9 +12,9 @@ import (
 )
 
 // The package1 version create commands follow the sf plugin source.  The
-// messages for a queued request, a request in progress and a failed upload
-// were compared with sf against a packaging org.  Waiting for an upload and
-// a successful upload were not.
+// messages for a queued request, a request in progress, a failed upload and
+// a finished upload were compared with sf against a packaging org.  Waiting
+// for an upload with --wait was not.
 
 // package1UploadInterval is the time between checks of a package upload
 // request.

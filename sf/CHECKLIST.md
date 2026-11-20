@@ -300,8 +300,8 @@ Flags of implemented commands that return an error. A flag marked "not defined" 
 
 ### package1 (0 open, 4 done)
 
-- [x] `package1 version create` (queued, in-progress and failed uploads compared with sf against a packaging org; a successful upload and `--wait` follow the source)
-- [x] `package1 version create get` (queued, in-progress and failed uploads compared with sf against a packaging org; a successful upload and `--wait` follow the source)
+- [x] `package1 version create` (queued, in-progress, failed and finished uploads compared with sf against a packaging org; `--wait` follows the source)
+- [x] `package1 version create get` (queued, in-progress, failed and finished uploads compared with sf against a packaging org; `--wait` follows the source)
 - [x] `package1 version display` (compared with sf against a packaging org with a first-generation package, and against a scratch org without packages)
 - [x] `package1 version list` (compared with sf against a packaging org with a first-generation package, a Dev Hub, and a scratch org without packages)
 
